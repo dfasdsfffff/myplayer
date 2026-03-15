@@ -1,0 +1,14 @@
+prefix=/d/libraries/MSVC2022/ffmpeg-7.1.1
+exec_prefix=${prefix}
+libdir=/d/libraries/MSVC2022/ffmpeg-7.1.1/lib
+includedir=/d/libraries/MSVC2022/ffmpeg-7.1.1/include
+
+Name: libavcodec
+Description: FFmpeg codec library
+Version: 61.19.101
+Requires: 
+Requires.private: libswresample >= 5.3.100, libavutil >= 59.39.100
+Conflicts:
+Libs: -L${libdir}  -lavcodec 
+Libs.private: -libpath:D:/libraries/MSVC2022/fdk-aac/lib fdk-aac.lib -libpath:/d/libraries/MSVC2022/x264/lib libx264.lib -libpath:D:/libraries/MSVC2022/x265/lib x265.lib mfuuid.lib ole32.lib strmiids.lib ole32.lib user32.lib
+Cflags: -I${includedir}
