@@ -19,7 +19,8 @@
 #pragma execution_character_set("utf-8")
 
 extern QMutex g_show_rect_mutex;
-
+// 是否允许丢帧（如果视频太慢了，跟不上音频或者外部时钟）
+// -1为自动丢帧，0为不丢帧，1为强制丢帧
 static int framedrop = -1;
 static int infinite_buffer = -1;
 static int64_t audio_callback_time;
@@ -263,7 +264,7 @@ void VideoCtl::stream_component_close(VideoState *is, int stream_index)
 //关闭流
 void VideoCtl::stream_close(VideoState *is)
 {
-    /* XXX: use a special url_shutdown call to abort parse cleanly */
+    /* XXX: 使用特殊的url_shutdown调用来彻底中止解析 */
     is->abort_request = 1;
     is->read_tid.join();
 
@@ -635,7 +636,8 @@ int VideoCtl::queue_picture(VideoState *is, AVFrame *src_frame, double pts, doub
     return 0;
 }
 
-//从视频队列中获取数据，并解码数据，得到可显示的视频帧
+// 从视频队列中获取数据，并解码数据，得到可显示的视频帧
+// 返回值：-1表示出错，0表示没有得到视频帧，1表示得到视频帧
 int VideoCtl::get_video_frame(VideoState *is, AVFrame *frame)
 {
     int got_picture;
@@ -648,11 +650,22 @@ int VideoCtl::get_video_frame(VideoState *is, AVFrame *frame)
 
         if (frame->pts != AV_NOPTS_VALUE)
             dpts = av_q2d(is->video_st->time_base) * frame->pts;
-
+        /*
+        基于流与视频帧的宽高比，猜测视频帧的屏幕宽高比。
+        流与视频帧的宽高比存在不同的情况，这个函数返回一个值，让你用于显示视频帧。
+        默认原则：先用stream中的宽高比，再选择frame的。
+        若没结果，则返回值为0/1   
+        */
         frame->sample_aspect_ratio = av_guess_sample_aspect_ratio(is->ic, is->video_st, frame);
 
-        if (framedrop > 0 || (framedrop && get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) {
+        if (framedrop > 0 //允许丢帧
+			|| (framedrop && get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)// 自动丢帧，并且视频不是主时钟
+            ) {
             if (frame->pts != AV_NOPTS_VALUE) {
+				// 如果视频帧的pts与主时钟的差值小于AV_NOSYNC_THRESHOLD（有同步的意义），
+                // 并且比上次丢帧的时间更早，
+                // 并且视频解码器的pkt_serial与视频时钟的serial相同，
+                // 并且视频队列中有数据包，那么丢弃该帧
                 double diff = dpts - get_master_clock(is);
                 if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD &&
                     diff - is->frame_last_filter_delay < 0 &&
@@ -718,6 +731,7 @@ int VideoCtl::video_thread(void *arg)
     double duration;
     int ret;
     AVRational tb = is->video_st->time_base;
+	// 帧率，单位为帧/秒，表示每秒钟显示多少帧
     AVRational frame_rate = av_guess_frame_rate(is->ic, is->video_st, NULL);
 
     if (!frame) 
@@ -732,8 +746,9 @@ int VideoCtl::video_thread(void *arg)
             goto the_end;
         if (!ret)
             continue;
-
+		// 计算每帧的显示时间，单位为秒
         duration = (frame_rate.num && frame_rate.den ? av_q2d({ frame_rate.den, frame_rate.num }) : 0);
+		// 计算视频帧的显示时间戳，单位为秒
         pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
         ret = queue_picture(is, frame, pts, duration, frame->pkt_pos, is->viddec.pkt_serial);
         av_frame_unref(frame);
@@ -801,13 +816,12 @@ void VideoCtl::update_sample_display(VideoState *is, short *samples, int samples
     }
 }
 
-/* return the wanted number of samples to get better sync if sync_type is video
-* or external master clock */
+/* return the wanted number of samples to get better sync if sync_type is video or external master clock */
 int VideoCtl::synchronize_audio(VideoState *is, int nb_samples)
 {
     int wanted_nb_samples = nb_samples;
 
-    /* if not master, then we try to remove or add samples to correct the clock */
+    /* 如果不是master，那么我们会尝试删除或添加样本来纠正时钟 */
     if (get_master_sync_type(is) != AV_SYNC_AUDIO_MASTER) {
         double diff, avg_diff;
         int min_nb_samples, max_nb_samples;
@@ -817,11 +831,11 @@ int VideoCtl::synchronize_audio(VideoState *is, int nb_samples)
         if (!std::isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD) {
             is->audio_diff_cum = diff + is->audio_diff_avg_coef * is->audio_diff_cum;
             if (is->audio_diff_avg_count < AUDIO_DIFF_AVG_NB) {
-                /* not enough measures to have a correct estimate */
+                /* 没有足够的措施来做出正确的估计 */
                 is->audio_diff_avg_count++;
             }
             else {
-                /* estimate the A-V difference */
+                /* 估算A-V差异 */
                 avg_diff = is->audio_diff_cum * (1.0 - is->audio_diff_avg_coef);
 
                 if (fabs(avg_diff) >= is->audio_diff_threshold) {
@@ -836,8 +850,7 @@ int VideoCtl::synchronize_audio(VideoState *is, int nb_samples)
             }
         }
         else {
-            /* too big difference : may be initial PTS errors, so
-            reset A-V filter */
+            /* 差异太大：可能是初始的 PTS 错误，因此需要重置音频-视频滤波器 */
             is->audio_diff_avg_count = 0;
             is->audio_diff_cum = 0;
         }
@@ -875,7 +888,7 @@ int VideoCtl::audio_decode_frame(VideoState *is)
             return -1;
         frame_queue_next(&is->sampq);
     } while (af->serial != is->audioq.serial);
-
+    // 根据frame中指定的音频参数获取缓冲区的大小 af->frame->channels * af->frame->nb_samples * 2
     data_size = av_samples_get_buffer_size(NULL, af->frame->ch_layout.nb_channels,
         af->frame->nb_samples,
         (AVSampleFormat)af->frame->format, 1);

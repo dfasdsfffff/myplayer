@@ -87,12 +87,25 @@ private:
 	 * @note 	
 	 */
     bool ConnectSignalSlots();
-
+    /**
+     * @brief	从视频队列中获取数据，并解码数据，得到可显示的视频帧
+     *
+     * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
+     * @note 返回值0表示，数据帧被丢弃了
+     */
     int get_video_frame(VideoState *is, AVFrame *frame);
-    int audio_thread(void *arg);
-    int video_thread(void *arg);
-    int subtitle_thread(void *arg);
 
+    int audio_thread(void *arg);
+
+    int video_thread(void *arg);
+
+    int subtitle_thread(void *arg);
+    /**
+     * @brief	同步音频
+	 * @param  is 视频状态, nb_samples 音频采样数
+     * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
+     * @note 返回具体的音频采样数
+     */
     int synchronize_audio(VideoState *is, int nb_samples);
 
     int audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, int wanted_sample_rate, struct AudioParams* audio_hw_params);

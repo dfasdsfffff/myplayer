@@ -52,7 +52,7 @@
 #define AV_SYNC_THRESHOLD_MAX 0.1
 /* If a frame duration is longer than this, it will not be duplicated to compensate AV sync */
 #define AV_SYNC_FRAMEDUP_THRESHOLD 0.1
-/* no AV correction is done if too big error */
+/* 如果错误太大，则不进行AV校正(也就是说音频和视频的显示时间差别过大，没有进行同步的必要了） */
 #define AV_NOSYNC_THRESHOLD 10.0
 
 /* maximum audio speed change to get correct sync */
@@ -269,9 +269,6 @@ typedef struct VideoState {
     SDL_cond *continue_read_thread;
 } VideoState;
 
-
-
-
 //数据包队列存放数据包（供队列内部使用）
 static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt)
 {
@@ -446,7 +443,7 @@ static int decoder_init(Decoder* d, AVCodecContext* avctx, PacketQueue* queue, S
     return 0;
 }
 
-
+// 解码器重排序pts，-1表示自动，0表示不重排序，1表示重排序
 static int decoder_reorder_pts = -1;
 
 //解码一帧数据
