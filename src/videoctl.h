@@ -113,7 +113,7 @@ private:
     int stream_has_enough_packets(AVStream *st, int stream_id, PacketQueue *queue);
     int is_realtime(AVFormatContext *s);
     void ReadThread(VideoState *CurStream);
-    void LoopThread(VideoState *CurStream);
+    void LoopThread();
     VideoState *stream_open(const char *filename);
 
     void stream_cycle_channel(VideoState *is, int codec_type);

@@ -24,6 +24,7 @@
     <ClCompile Include="src\show.cpp" />
     <ClCompile Include="src\title.cpp" />
     <ClCompile Include="src\videoctl.cpp" />
+    <ClCompile Include="xlogger.cpp" />
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="src\about.h" />
@@ -49,6 +50,7 @@
     <ClInclude Include="src\datactl.h" />
     <ClInclude Include="src\globalhelper.h" />
     <ClInclude Include="src\resource.h" />
+    <ClInclude Include="xlogger.h" />
     <QtMoc Include="src\videoctl.h" />
     <QtMoc Include="src\title.h" />
     <QtMoc Include="src\show.h" />

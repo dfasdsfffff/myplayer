@@ -196,5 +196,5 @@ void CtrlBar::on_StopBtn_clicked()
 
 void CtrlBar::on_SettingBtn_clicked()
 {
-    //emit SigShowSetting();
+    emit SigShowSetting();
 }

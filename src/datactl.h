@@ -200,10 +200,10 @@ typedef struct VideoState {
     FrameQueue subpq;
     FrameQueue sampq;
 
-    Decoder auddec;
-    Decoder viddec;
-    Decoder subdec;
-
+    Decoder aud_decoder;
+    Decoder vid_decoder;
+    Decoder sub_decoder;
+     
     int audio_stream;
 
     int av_sync_type;

@@ -62,6 +62,9 @@
     <ClCompile Include="src\videoctl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="xlogger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="src\about.h">
@@ -132,6 +135,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="xlogger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
