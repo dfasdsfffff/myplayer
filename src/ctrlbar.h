@@ -65,6 +65,8 @@ signals:
     void SigBackwardPlay();
     void SigShowMenu();
     void SigShowSetting();
+    void SigShowSpeed(double speed);
+
 private:
     Ui::CtrlBar *ui;
 

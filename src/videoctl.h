@@ -45,6 +45,8 @@ public:
     void update_sample_display(VideoState *is, short *samples, int samples_size);
     void set_clock_at(Clock *c, double pts, int serial, double time);
     void sync_clock_to_slave(Clock *c, Clock *slave);
+	void SetPlaySpeed(double dSpeed);
+
 signals:
     void SigPlayMsg(QString strMsg);//< 错误信息
     void SigFrameDimensionsChanged(int nFrameWidth, int nFrameHeight); //<视频宽高发生变化
@@ -151,7 +153,10 @@ private:
     double vp_duration(VideoState *is, Frame *vp, Frame *nextvp);
     void update_video_pts(VideoState *is, double pts, int64_t pos, int serial);
 public:
-
+    void update_video_state_speed(VideoState* is);
+    void increase_playback_speed(VideoState* is);
+    void decrease_playback_speed(VideoState* is);
+    void reset_playback_speed(VideoState* is);
 
 private:
 
@@ -179,6 +184,9 @@ private:
 
     int m_nFrameW;
     int m_nFrameH;
+
+    //
+	std::atomic<float> playback_speed;
 };
 
 #endif // VIDEOCTL_H

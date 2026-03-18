@@ -205,6 +205,7 @@ bool MainWid::ConnectSignalSlots()
     connect(ui->CtrlBarWid, &CtrlBar::SigForwardPlay, &m_stPlaylist, &Playlist::OnForwardPlay);
     connect(ui->CtrlBarWid, &CtrlBar::SigShowMenu, this, &MainWid::OnShowMenu);
     connect(ui->CtrlBarWid, &CtrlBar::SigShowSetting, this, &MainWid::OnShowSettingWid);
+	connect(ui->CtrlBarWid, &CtrlBar::SigShowSpeed, this, &MainWid::OnSpeedChanged);
 
     connect(this, &MainWid::SigShowMax, &m_stTitle, &Title::OnChangeMaxBtnStyle);
     connect(this, &MainWid::SigSeekForward, VideoCtl::GetInstance(), &VideoCtl::OnSeekForward);
@@ -559,4 +560,10 @@ void MainWid::OnShowOrHidePlaylist()
      {
          ui->PlaylistWid->hide();
      }
+}
+
+void MainWid::OnSpeedChanged(double speed)
+{
+    if (speed < 0)return;
+	VideoCtl::GetInstance()->SetPlaySpeed(speed);
 }

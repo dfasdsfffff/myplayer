@@ -87,3 +87,7 @@ QToolTip{
     background-color: #2e2f37;
     color:white;
 }
+
+QComboBox#SpeedCombo QAbstractItemView {
+    background-color: #000000;
+}

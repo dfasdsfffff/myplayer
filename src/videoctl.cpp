@@ -315,6 +315,7 @@ double VideoCtl::get_clock(Clock* c)
 	}
 	else {
 		double time = av_gettime_relative() / 1000000.0;
+		// 根据播放速度调整时钟
 		return c->pts_drift + time - (time - c->last_updated) * (1.0 - c->speed);
 	}
 }
@@ -353,6 +354,11 @@ void VideoCtl::sync_clock_to_slave(Clock* c, Clock* slave)
 	double slave_clock = get_clock(slave);
 	if (!std::isnan(slave_clock) && (std::isnan(clock) || fabs(clock - slave_clock) > AV_NOSYNC_THRESHOLD))
 		set_clock(c, slave_clock, slave->serial);
+}
+
+void VideoCtl::SetPlaySpeed(double dSpeed)
+{
+	this->playback_speed = dSpeed;
 }
 
 int VideoCtl::get_master_sync_type(VideoState* is) {
@@ -501,6 +507,57 @@ void VideoCtl::update_video_pts(VideoState* is, double pts, int64_t pos, int ser
 	sync_clock_to_slave(&is->extclk, &is->vidclk);
 }
 
+void VideoCtl::update_video_state_speed(VideoState* is)
+{
+	// 更新所有时钟的速度
+	is->audclk.speed = playback_speed;
+	is->vidclk.speed = playback_speed;
+	is->extclk.speed = playback_speed;
+}
+
+void VideoCtl::increase_playback_speed(VideoState* is)
+{
+	if (playback_speed < 2.0) {
+		playback_speed = playback_speed + 0.25;
+	}
+	else if (playback_speed < 4.0) {
+		playback_speed = playback_speed + 0.5;
+	}
+	else {
+		playback_speed = 4.0;
+	}
+
+	update_video_state_speed(is);
+	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
+	fflush(stdout);
+}
+
+void VideoCtl::decrease_playback_speed(VideoState* is)
+{
+	if (playback_speed > 2.0) {
+		playback_speed = playback_speed - 0.5;
+	}
+	else if (playback_speed > 0.5) {
+		playback_speed = playback_speed - 0.25;
+	}
+	else {
+		playback_speed = 0.25;
+	}
+
+	update_video_state_speed(is);
+	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
+	fflush(stdout);
+}
+
+void VideoCtl::reset_playback_speed(VideoState* is)
+{
+	playback_speed = 1.0;
+
+	update_video_state_speed(is);
+	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
+	fflush(stdout);
+}
+
 /* called to display each frame */
 void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 {
@@ -541,7 +598,10 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			/* compute nominal last_duration */
 			last_duration = vp_duration(is, lastvp, vp);
 			delay = compute_target_delay(last_duration, is);
-
+			// 根据播放速度调整延迟
+			if (playback_speed > 0) {
+				delay /= playback_speed;
+			}
 			time = av_gettime_relative() / 1000000.0;
 			if (time < is->frame_timer + delay) {
 				*remaining_time = FFMIN(is->frame_timer + delay - time, *remaining_time);
@@ -862,7 +922,7 @@ int VideoCtl::synchronize_audio(VideoState* is, int nb_samples)
 		}
 	}
 
-	return wanted_nb_samples;
+	return  wanted_nb_samples / playback_speed;
 }
 
 /**
@@ -1021,7 +1081,10 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 	is->audio_write_buf_size = is->audio_buf_size - is->audio_buf_index;
 	/* Let's assume the audio driver that is used by SDL has two periods. */
 	if (!std::isnan(is->audio_clock)) {
-		pVideoCtl->set_clock_at(&is->audclk, is->audio_clock - (double)(2 * is->audio_hw_buf_size + is->audio_write_buf_size) / is->audio_tgt.bytes_per_sec, is->audio_clock_serial, audio_callback_time / 1000000.0);
+		pVideoCtl->set_clock_at(&is->audclk, 
+			is->audio_clock - (double)(2 * is->audio_hw_buf_size + is->audio_write_buf_size) / is->audio_tgt.bytes_per_sec, 
+			is->audio_clock_serial, 
+			audio_callback_time / 1000000.0);
 		pVideoCtl->sync_clock_to_slave(&is->extclk, &is->audclk);
 	}
 }

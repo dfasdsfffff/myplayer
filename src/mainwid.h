@@ -74,7 +74,7 @@ private:
     //显示、隐藏播放列表
     void OnShowOrHidePlaylist();
 
-
+    void OnSpeedChanged(double speed);
 
     /**
     * @brief	全屏播放

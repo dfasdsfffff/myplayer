@@ -24,7 +24,12 @@ CtrlBar::CtrlBar(QWidget *parent) :
     ui->setupUi(this);
 
     m_dLastVolumePercent = 1.0;
-
+	ui->SpeedCombo->setToolTip("播放速度");
+    ui->SpeedCombo->addItem("0.5x");
+    ui->SpeedCombo->addItem("0.8x");
+    ui->SpeedCombo->addItem("1.0x");
+    ui->SpeedCombo->addItem("1.5x");
+    ui->SpeedCombo->addItem("2.0x");
 }
 
 CtrlBar::~CtrlBar()
@@ -77,6 +82,10 @@ bool CtrlBar::ConnectSignalSlots()
     connect(ui->VolumeSlider, &CustomSlider::SigCustomSliderValueChanged, this, &CtrlBar::OnVolumeSliderValueChanged);
     connect(ui->BackwardBtn, &QPushButton::clicked, this, &CtrlBar::SigBackwardPlay);
     connect(ui->ForwardBtn, &QPushButton::clicked, this, &CtrlBar::SigForwardPlay);
+    connect(ui->SpeedCombo, &QComboBox::currentTextChanged, this, [this](const QString&text) {
+		double speed = text.left(text.length() - 1).toDouble();
+		emit SigShowSpeed(speed);
+        });
 
     return true;
 }
