@@ -424,11 +424,6 @@ static int packet_queue_get(PacketQueue* q, AVPacket* pkt, int block, int* seria
     return ret;
 }
 
-
-
-
-
-
 //解码器初始化（绑定解码结构体、数据包队列、信号量，初始化pts）
 static int decoder_init(Decoder* d, AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond) {
     memset(d, 0, sizeof(Decoder));

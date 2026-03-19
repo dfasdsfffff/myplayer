@@ -17,19 +17,19 @@
 
 #include "globalhelper.h"
 #include "datactl.h"
-
+#include "enums.h"
 
 
 //单例模式
 class VideoCtl : public QObject
 {
-    Q_OBJECT
+	Q_OBJECT
 
 public:
-    //explicit VideoCtl(QObject *parent = nullptr);
+	//explicit VideoCtl(QObject *parent = nullptr);
 
-    static VideoCtl* GetInstance();
-    ~VideoCtl();
+	static VideoCtl* GetInstance();
+	~VideoCtl();
 	/**
 	* @brief	开始播放
 	*
@@ -41,152 +41,158 @@ public:
 	bool StartPlay(QString strFileName, WId widPlayWid);
 
 
-    int audio_decode_frame(VideoState *is);
-    void update_sample_display(VideoState *is, short *samples, int samples_size);
-    void set_clock_at(Clock *c, double pts, int serial, double time);
-    void sync_clock_to_slave(Clock *c, Clock *slave);
-	void SetPlaySpeed(double dSpeed);
+	int audio_decode_frame(VideoState* is);
+	void update_sample_display(VideoState* is, short* samples, int samples_size);
+	void set_clock_at(Clock* c, double pts, int serial, double time);
+	void sync_clock_to_slave(Clock* c, Clock* slave);
+	void set_play_speed(double dSpeed);
+	void set_play_loop_policy(VideoLoopPolicy loopPolicy);
 
 signals:
-    void SigPlayMsg(QString strMsg);//< 错误信息
-    void SigFrameDimensionsChanged(int nFrameWidth, int nFrameHeight); //<视频宽高发生变化
+	void SigPlayMsg(QString strMsg);//< 错误信息
+	void SigFrameDimensionsChanged(int nFrameWidth, int nFrameHeight); //<视频宽高发生变化
 
-    void SigVideoTotalSeconds(int nSeconds);
-    void SigVideoPlaySeconds(int nSeconds);
+	void SigVideoTotalSeconds(int nSeconds);
+	void SigVideoPlaySeconds(int nSeconds);
 
-    void SigVideoVolume(double dPercent);
-    void SigPauseStat(bool bPaused);
+	void SigVideoVolume(double dPercent);
+	void SigPauseStat(bool bPaused);
 
-    void SigStop();
+	void SigStop();
 
-    void SigStopFinished();//停止播放完成
+	void SigStopFinished();//停止播放完成
 
-    void SigStartPlay(QString strFileName);
+	void SigStartPlay(QString strFileName);
+
+	void SigPlayNextOne(); //播放完成
+
 public:
-    void OnPlaySeek(double dPercent);
-    void OnPlayVolume(double dPercent);
-    void OnSeekForward();
-    void OnSeekBack();
-    void OnAddVolume();
-    void OnSubVolume();
-    void OnPause();
-    void OnStop();
+	void OnPlaySeek(double dPercent);
+	void OnPlayVolume(double dPercent);
+	void OnSeekForward();
+	void OnSeekBack();
+	void OnAddVolume();
+	void OnSubVolume();
+	void OnPause();
+	void OnStop();
 
 private:
-    explicit VideoCtl(QObject *parent = nullptr);
+	explicit VideoCtl(QObject* parent = nullptr);
 	/**
 	 * @brief	初始化
-	 * 
+	 *
 	 * @return	true 成功 false 失败
-	 * @note 	
+	 * @note
 	 */
-    bool Init();
+	bool Init();
 
 	/**
 	 * @brief	连接信号槽
-	 * 
+	 *
 	 * @return	true 成功 false 失败
-	 * @note 	
+	 * @note
 	 */
-    bool ConnectSignalSlots();
-    /**
-     * @brief	从视频队列中获取数据，并解码数据，得到可显示的视频帧
-     *
-     * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
-     * @note 返回值0表示，数据帧被丢弃了
-     */
-    int get_video_frame(VideoState *is, AVFrame *frame);
+	bool ConnectSignalSlots();
+	/**
+	 * @brief	从视频队列中获取数据，并解码数据，得到可显示的视频帧
+	 *
+	 * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
+	 * @note 返回值0表示，数据帧被丢弃了
+	 */
+	int get_video_frame(VideoState* is, AVFrame* frame);
 
-    int audio_thread(void *arg);
+	int audio_thread(void* arg);
 
-    int video_thread(void *arg);
+	int video_thread(void* arg);
 
-    int subtitle_thread(void *arg);
-    /**
-     * @brief	同步音频
+	int subtitle_thread(void* arg);
+	/**
+	 * @brief	同步音频
 	 * @param  is 视频状态, nb_samples 音频采样数
-     * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
-     * @note 返回具体的音频采样数
-     */
-    int synchronize_audio(VideoState *is, int nb_samples);
+	 * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
+	 * @note 返回具体的音频采样数
+	 */
+	int synchronize_audio(VideoState* is, int nb_samples);
 
-    int audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, int wanted_sample_rate, struct AudioParams* audio_hw_params);
-    int stream_component_open(VideoState *is, int stream_index);
-    int stream_has_enough_packets(AVStream *st, int stream_id, PacketQueue *queue);
-    int is_realtime(AVFormatContext *s);
-    void ReadThread(VideoState *CurStream);
-    void LoopThread();
-    VideoState *stream_open(const char *filename);
+	int audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, int wanted_sample_rate, struct AudioParams* audio_hw_params);
+	int stream_component_open(VideoState* is, int stream_index);
+	int stream_has_enough_packets(AVStream* st, int stream_id, PacketQueue* queue);
+	int is_realtime(AVFormatContext* s);
+	void ReadThread(VideoState* CurStream);
+	void LoopThread();
+	VideoState* stream_open(const char* filename);
 
-    void stream_cycle_channel(VideoState *is, int codec_type);
-    void refresh_loop_wait_event(VideoState *is, SDL_Event *event);
-    void seek_chapter(VideoState *is, int incr);
-    void video_refresh(void *opaque, double *remaining_time);
-    int queue_picture(VideoState *is, AVFrame *src_frame, double pts, double duration, int64_t pos, int serial);
-    //更新音量
-    void UpdateVolume(int sign, double step);
+	void stream_cycle_channel(VideoState* is, int codec_type);
+	void refresh_loop_wait_event(VideoState* is, SDL_Event* event);
+	void seek_chapter(VideoState* is, int incr);
+	void video_refresh(void* opaque, double* remaining_time);
+	int queue_picture(VideoState* is, AVFrame* src_frame, double pts, double duration, int64_t pos, int serial);
+	//更新音量
+	void UpdateVolume(int sign, double step);
 
-    void video_display(VideoState *is);
-    int video_open(VideoState *is);
-    void do_exit(VideoState* &is);
+	void video_display(VideoState* is);
+	int video_open(VideoState* is);
+	void do_exit(VideoState*& is);
 
-    int realloc_texture(SDL_Texture **texture, Uint32 new_format, int new_width, int new_height, SDL_BlendMode blendmode, int init_texture);
-    void calculate_display_rect(SDL_Rect *rect, int scr_xleft, int scr_ytop, int scr_width, int scr_height, int pic_width, int pic_height, AVRational pic_sar);
-    int upload_texture(SDL_Texture *tex, AVFrame *frame, struct SwsContext **img_convert_ctx);
-    void video_image_display(VideoState *is);
-    void stream_component_close(VideoState *is, int stream_index);
-    void stream_close(VideoState *is);
-    double get_clock(Clock *c);
+	int realloc_texture(SDL_Texture** texture, Uint32 new_format, int new_width, int new_height, SDL_BlendMode blendmode, int init_texture);
+	void calculate_display_rect(SDL_Rect* rect, int scr_xleft, int scr_ytop, int scr_width, int scr_height, int pic_width, int pic_height, AVRational pic_sar);
+	int upload_texture(SDL_Texture* tex, AVFrame* frame, struct SwsContext** img_convert_ctx);
+	void video_image_display(VideoState* is);
+	void stream_component_close(VideoState* is, int stream_index);
+	void stream_close(VideoState* is);
+	double get_clock(Clock* c);
 
-    void set_clock(Clock *c, double pts, int serial);
-    void set_clock_speed(Clock *c, double speed);
-    void init_clock(Clock *c, int *queue_serial);
-    
-    int get_master_sync_type(VideoState *is);
-    double get_master_clock(VideoState *is);
-    void check_external_clock_speed(VideoState *is);
-    void stream_seek(VideoState *is, int64_t pos, int64_t rel);
-    void stream_toggle_pause(VideoState *is);
-    void toggle_pause(VideoState *is);
-    void step_to_next_frame(VideoState *is);
-    double compute_target_delay(double delay, VideoState *is);
-    double vp_duration(VideoState *is, Frame *vp, Frame *nextvp);
-    void update_video_pts(VideoState *is, double pts, int64_t pos, int serial);
+	void set_clock(Clock* c, double pts, int serial);
+	void set_clock_speed(Clock* c, double speed);
+	void init_clock(Clock* c, int* queue_serial);
+
+	int get_master_sync_type(VideoState* is);
+	double get_master_clock(VideoState* is);
+	void check_external_clock_speed(VideoState* is);
+	void stream_seek(VideoState* is, int64_t pos, int64_t rel);
+	void stream_toggle_pause(VideoState* is);
+	void toggle_pause(VideoState* is);
+	void step_to_next_frame(VideoState* is);
+	double compute_target_delay(double delay, VideoState* is);
+	double vp_duration(VideoState* is, Frame* vp, Frame* nextvp);
+	void update_video_pts(VideoState* is, double pts, int64_t pos, int serial);
 public:
-    void update_video_state_speed(VideoState* is);
-    void increase_playback_speed(VideoState* is);
-    void decrease_playback_speed(VideoState* is);
-    void reset_playback_speed(VideoState* is);
+	void update_video_state_speed(VideoState* is);
+	//void increase_playback_speed(VideoState* is);
+	//void decrease_playback_speed(VideoState* is);
+	//void reset_playback_speed(VideoState* is);
 
 private:
 
-    static VideoCtl* m_pInstance; //< 单例指针
+	static VideoCtl* m_pInstance; //< 单例指针
 
-    bool m_bInited;	//< 初始化标志
-    bool m_bPlayLoop; //刷新循环标志
+	bool m_bInited;	//< 初始化标志
+	bool m_bPlayLoop; //刷新循环标志
 
-    VideoState* m_CurStream;
+	VideoState* m_CurStream;
 
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    SDL_RendererInfo renderer_info = { 0 };
-    SDL_AudioDeviceID audio_dev;
-    WId play_wid;//播放窗口
+	SDL_Window* window;
+	SDL_Renderer* renderer;
+	SDL_RendererInfo renderer_info = { 0 };
+	SDL_AudioDeviceID audio_dev;
+	WId play_wid;//播放窗口
 
+	//
+	VideoLoopPolicy m_loop_policy = LOOP_ALL; //循环策略
 
-    /* options specified by the user */
-    int screen_width;
-    int screen_height;
-    int startup_volume;
+	/* options specified by the user */
+	int screen_width;
+	int screen_height;
+	int startup_volume;
 
-    //播放刷新循环线程
-    std::thread m_tPlayLoopThread;
+	//播放刷新循环线程
+	std::thread m_tPlayLoopThread;
 
-    int m_nFrameW;
-    int m_nFrameH;
+	int m_nFrameW;
+	int m_nFrameH;
 
-    //
-	std::atomic<float> playback_speed;
+	//
+	float playback_speed = 1;
 };
 
 #endif // VIDEOCTL_H

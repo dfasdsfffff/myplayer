@@ -43,6 +43,17 @@ void GlobalHelper::SetIcon(QPushButton* btn, int iconSize, QChar icon)
     btn->setText(icon);
 }
 
+void GlobalHelper::SetIcon(QPushButton* btn, int iconSize,const QIcon& icon, QString strToolTip)
+{
+    QFont font;
+    font.setFamily("FontAwesome");
+    btn->setIconSize({ iconSize, iconSize });
+
+    btn->setFont(font);
+    btn->setIcon(icon);
+    btn->setToolTip(strToolTip);
+}
+
 void GlobalHelper::SavePlaylist(QStringList& playList)
 {
     //QString strPlayerConfigFileName = QCoreApplication::applicationDirPath() + QDir::separator() + PLAYER_CONFIG;

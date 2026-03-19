@@ -11,6 +11,7 @@
 #ifndef CTRLBAR_H
 #define CTRLBAR_H
 
+#include "enums.h"
 #include <QWidget>
 
 namespace Ui {
@@ -31,6 +32,7 @@ public:
 	 * @note 	
 	 */
     bool Init();
+    void ResetSpeed();
 
 public:
     void OnVideoTotalSeconds(int nSeconds);
@@ -46,6 +48,7 @@ private slots:
     void on_VolumeBtn_clicked();
     void on_StopBtn_clicked();
     void on_SettingBtn_clicked();
+	void OnCycleSettingBtnClicked();
 
     /**
     * @brief	连接信号槽
@@ -65,11 +68,12 @@ signals:
     void SigBackwardPlay();
     void SigShowMenu();
     void SigShowSetting();
-    void SigShowSpeed(double speed);
+    void SigSpeedChanged(double speed);
+	void SigPlayLoopPolicyChanged(VideoLoopPolicy policy);
 
 private:
     Ui::CtrlBar *ui;
-
+	VideoLoopPolicy m_curLoopPolicy = VideoLoopPolicy::LOOP_NONE;
     int m_nTotalPlaySeconds;
     double m_dLastVolumePercent;
 };

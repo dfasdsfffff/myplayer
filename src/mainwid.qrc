@@ -11,5 +11,8 @@
         <file>res/qss/show.css</file>
         <file>res/qss/title.css</file>
         <file>res/menu.json</file>
+        <file>res/sequentia-play.svg</file>
+        <file>res/shuffle-play.svg</file>
+        <file>res/single-play.svg</file>
     </qresource>
 </RCC>

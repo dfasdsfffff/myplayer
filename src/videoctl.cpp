@@ -356,9 +356,15 @@ void VideoCtl::sync_clock_to_slave(Clock* c, Clock* slave)
 		set_clock(c, slave_clock, slave->serial);
 }
 
-void VideoCtl::SetPlaySpeed(double dSpeed)
+void VideoCtl::set_play_speed(double dSpeed)
 {
 	this->playback_speed = dSpeed;
+	// update_video_state_speed(m_CurStream);
+}
+
+void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
+{
+	this->m_loop_policy = loopPolicy;
 }
 
 int VideoCtl::get_master_sync_type(VideoState* is) {
@@ -462,15 +468,13 @@ double VideoCtl::compute_target_delay(double delay, VideoState* is)
 {
 	double sync_threshold, diff = 0;
 
-	/* update delay to follow master synchronisation source */
+	/* 跟随主同步源的更新延迟 */
 	if (get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER) {
 		/* if video is slave, we try to correct big delays by
 		duplicating or deleting a frame */
 		diff = get_clock(&is->vidclk) - get_master_clock(is);
 
-		/* skip or repeat frame. We take into account the
-		delay to compute the threshold. I still don't know
-		if it is the best guess */
+		/* 跳过或重复帧。我们考虑延迟来计算阈值。我仍然不知道这是不是最好的猜测 */
 		sync_threshold = FFMAX(AV_SYNC_THRESHOLD_MIN, FFMIN(AV_SYNC_THRESHOLD_MAX, delay));
 		if (!std::isnan(diff) && fabs(diff) < is->max_frame_duration) {
 			if (diff <= -sync_threshold)
@@ -487,7 +491,7 @@ double VideoCtl::compute_target_delay(double delay, VideoState* is)
 
 	return delay;
 }
-
+// vp_duration 函数在本软件中用于计算当前视频帧与下一帧之间的显示时长，即两帧的时间间隔
 double VideoCtl::vp_duration(VideoState* is, Frame* vp, Frame* nextvp) {
 	if (vp->serial == nextvp->serial) {
 		double duration = nextvp->pts - vp->pts;
@@ -515,48 +519,48 @@ void VideoCtl::update_video_state_speed(VideoState* is)
 	is->extclk.speed = playback_speed;
 }
 
-void VideoCtl::increase_playback_speed(VideoState* is)
-{
-	if (playback_speed < 2.0) {
-		playback_speed = playback_speed + 0.25;
-	}
-	else if (playback_speed < 4.0) {
-		playback_speed = playback_speed + 0.5;
-	}
-	else {
-		playback_speed = 4.0;
-	}
-
-	update_video_state_speed(is);
-	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
-	fflush(stdout);
-}
-
-void VideoCtl::decrease_playback_speed(VideoState* is)
-{
-	if (playback_speed > 2.0) {
-		playback_speed = playback_speed - 0.5;
-	}
-	else if (playback_speed > 0.5) {
-		playback_speed = playback_speed - 0.25;
-	}
-	else {
-		playback_speed = 0.25;
-	}
-
-	update_video_state_speed(is);
-	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
-	fflush(stdout);
-}
-
-void VideoCtl::reset_playback_speed(VideoState* is)
-{
-	playback_speed = 1.0;
-
-	update_video_state_speed(is);
-	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
-	fflush(stdout);
-}
+//void VideoCtl::increase_playback_speed(VideoState* is)
+//{
+//	if (playback_speed < 2.0) {
+//		playback_speed = playback_speed + 0.25;
+//	}
+//	else if (playback_speed < 4.0) {
+//		playback_speed = playback_speed + 0.5;
+//	}
+//	else {
+//		playback_speed = 4.0;
+//	}
+//
+//	update_video_state_speed(is);
+//	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
+//	fflush(stdout);
+//}
+//
+//void VideoCtl::decrease_playback_speed(VideoState* is)
+//{
+//	if (playback_speed > 2.0) {
+//		playback_speed = playback_speed - 0.5;
+//	}
+//	else if (playback_speed > 0.5) {
+//		playback_speed = playback_speed - 0.25;
+//	}
+//	else {
+//		playback_speed = 0.25;
+//	}
+//
+//	update_video_state_speed(is);
+//	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
+//	fflush(stdout);
+//}
+//
+//void VideoCtl::reset_playback_speed(VideoState* is)
+//{
+//	playback_speed = 1.0;
+//
+//	update_video_state_speed(is);
+//	fprintf(stdout, "Speed: %.2fx\n", playback_speed.load());
+//	fflush(stdout);
+//}
 
 /* called to display each frame */
 void VideoCtl::video_refresh(void* opaque, double* remaining_time)
@@ -922,7 +926,7 @@ int VideoCtl::synchronize_audio(VideoState* is, int nb_samples)
 		}
 	}
 
-	return  wanted_nb_samples / playback_speed;
+	return  wanted_nb_samples;
 }
 
 /**
@@ -959,7 +963,7 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 		af->frame->nb_samples,
 		(AVSampleFormat)af->frame->format, 1);
 
-	wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples);
+	wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples) / playback_speed;
 
 	if (af->frame->format != is->audio_src.fmt ||
 		av_channel_layout_compare(&af->frame->ch_layout, &is->audio_src.ch_layout) ||
@@ -1081,9 +1085,9 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 	is->audio_write_buf_size = is->audio_buf_size - is->audio_buf_index;
 	/* Let's assume the audio driver that is used by SDL has two periods. */
 	if (!std::isnan(is->audio_clock)) {
-		pVideoCtl->set_clock_at(&is->audclk, 
-			is->audio_clock - (double)(2 * is->audio_hw_buf_size + is->audio_write_buf_size) / is->audio_tgt.bytes_per_sec, 
-			is->audio_clock_serial, 
+		pVideoCtl->set_clock_at(&is->audclk,
+			is->audio_clock - (double)(2 * is->audio_hw_buf_size + is->audio_write_buf_size) / is->audio_tgt.bytes_per_sec,
+			is->audio_clock_serial,
 			audio_callback_time / 1000000.0);
 		pVideoCtl->sync_clock_to_slave(&is->extclk, &is->audclk);
 	}
@@ -1440,10 +1444,12 @@ void VideoCtl::ReadThread(VideoState* is)
 
 	is->realtime = is_realtime(ic);
 
-
+	// 发送视频总时长信号，单位为秒
 	emit SigVideoTotalSeconds(ic->duration / 1000000LL);
 
-
+	// 根据用户指定的流 specifier 来设置每种媒体类型的流索引。 
+	// specifier 是一个流选择表达式（stream specifier），
+	// 比如 "a:0" 表示第一个音频流，"v" 表示所有视频流，"s" 表示所有字幕流等。
 	for (i = 0; i < ic->nb_streams; i++) {
 		AVStream* st = ic->streams[i];
 		enum AVMediaType type = st->codecpar->codec_type;
@@ -1452,6 +1458,7 @@ void VideoCtl::ReadThread(VideoState* is)
 			if (avformat_match_stream_specifier(ic, st, wanted_stream_spec[type]) > 0)
 				st_index[type] = i;
 	}
+	// 如果用户指定了流 specifier，但没有找到匹配的流，就会输出错误日志并将对应的流索引设置为 INT_MAX。
 	for (i = 0; i < AVMEDIA_TYPE_NB; i++) {
 		if (wanted_stream_spec[(AVMediaType)i] && st_index[(AVMediaType)i] == -1) {
 			av_log(NULL, AV_LOG_ERROR, "Stream specifier %s does not match any %s stream\n", wanted_stream_spec[(AVMediaType)i], av_get_media_type_string((AVMediaType)i));
@@ -1460,7 +1467,8 @@ void VideoCtl::ReadThread(VideoState* is)
 	}
 
 	//获得视频、音频、字幕的流索引
-
+	// 根据前面得到的流索引，使用 av_find_best_stream 函数来找到每种媒体类型的最佳流索引。
+	// 如果前面找到了，就会使用前面的流，否则就会根据媒体类型来寻找最佳流索引。
 	st_index[AVMEDIA_TYPE_VIDEO] =
 		av_find_best_stream(ic, AVMEDIA_TYPE_VIDEO,
 			st_index[AVMEDIA_TYPE_VIDEO], -1, NULL, 0);
@@ -1479,11 +1487,11 @@ void VideoCtl::ReadThread(VideoState* is)
 				st_index[AVMEDIA_TYPE_VIDEO]),
 			NULL, 0);
 
-	if (st_index[AVMEDIA_TYPE_VIDEO] >= 0) {
-		AVStream* st = ic->streams[st_index[AVMEDIA_TYPE_VIDEO]];
-		AVCodecParameters* codecpar = st->codecpar;
-		AVRational sar = av_guess_sample_aspect_ratio(ic, st, NULL);
-	}
+	//if (st_index[AVMEDIA_TYPE_VIDEO] >= 0) {
+	//	AVStream* st = ic->streams[st_index[AVMEDIA_TYPE_VIDEO]];
+	//	AVCodecParameters* codecpar = st->codecpar;
+	//	AVRational sar = av_guess_sample_aspect_ratio(ic, st, NULL);
+	//}
 
 	/* open the streams */
 	//打开音频流
@@ -1581,10 +1589,22 @@ void VideoCtl::ReadThread(VideoState* is)
 		if (!is->paused &&
 			(!is->audio_st || (is->aud_decoder.finished == is->audioq.serial && frame_queue_nb_remaining(&is->sampq) == 0)) &&
 			(!is->video_st || (is->vid_decoder.finished == is->videoq.serial && frame_queue_nb_remaining(&is->pictq) == 0))) {
-
-			//播放结束
-			emit SigStop();
-			continue;
+			if (m_loop_policy== VideoLoopPolicy::LOOP_ALL) {
+				//播放结束
+				m_bPlayLoop = false;
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				emit SigPlayNextOne();
+				continue;
+			}
+			else if (m_loop_policy == VideoLoopPolicy::LOOP_SINGLE) {
+				// 重新播放
+				stream_seek(is , 0, 0);
+			}
+			else {
+				// 先暂停播放循环，再退出
+				emit SigStop();
+				continue;
+			}
 		}
 		//按帧读取
 		ret = av_read_frame(ic, pkt);
