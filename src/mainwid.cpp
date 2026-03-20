@@ -229,7 +229,7 @@ bool MainWid::ConnectSignalSlots()
 	connect(VideoCtl::GetInstance(), &VideoCtl::SigStopFinished, &m_stTitle, &Title::OnStopFinished, Qt::DirectConnection);
 	connect(VideoCtl::GetInstance(), &VideoCtl::SigStartPlay, &m_stTitle, &Title::OnPlay, Qt::DirectConnection);
 	// 播放完成，自动播放下一首
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigPlayNextOne, ui->CtrlBarWid, &CtrlBar::SigForwardPlay);
+	connect(VideoCtl::GetInstance(), &VideoCtl::SigPlayNextOne, &m_stPlaylist, &Playlist::OnForwardPlay);
 
 	connect(&m_stCtrlBarAnimationTimer, &QTimer::timeout, this, &MainWid::OnCtrlBarAnimationTimeOut);
 
