@@ -183,11 +183,7 @@ bool MainWid::ConnectSignalSlots()
 	connect(&m_stTitle, &Title::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
 	connect(&m_stTitle, &Title::SigShowMenu, this, &MainWid::OnShowMenu);
 
-
-	connect(&m_stPlaylist, &Playlist::SigPlay, this, [this](const QString& strFile) {
-		ui->CtrlBarWid->ResetSpeed();
-		emit ui->ShowWid->SigPlay(strFile);
-		});
+	connect(&m_stPlaylist, &Playlist::SigPlay, ui->ShowWid, &Show::SigPlay);
 
 	connect(ui->ShowWid, &Show::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
 	connect(ui->ShowWid, &Show::SigFullScreen, this, &MainWid::OnFullScreenPlay);

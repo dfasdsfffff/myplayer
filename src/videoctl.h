@@ -14,6 +14,7 @@
 #include <QObject>
 #include <QThread>
 #include <QString>
+#include <shared_mutex>
 
 #include "globalhelper.h"
 #include "datactl.h"
@@ -162,12 +163,19 @@ public:
 	//void decrease_playback_speed(VideoState* is);
 	//void reset_playback_speed(VideoState* is);
 
+	int configure_filtergraph(AVFilterGraph* graph, const char* filtergraph,
+		AVFilterContext* source_ctx, AVFilterContext* sink_ctx);
+	int configure_video_filters(AVFilterGraph* graph, VideoState* is, const char* vfilters, AVFrame* frame);
+	int configure_audio_filters(VideoState* is, const char* mAfilters, int force_output_format);
+
 private:
 
 	static VideoCtl* m_pInstance; //< 单例指针
 
 	bool m_bInited;	//< 初始化标志
 	bool m_bPlayLoop; //刷新循环标志
+
+	bool autorotate_s = true;
 
 	VideoState* m_CurStream;
 
@@ -191,8 +199,11 @@ private:
 	int m_nFrameW;
 	int m_nFrameH;
 
-	//
-	float playback_speed = 1;
+	// 倍速播放相关
+	bool m_bSpeedChanged = false;
+	std::shared_mutex mSpeedMutex;
+	float mPlaybackSpeed = 1;
+	std::string mAfilters;
 };
 
 #endif // VIDEOCTL_H

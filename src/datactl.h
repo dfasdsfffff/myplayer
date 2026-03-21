@@ -77,6 +77,9 @@
 
 #define USE_ONEPASS_SUBTITLE_RENDER 1
 
+//#ifndef CONFIG_AVFILTER
+//#define CONFIG_AVFILTER 1
+//#endif
 
 
 //数据包列表
@@ -227,6 +230,8 @@ typedef struct VideoState {
 
     struct AudioParams audio_src;
 
+    struct AudioParams audio_filter_src;
+
     struct AudioParams audio_tgt;
     struct SwrContext *swr_ctx;
     int frame_drops_early;
@@ -263,6 +268,13 @@ typedef struct VideoState {
     char *filename;
     int width, height, xleft, ytop;
     int step;
+
+    int vfilter_idx;
+    AVFilterContext* in_video_filter;  // 视频链中的第一个滤镜
+    AVFilterContext* out_video_filter; // 视频链中的最后一个滤镜
+    AVFilterContext* in_audio_filter;  // 音频链中的第一个滤镜
+    AVFilterContext* out_audio_filter; // 音频链中的最后一个滤镜
+    AVFilterGraph* agraph;             // 音频滤镜图
 
     int last_video_stream, last_audio_stream, last_subtitle_stream;
 

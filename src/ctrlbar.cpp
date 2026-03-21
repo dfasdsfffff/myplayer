@@ -39,6 +39,7 @@ bool CtrlBar::Init()
 	ui->SpeedCombo->addItem("1.0x");
 	ui->SpeedCombo->addItem("1.5x");
 	ui->SpeedCombo->addItem("2.0x");
+	ui->SpeedCombo->setCurrentIndex(2); // 默认选择1.0x
 
 	setStyleSheet(GlobalHelper::GetQssStr("://res/qss/ctrlbar.css"));
 
@@ -77,9 +78,7 @@ bool CtrlBar::Init()
 
 void CtrlBar::ResetSpeed()
 {
-	ui->SpeedCombo->blockSignals(true);
 	ui->SpeedCombo->setCurrentIndex(2); // 默认选择1.0x
-	ui->SpeedCombo->blockSignals(false);
 }
 
 bool CtrlBar::ConnectSignalSlots()
