@@ -492,7 +492,6 @@ void VideoCtl::set_play_speed(double dSpeed)
 	std::unique_lock<std::shared_mutex> lock(mSpeedMutex);
 	this->mPlaybackSpeed = dSpeed;
 	this->m_bSpeedChanged = true;
-	mAfilters = std::format("atempo={:.2f}", dSpeed);
 }
 
 void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
@@ -1144,52 +1143,51 @@ int VideoCtl::audio_thread(void* arg)
 
 		if (got_frame) {
 			tb = AVRational{ 1, frame->sample_rate };
-#ifndef CONFIG_AVFILTER
-			if (!(af = frame_queue_peek_writable(&is->sampq)))
-				goto the_end;
 
-			af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
-			af->pos = frame->pkt_pos;
-			af->serial = is->aud_decoder.pkt_serial;
-			af->duration = av_q2d({ frame->nb_samples, frame->sample_rate });
-
-			av_frame_move_ref(af->frame, frame);
-			frame_queue_push(&is->sampq);
-#else
 			// filter
+
+			std::shared_lock<std::shared_mutex> lock(mSpeedMutex);
+			reconfigure = m_bSpeedChanged ||
+				cmp_audio_fmts(is->audio_filter_src.fmt, is->audio_filter_src.ch_layout.nb_channels,
+					static_cast<AVSampleFormat>(frame->format), frame->ch_layout.nb_channels) ||
+				av_channel_layout_compare(&is->audio_filter_src.ch_layout, &frame->ch_layout) ||
+				is->audio_filter_src.freq != frame->sample_rate ||
+				is->aud_decoder.pkt_serial != last_serial;
+
+			if (reconfigure)
 			{
-				std::shared_lock<std::shared_mutex> lock(mSpeedMutex);
-				reconfigure = m_bSpeedChanged ||
-					cmp_audio_fmts(is->audio_filter_src.fmt, is->audio_filter_src.ch_layout.nb_channels,
-						static_cast<AVSampleFormat>(frame->format), frame->ch_layout.nb_channels) ||
-					av_channel_layout_compare(&is->audio_filter_src.ch_layout, &frame->ch_layout) ||
-					is->audio_filter_src.freq != frame->sample_rate ||
-					is->aud_decoder.pkt_serial != last_serial;
+				m_bSpeedChanged = false;
+				char buf1[1024], buf2[1024];
+				av_channel_layout_describe(&is->audio_filter_src.ch_layout, buf1, sizeof(buf1));
+				av_channel_layout_describe(&frame->ch_layout, buf2, sizeof(buf2));
+				av_log(NULL, AV_LOG_DEBUG,
+					"Audio frame changed from rate:%d ch:%d fmt:%s layout:%s serial:%d to rate:%d ch:%d fmt:%s layout:%s serial:%d\n",
+					is->audio_filter_src.freq, is->audio_filter_src.ch_layout.nb_channels, av_get_sample_fmt_name(is->audio_filter_src.fmt), buf1, last_serial,
+					frame->sample_rate, frame->ch_layout.nb_channels, av_get_sample_fmt_name(static_cast<AVSampleFormat>(frame->format)), buf2, is->aud_decoder.pkt_serial);
 
-				if (reconfigure)
+				is->audio_filter_src.fmt = static_cast<AVSampleFormat>(frame->format);
+				ret = av_channel_layout_copy(&is->audio_filter_src.ch_layout, &frame->ch_layout);
+				if (ret < 0)
 				{
-					char buf1[1024], buf2[1024];
-					av_channel_layout_describe(&is->audio_filter_src.ch_layout, buf1, sizeof(buf1));
-					av_channel_layout_describe(&frame->ch_layout, buf2, sizeof(buf2));
-					av_log(NULL, AV_LOG_DEBUG,
-						"Audio frame changed from rate:%d ch:%d fmt:%s layout:%s serial:%d to rate:%d ch:%d fmt:%s layout:%s serial:%d\n",
-						is->audio_filter_src.freq, is->audio_filter_src.ch_layout.nb_channels, av_get_sample_fmt_name(is->audio_filter_src.fmt), buf1, last_serial,
-						frame->sample_rate, frame->ch_layout.nb_channels, av_get_sample_fmt_name(static_cast<AVSampleFormat>(frame->format)), buf2, is->aud_decoder.pkt_serial);
-
-					is->audio_filter_src.fmt = static_cast<AVSampleFormat>(frame->format);
-					ret = av_channel_layout_copy(&is->audio_filter_src.ch_layout, &frame->ch_layout);
-					if (ret < 0)
-						goto the_end;
-					is->audio_filter_src.freq = frame->sample_rate;
-					last_serial = is->aud_decoder.pkt_serial;
-
-					if ((ret = configure_audio_filters(is, mAfilters.c_str(), 1)) < 0)
-						goto the_end;
-				}
-				// end filver
-				if ((ret = av_buffersrc_add_frame(is->in_audio_filter, frame)) < 0)
+					lock.unlock();
 					goto the_end;
+				}
+				is->audio_filter_src.freq = frame->sample_rate;
+				last_serial = is->aud_decoder.pkt_serial;
+				auto mAfilters = std::format("atempo={:.2f}", m_bSpeedChanged);
+				if ((ret = configure_audio_filters(is, mAfilters.c_str(), 1)) < 0)
+				{
+					lock.unlock();
+					goto the_end;
+				}
 			}
+			// end filver
+			if ((ret = av_buffersrc_add_frame(is->in_audio_filter, frame)) < 0)
+			{
+				lock.unlock();
+				goto the_end;
+			}
+			lock.unlock();
 
 			while ((ret = av_buffersink_get_frame_flags(is->out_audio_filter, frame, 0)) >= 0)
 			{
@@ -1212,7 +1210,6 @@ int VideoCtl::audio_thread(void* arg)
 			if (ret == AVERROR_EOF)
 				is->aud_decoder.finished = is->aud_decoder.pkt_serial;
 			// end config avfilter
-#endif
 		}
 	} while (ret >= 0 || ret == AVERROR(EAGAIN) || ret == AVERROR_EOF);
 the_end:
@@ -1393,10 +1390,6 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 		(AVSampleFormat)af->frame->format, 1);
 
 	wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples);
-#if CONFIG_AVFILTER
-#else
-	wanted_nb_samples /= mPlaybackSpeed;
-#endif
 	if (af->frame->format != is->audio_src.fmt ||
 		av_channel_layout_compare(&af->frame->ch_layout, &is->audio_src.ch_layout) ||
 		af->frame->sample_rate != is->audio_src.freq ||
@@ -1465,18 +1458,8 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 	else
 		is->audio_clock = NAN;
 	is->audio_clock_serial = af->serial;
-#ifdef DEBUG
-	{
-		static double last_clock;
-		printf("audio: delay=%0.3f clock=%0.3f clock0=%0.3f\n",
-			is->audio_clock - last_clock,
-			is->audio_clock, audio_clock0);
-		last_clock = is->audio_clock;
-	}
-#endif
 	return resampled_data_size;
 }
-
 
 int VideoCtl::audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, int wanted_sample_rate, struct AudioParams* audio_hw_params)
 {
@@ -1629,7 +1612,6 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 	ic->streams[stream_index]->discard = AVDISCARD_DEFAULT;
 	switch (avctx->codec_type) {
 	case AVMEDIA_TYPE_AUDIO:
-#ifdef CONFIG_AVFILTER
 	{
 		AVFilterContext* sink;
 
@@ -1638,51 +1620,48 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if (ret < 0)
 			goto fail;
 		is->audio_filter_src.fmt = avctx->sample_fmt;
+		auto mAfilters = std::format("atempo={:.2f}", m_bSpeedChanged);
 		if ((ret = configure_audio_filters(is, mAfilters.c_str(), 0)) < 0)
+		{
+			print_error("configure_audio_filters", ret);
 			goto fail;
+		}
 		sink = is->out_audio_filter;
 		sample_rate = av_buffersink_get_sample_rate(sink);
 		ret = av_buffersink_get_ch_layout(sink, &ch_layout);
 		if (ret < 0)
 			goto fail;
 	}
-#else
-		sample_rate = avctx->sample_rate;
-		ret = av_channel_layout_copy(&ch_layout, &avctx->ch_layout);
-		if (ret < 0)
-			goto fail;
-#endif
+	/* prepare audio output */
+	if ((ret = audio_open(is, &ch_layout, sample_rate, &is->audio_tgt)) < 0)
+		goto fail;
+	is->audio_hw_buf_size = ret;
+	is->audio_src = is->audio_tgt;
+	is->audio_buf_size = 0;
+	is->audio_buf_index = 0;
 
-		/* prepare audio output */
-		if ((ret = audio_open(is, &ch_layout, sample_rate, &is->audio_tgt)) < 0)
-			goto fail;
-		is->audio_hw_buf_size = ret;
-		is->audio_src = is->audio_tgt;
-		is->audio_buf_size = 0;
-		is->audio_buf_index = 0;
+	/* init averaging filter */
+	is->audio_diff_avg_coef = exp(log(0.01) / AUDIO_DIFF_AVG_NB);
+	is->audio_diff_avg_count = 0;
+	/* since we do not have a precise anough audio FIFO fullness,
+	   we correct audio sync only if larger than this threshold */
+	is->audio_diff_threshold = (double)(is->audio_hw_buf_size) / is->audio_tgt.bytes_per_sec;
 
-		/* init averaging filter */
-		is->audio_diff_avg_coef = exp(log(0.01) / AUDIO_DIFF_AVG_NB);
-		is->audio_diff_avg_count = 0;
-		/* since we do not have a precise anough audio FIFO fullness,
-		   we correct audio sync only if larger than this threshold */
-		is->audio_diff_threshold = (double)(is->audio_hw_buf_size) / is->audio_tgt.bytes_per_sec;
+	is->audio_stream = stream_index;
+	is->audio_st = ic->streams[stream_index];
 
-		is->audio_stream = stream_index;
-		is->audio_st = ic->streams[stream_index];
+	if ((ret = decoder_init(&is->aud_decoder, avctx, &is->audioq, is->continue_read_thread)) < 0)
+		goto fail;
+	if (is->ic->iformat->flags & AVFMT_NOTIMESTAMPS) {
+		is->aud_decoder.start_pts = is->audio_st->start_time;
+		is->aud_decoder.start_pts_tb = is->audio_st->time_base;
+	}
 
-		if ((ret = decoder_init(&is->aud_decoder, avctx, &is->audioq, is->continue_read_thread)) < 0)
-			goto fail;
-		if (is->ic->iformat->flags & AVFMT_NOTIMESTAMPS) {
-			is->aud_decoder.start_pts = is->audio_st->start_time;
-			is->aud_decoder.start_pts_tb = is->audio_st->time_base;
-		}
+	packet_queue_start(is->aud_decoder.queue);
+	is->aud_decoder.decode_thread = std::thread(&VideoCtl::audio_thread, this, is);
 
-		packet_queue_start(is->aud_decoder.queue);
-		is->aud_decoder.decode_thread = std::thread(&VideoCtl::audio_thread, this, is);
-
-		SDL_PauseAudioDevice(audio_dev, 0);
-		break;
+	SDL_PauseAudioDevice(audio_dev, 0);
+	break;
 	case AVMEDIA_TYPE_VIDEO:
 		is->video_stream = stream_index;
 		is->video_st = ic->streams[stream_index];
@@ -2473,6 +2452,7 @@ void VideoCtl::OnPause()
 {
 	if (m_CurStream == nullptr)
 	{
+
 		return;
 	}
 	toggle_pause(m_CurStream);

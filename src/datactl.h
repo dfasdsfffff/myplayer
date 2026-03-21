@@ -77,11 +77,6 @@
 
 #define USE_ONEPASS_SUBTITLE_RENDER 1
 
-//#ifndef CONFIG_AVFILTER
-//#define CONFIG_AVFILTER 1
-//#endif
-
-
 //数据包列表
 typedef struct MyAVPacketList {
     AVPacket* pkt;
