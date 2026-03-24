@@ -28,7 +28,7 @@ extern "C" {
 extern QMutex g_show_rect_mutex;
 // 是否允许丢帧（如果视频太慢了，跟不上音频或者外部时钟）
 // -1为自动丢帧，0为不丢帧，1为强制丢帧
-static int framedrop = -1;
+static int framedrop = 1;
 static int infinite_buffer = -1;
 static int64_t audio_callback_time;
 
@@ -170,7 +170,7 @@ int VideoCtl::realloc_texture(SDL_Texture** texture, Uint32 new_format, int new_
 		void* pixels;
 		int pitch;
 		SDL_DestroyTexture(*texture);
-		if (!(*texture = SDL_CreateTexture(renderer, new_format, SDL_TEXTUREACCESS_STREAMING, new_width, new_height)))
+		if (!(*texture = SDL_CreateTexture(m_sdlRenderer, new_format, SDL_TEXTUREACCESS_STREAMING, new_width, new_height)))
 			return -1;
 		if (SDL_SetTextureBlendMode(*texture, blendmode) < 0)
 			return -1;
@@ -332,9 +332,9 @@ void VideoCtl::video_image_display(VideoState* is)
 		}
 	}
 
-	SDL_RenderCopyEx(renderer, is->vid_texture, NULL, &rect, 0, NULL, (SDL_RendererFlip)(vp->flip_v ? SDL_FLIP_VERTICAL : 0));
+	SDL_RenderCopyEx(m_sdlRenderer, is->vid_texture, NULL, &rect, 0, NULL, (SDL_RendererFlip)(vp->flip_v ? SDL_FLIP_VERTICAL : 0));
 	if (sp) {
-		SDL_RenderCopy(renderer, is->sub_texture, NULL, &rect);
+		SDL_RenderCopy(m_sdlRenderer, is->sub_texture, NULL, &rect);
 	}
 }
 
@@ -352,7 +352,7 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 	switch (codecpar->codec_type) {
 	case AVMEDIA_TYPE_AUDIO:
 		decoder_abort(&is->aud_decoder, &is->sampq);
-		SDL_CloseAudioDevice(audio_dev);
+		SDL_CloseAudioDevice(m_sdlAudio_dev);
 		decoder_destroy(&is->aud_decoder);
 		swr_free(&is->swr_ctx);
 		av_freep(&is->audio_buf1);
@@ -431,7 +431,7 @@ void VideoCtl::stream_close(VideoState* is)
 	if (is->sub_texture)
 		SDL_DestroyTexture(is->sub_texture);
 	// 关闭音频（尽管在stream_component_close已经调用了）
-	SDL_CloseAudioDevice(audio_dev);
+	SDL_CloseAudioDevice(m_sdlAudio_dev);
 	av_free(is);
 }
 
@@ -487,16 +487,17 @@ void VideoCtl::sync_clock_to_slave(Clock* c, Clock* slave)
 
 void VideoCtl::set_play_speed(double dSpeed)
 {
-	if (dSpeed <= 0.1 || dSpeed > 2 || dSpeed == mPlaybackSpeed)
+	if (dSpeed <= 0.1 || dSpeed > 2 || dSpeed == m_fPlaybackSpeed)
 		return;
-	std::unique_lock<std::shared_mutex> lock(mSpeedMutex);
-	this->mPlaybackSpeed = dSpeed;
-	this->m_bSpeedChanged = true;
+	std::unique_lock<std::shared_mutex> lock(m_speedMutex);
+	m_fPlaybackSpeed = dSpeed;
+	m_bASpeedChanged = true; 
+	// m_bVSpeedChanged = true;
 }
 
 void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
 {
-	this->m_loop_policy = loopPolicy;
+	this->m_loopPolicy = loopPolicy;
 }
 
 int VideoCtl::get_master_sync_type(VideoState* is) {
@@ -644,9 +645,9 @@ void VideoCtl::update_video_pts(VideoState* is, double pts, int64_t pos, int ser
 void VideoCtl::update_video_state_speed(VideoState* is)
 {
 	// 更新所有时钟的速度
-	is->audclk.speed = mPlaybackSpeed;
-	is->vidclk.speed = mPlaybackSpeed;
-	is->extclk.speed = mPlaybackSpeed;
+	is->audclk.speed = m_fPlaybackSpeed;
+	is->vidclk.speed = m_fPlaybackSpeed;
+	is->extclk.speed = m_fPlaybackSpeed;
 }
 
 int VideoCtl::configure_filtergraph(AVFilterGraph* graph, const char* filtergraph, AVFilterContext* source_ctx, AVFilterContext* sink_ctx)
@@ -713,11 +714,11 @@ int VideoCtl::configure_video_filters(AVFilterGraph* graph, VideoState* is, cons
 	if (!par)
 		return AVERROR(ENOMEM);
 
-	for (i = 0; i < renderer_info.num_texture_formats; i++)
+	for (i = 0; i < m_sdlRendererInfo.num_texture_formats; i++)
 	{
 		for (j = 0; j < FF_ARRAY_ELEMS(sdl_texture_format_map) - 1; j++)
 		{
-			if (renderer_info.texture_formats[i] == sdl_texture_format_map[j].texture_fmt)
+			if (m_sdlRendererInfo.texture_formats[i] == sdl_texture_format_map[j].texture_fmt)
 			{
 				pix_fmts[nb_pix_fmts++] = sdl_texture_format_map[j].format;
 				break;
@@ -793,7 +794,7 @@ int VideoCtl::configure_video_filters(AVFilterGraph* graph, VideoState* is, cons
         last_filter = filt_ctx;                                               \
     } while (0)
 
-	if (autorotate_s)
+	if (m_bAutorotate)
 	{
 		double theta = 0.0;
 		int32_t* displaymatrix = NULL;
@@ -927,7 +928,6 @@ end:
 	return ret;
 }
 
-
 /* called to display each frame */
 void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 {
@@ -940,7 +940,17 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 
 	if (!is->paused && get_master_sync_type(is) == AV_SYNC_EXTERNAL_CLOCK && is->realtime)
 		check_external_clock_speed(is);
-
+	if (is->audio_st)
+	{
+		time = av_gettime_relative() / 1000000.0;
+		if (is->force_refresh || is->last_vis_time + rdftspeed < time)
+		{
+			// 显示当前图片（如果有）
+			video_display(is);
+			is->last_vis_time = time;
+		}
+		*remaining_time = FFMIN(*remaining_time, is->last_vis_time + rdftspeed - time);
+	}
 	if (is->video_st) {
 	retry:
 		if (frame_queue_nb_remaining(&is->pictq) == 0) {
@@ -968,10 +978,6 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			/* compute nominal last_duration */
 			last_duration = vp_duration(is, lastvp, vp);
 			delay = compute_target_delay(last_duration, is);
-			// 根据播放速度调整延迟
-			if (mPlaybackSpeed > 0) {
-				delay /= mPlaybackSpeed;
-			}
 			time = av_gettime_relative() / 1000000.0;
 			if (time < is->frame_timer + delay) {
 				*remaining_time = FFMIN(is->frame_timer + delay - time, *remaining_time);
@@ -1061,7 +1067,6 @@ int VideoCtl::queue_picture(VideoState* is, AVFrame* src_frame, double pts, doub
 	vp->width = src_frame->width;
 	vp->height = src_frame->height;
 	vp->format = src_frame->format;
-
 	vp->pts = pts;
 	vp->duration = duration;
 	vp->pos = pos;
@@ -1143,11 +1148,22 @@ int VideoCtl::audio_thread(void* arg)
 
 		if (got_frame) {
 			tb = AVRational{ 1, frame->sample_rate };
+			tb = AVRational{ 1, frame->sample_rate };
+#if not CONFIG_AVFILTER
+			if (!(af = frame_queue_peek_writable(&is->sampq)))
+				goto the_end;
 
-			// filter
+			af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
+			af->pos = frame->pkt_pos;
+			af->serial = is->aud_decoder.pkt_serial;
+			af->duration = av_q2d({ frame->nb_samples, frame->sample_rate });
 
-			std::shared_lock<std::shared_mutex> lock(mSpeedMutex);
-			reconfigure = m_bSpeedChanged ||
+			av_frame_move_ref(af->frame, frame);
+			frame_queue_push(&is->sampq);
+#else
+			// config filter
+			std::shared_lock<std::shared_mutex> lock(m_speedMutex);
+			reconfigure = m_bASpeedChanged ||
 				cmp_audio_fmts(is->audio_filter_src.fmt, is->audio_filter_src.ch_layout.nb_channels,
 					static_cast<AVSampleFormat>(frame->format), frame->ch_layout.nb_channels) ||
 				av_channel_layout_compare(&is->audio_filter_src.ch_layout, &frame->ch_layout) ||
@@ -1156,7 +1172,8 @@ int VideoCtl::audio_thread(void* arg)
 
 			if (reconfigure)
 			{
-				m_bSpeedChanged = false;
+				m_bASpeedChanged = false;
+				m_bVSpeedChanged = true;
 				char buf1[1024], buf2[1024];
 				av_channel_layout_describe(&is->audio_filter_src.ch_layout, buf1, sizeof(buf1));
 				av_channel_layout_describe(&frame->ch_layout, buf2, sizeof(buf2));
@@ -1174,20 +1191,17 @@ int VideoCtl::audio_thread(void* arg)
 				}
 				is->audio_filter_src.freq = frame->sample_rate;
 				last_serial = is->aud_decoder.pkt_serial;
-				auto mAfilters = std::format("atempo={:.2f}", m_bSpeedChanged);
+				auto mAfilters = std::format("atempo={:.2f}", m_fPlaybackSpeed);
 				if ((ret = configure_audio_filters(is, mAfilters.c_str(), 1)) < 0)
 				{
 					lock.unlock();
 					goto the_end;
 				}
 			}
-			// end filver
-			if ((ret = av_buffersrc_add_frame(is->in_audio_filter, frame)) < 0)
-			{
-				lock.unlock();
-				goto the_end;
-			}
 			lock.unlock();
+			// end config avfilter
+			if ((ret = av_buffersrc_add_frame(is->in_audio_filter, frame)) < 0)
+				goto the_end;
 
 			while ((ret = av_buffersink_get_frame_flags(is->out_audio_filter, frame, 0)) >= 0)
 			{
@@ -1210,6 +1224,7 @@ int VideoCtl::audio_thread(void* arg)
 			if (ret == AVERROR_EOF)
 				is->aud_decoder.finished = is->aud_decoder.pkt_serial;
 			// end config avfilter
+#endif
 		}
 	} while (ret >= 0 || ret == AVERROR(EAGAIN) || ret == AVERROR_EOF);
 the_end:
@@ -1229,7 +1244,14 @@ int VideoCtl::video_thread(void* arg)
 	AVRational tb = is->video_st->time_base;
 	// 帧率，单位为帧/秒，表示每秒钟显示多少帧
 	AVRational frame_rate = av_guess_frame_rate(is->ic, is->video_st, NULL);
-
+	// 滤镜相关
+	AVFilterGraph* graph = NULL;
+	AVFilterContext* filt_out = NULL, * filt_in = NULL;
+	int last_w = 0;
+	int last_h = 0;
+	enum AVPixelFormat last_format = AVPixelFormat(-2);
+	int last_serial = -1;
+	int last_vfilter_idx = 0;
 	if (!frame)
 	{
 		return AVERROR(ENOMEM);
@@ -1242,13 +1264,94 @@ int VideoCtl::video_thread(void* arg)
 			goto the_end;
 		if (!ret)
 			continue;
+#if (not CONFIG_AVFILTER)
 		// 计算每帧的显示时间，单位为秒
 		duration = (frame_rate.num && frame_rate.den ? av_q2d({ frame_rate.den, frame_rate.num }) : 0);
 		// 计算视频帧的显示时间戳，单位为秒
-		pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
+		pts = ((frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb));// 根据播放速度调整延迟
 		ret = queue_picture(is, frame, pts, duration, frame->pkt_pos, is->vid_decoder.pkt_serial);
 		av_frame_unref(frame);
+#else
+		// 新建滤镜
+		std::shared_lock<std::shared_mutex> lock(m_speedMutex);
+		if (last_w != frame->width || 
+			last_h != frame->height || 
+			last_format != frame->format || 
+			last_serial != is->vid_decoder.pkt_serial || 
+			last_vfilter_idx != is->vfilter_idx||
+			m_bVSpeedChanged)
+		{
+			m_bVSpeedChanged = false;
+			av_log(NULL, AV_LOG_DEBUG,
+				"Video frame changed from size:%dx%d format:%s serial:%d to size:%dx%d format:%s serial:%d\n",
+				last_w, last_h,
+				(const char*)av_x_if_null(av_get_pix_fmt_name(last_format), "none"), last_serial,
+				frame->width, frame->height,
+				(const char*)av_x_if_null(av_get_pix_fmt_name(AVPixelFormat(frame->format)), "none"), is->vid_decoder.pkt_serial);
+			avfilter_graph_free(&graph);
+			graph = avfilter_graph_alloc();
+			if (!graph)
+			{
+				lock.unlock();
+				ret = AVERROR(ENOMEM);
+				goto the_end;
+			}
+			graph->nb_threads = 0;
+			std::string mvfilters = std::format("setpts={:.2f}*PTS", 1/m_fPlaybackSpeed);
+			if ((ret = configure_video_filters(graph, is, mvfilters.c_str(), frame)) < 0)
+			{
+				lock.unlock();
+				SDL_Event event;
+				event.type = FF_QUIT_EVENT;
+				event.user.data1 = is;
+				SDL_PushEvent(&event);
+				goto the_end;
+			}
+			filt_in = is->in_video_filter;
+			filt_out = is->out_video_filter;
+			last_w = frame->width;
+			last_h = frame->height;
+			last_format = AVPixelFormat(frame->format);
+			last_serial = is->vid_decoder.pkt_serial;
+			last_vfilter_idx = is->vfilter_idx;
+			frame_rate = av_buffersink_get_frame_rate(filt_out);
+		}
+		lock.unlock();
+		// end 新建滤镜
+		
+		ret = av_buffersrc_add_frame(filt_in, frame);
+		if (ret < 0)
+			goto the_end;
 
+		while (ret >= 0)
+		{
+			FrameData* fd;
+
+			is->frame_last_returned_time = av_gettime_relative() / 1000000.0;
+
+			ret = av_buffersink_get_frame_flags(filt_out, frame, 0);
+			if (ret < 0)
+			{
+				if (ret == AVERROR_EOF)
+					is->vid_decoder.finished = is->vid_decoder.pkt_serial;
+				ret = 0;
+				break;
+			}
+
+			fd = frame->opaque_ref ? (FrameData*)frame->opaque_ref->data : NULL;
+
+			is->frame_last_filter_delay = av_gettime_relative() / 1000000.0 - is->frame_last_returned_time;
+			if (fabs(is->frame_last_filter_delay) > AV_NOSYNC_THRESHOLD / 10.0)
+				is->frame_last_filter_delay = 0;
+			tb = av_buffersink_get_time_base(filt_out);
+			duration = (frame_rate.num && frame_rate.den ? av_q2d(AVRational { frame_rate.den, frame_rate.num }) : 0);
+			pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
+			ret = queue_picture(is, frame, pts, duration, fd ? fd->pkt_pos : -1, is->vid_decoder.pkt_serial);
+			av_frame_unref(frame);
+			if (is->videoq.serial != is->vid_decoder.pkt_serial)
+				break;
+		}
+#endif
 		if (ret < 0)
 			goto the_end;
 	}
@@ -1390,6 +1493,9 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 		(AVSampleFormat)af->frame->format, 1);
 
 	wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples);
+#if not CONFIG_AVFILTER
+	wanted_nb_samples /= m_fPlaybackSpeed;
+#endif
 	if (af->frame->format != is->audio_src.fmt ||
 		av_channel_layout_compare(&af->frame->ch_layout, &is->audio_src.ch_layout) ||
 		af->frame->sample_rate != is->audio_src.freq ||
@@ -1494,7 +1600,7 @@ int VideoCtl::audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, i
 	wanted_spec.samples = FFMAX(SDL_AUDIO_MIN_BUFFER_SIZE, 2 << av_log2(wanted_spec.freq / SDL_AUDIO_MAX_CALLBACKS_PER_SEC));
 	wanted_spec.callback = sdl_audio_callback;
 	wanted_spec.userdata = opaque;
-	while (!(audio_dev = SDL_OpenAudioDevice(NULL, 0, &wanted_spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE))) {
+	while (!(m_sdlAudio_dev = SDL_OpenAudioDevice(NULL, 0, &wanted_spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE))) {
 		av_log(NULL, AV_LOG_WARNING, "SDL_OpenAudio (%d channels, %d Hz): %s\n",
 			wanted_spec.channels, wanted_spec.freq, SDL_GetError());
 		wanted_spec.channels = next_nb_channels[FFMIN(7, wanted_spec.channels)];
@@ -1612,6 +1718,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 	ic->streams[stream_index]->discard = AVDISCARD_DEFAULT;
 	switch (avctx->codec_type) {
 	case AVMEDIA_TYPE_AUDIO:
+ #if CONFIG_AVFILTER
 	{
 		AVFilterContext* sink;
 
@@ -1620,7 +1727,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if (ret < 0)
 			goto fail;
 		is->audio_filter_src.fmt = avctx->sample_fmt;
-		auto mAfilters = std::format("atempo={:.2f}", m_bSpeedChanged);
+		auto mAfilters = std::format("atempo={:.2f}", m_fPlaybackSpeed);
 		if ((ret = configure_audio_filters(is, mAfilters.c_str(), 0)) < 0)
 		{
 			print_error("configure_audio_filters", ret);
@@ -1632,6 +1739,12 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if (ret < 0)
 			goto fail;
 	}
+#else
+		sample_rate = avctx->sample_rate;
+		ret = av_channel_layout_copy(&ch_layout, &avctx->ch_layout);
+		if (ret < 0)
+			goto fail;
+#endif
 	/* prepare audio output */
 	if ((ret = audio_open(is, &ch_layout, sample_rate, &is->audio_tgt)) < 0)
 		goto fail;
@@ -1660,7 +1773,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 	packet_queue_start(is->aud_decoder.queue);
 	is->aud_decoder.decode_thread = std::thread(&VideoCtl::audio_thread, this, is);
 
-	SDL_PauseAudioDevice(audio_dev, 0);
+	SDL_PauseAudioDevice(m_sdlAudio_dev, 0);
 	break;
 	case AVMEDIA_TYPE_VIDEO:
 		is->video_stream = stream_index;
@@ -1743,7 +1856,7 @@ void VideoCtl::ReadThread(VideoState* is)
 		ret = AVERROR(ENOMEM);
 		goto fail;
 	}
-
+	is->read_wait_mutex = wait_mutex;
 	memset(st_index, -1, sizeof(st_index));
 	is->eof = 0;
 
@@ -1889,7 +2002,8 @@ void VideoCtl::ReadThread(VideoState* is)
 			else
 				av_read_play(ic);
 		}
-
+		if (m_bASpeedChanged) {
+		}
 		if (is->seek_req) {
 			int64_t seek_target = is->seek_pos;
 			int64_t seek_min = is->seek_rel > 0 ? seek_target - is->seek_rel + 2 : INT64_MIN;
@@ -1939,22 +2053,22 @@ void VideoCtl::ReadThread(VideoState* is)
 					stream_has_enough_packets(is->video_st, is->video_stream, &is->videoq) &&
 					stream_has_enough_packets(is->subtitle_st, is->subtitle_stream, &is->subtitleq)))) {
 			/* wait 10 ms */
-			SDL_LockMutex(wait_mutex);
-			SDL_CondWaitTimeout(is->continue_read_thread, wait_mutex, 10);
-			SDL_UnlockMutex(wait_mutex);
+			SDL_LockMutex(is->read_wait_mutex);
+			SDL_CondWaitTimeout(is->continue_read_thread, is->read_wait_mutex, 10);
+			SDL_UnlockMutex(is->read_wait_mutex);
 			continue;
 		}
 		if (!is->paused &&
 			(!is->audio_st || (is->aud_decoder.finished == is->audioq.serial && frame_queue_nb_remaining(&is->sampq) == 0)) &&
 			(!is->video_st || (is->vid_decoder.finished == is->videoq.serial && frame_queue_nb_remaining(&is->pictq) == 0))) {
-			if (m_loop_policy == VideoLoopPolicy::LOOP_ALL) {
+			if (m_loopPolicy == VideoLoopPolicy::LOOP_ALL) {
 				//播放结束
 				m_bPlayLoop = false;
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				emit SigPlayNextOne();
 				continue;
 			}
-			else if (m_loop_policy == VideoLoopPolicy::LOOP_SINGLE) {
+			else if (m_loopPolicy == VideoLoopPolicy::LOOP_SINGLE) {
 				// 重新播放
 				stream_seek(is, 0, 0);
 			}
@@ -1978,9 +2092,9 @@ void VideoCtl::ReadThread(VideoState* is)
 			}
 			if (ic->pb && ic->pb->error)
 				break;
-			SDL_LockMutex(wait_mutex);
-			SDL_CondWaitTimeout(is->continue_read_thread, wait_mutex, 10);
-			SDL_UnlockMutex(wait_mutex);
+			SDL_LockMutex(is->read_wait_mutex);
+			SDL_CondWaitTimeout(is->continue_read_thread, is->read_wait_mutex, 10);
+			SDL_UnlockMutex(is->read_wait_mutex);
 			continue;
 		}
 		else {
@@ -2022,7 +2136,8 @@ fail:
 		event.user.data1 = is;
 		SDL_PushEvent(&event);
 	}
-	SDL_DestroyMutex(wait_mutex);
+	SDL_DestroyMutex(is->read_wait_mutex);
+	is->read_wait_mutex = nullptr;
 	return;
 }
 
@@ -2347,17 +2462,17 @@ void VideoCtl::UpdateVolume(int sign, double step)
 /* display the current picture, if any */
 void VideoCtl::video_display(VideoState* is)
 {
-	if (!window)
+	if (!m_sdlWindow)
 		video_open(is);
-	if (renderer)
+	if (m_sdlRenderer)
 	{
 		//恰好显示控件大小在变化，则不刷新显示
 		if (g_show_rect_mutex.tryLock())
 		{
-			SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-			SDL_RenderClear(renderer);
+			SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
+			SDL_RenderClear(m_sdlRenderer);
 			video_image_display(is);
-			SDL_RenderPresent(renderer);
+			SDL_RenderPresent(m_sdlRenderer);
 
 			g_show_rect_mutex.unlock();
 		}
@@ -2372,32 +2487,32 @@ int VideoCtl::video_open(VideoState* is)
 	w = screen_width;
 	h = screen_height;
 
-	if (!window) {
+	if (!m_sdlWindow) {
 		int flags = SDL_WINDOW_SHOWN;
 		flags |= SDL_WINDOW_RESIZABLE;
 
-		window = SDL_CreateWindowFrom((void*)play_wid);
-		SDL_GetWindowSize(window, &w, &h);//初始宽高设置为显示控件宽高
+		m_sdlWindow = SDL_CreateWindowFrom((void*)m_playWid);
+		SDL_GetWindowSize(m_sdlWindow, &w, &h);//初始宽高设置为显示控件宽高
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-		if (window) {
+		if (m_sdlWindow) {
 			SDL_RendererInfo info;
-			if (!renderer)
-				renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-			if (!renderer) {
+			if (!m_sdlRenderer)
+				m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+			if (!m_sdlRenderer) {
 				av_log(NULL, AV_LOG_WARNING, "Failed to initialize a hardware accelerated renderer: %s\n", SDL_GetError());
-				renderer = SDL_CreateRenderer(window, -1, 0);
+				m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, 0);
 			}
-			if (renderer) {
-				if (!SDL_GetRendererInfo(renderer, &info))
+			if (m_sdlRenderer) {
+				if (!SDL_GetRendererInfo(m_sdlRenderer, &info))
 					av_log(NULL, AV_LOG_VERBOSE, "Initialized %s renderer.\n", info.name);
 			}
 		}
 	}
 	else {
-		SDL_SetWindowSize(window, w, h);
+		SDL_SetWindowSize(m_sdlWindow, w, h);
 	}
 
-	if (!window || !renderer) {
+	if (!m_sdlWindow || !m_sdlRenderer) {
 		av_log(NULL, AV_LOG_FATAL, "SDL: could not set video mode - exiting\n");
 		do_exit(is);
 	}
@@ -2415,16 +2530,16 @@ void VideoCtl::do_exit(VideoState*& is)
 		stream_close(is);
 		is = nullptr;
 	}
-	if (renderer)
+	if (m_sdlRenderer)
 	{
-		SDL_DestroyRenderer(renderer);
-		renderer = nullptr;
+		SDL_DestroyRenderer(m_sdlRenderer);
+		m_sdlRenderer = nullptr;
 	}
 
-	if (window)
+	if (m_sdlWindow)
 	{
 		//SDL_DestroyWindow(window);
-		window = nullptr;
+		m_sdlWindow = nullptr;
 	}
 
 	emit SigStopFinished();
@@ -2473,8 +2588,8 @@ VideoCtl::VideoCtl(QObject* parent) :
 	screen_width(0),
 	screen_height(0),
 	startup_volume(30),
-	renderer(nullptr),
-	window(nullptr),
+	m_sdlRenderer(nullptr),
+	m_sdlWindow(nullptr),
 	m_nFrameW(0),
 	m_nFrameH(0)
 {
@@ -2545,7 +2660,7 @@ bool VideoCtl::StartPlay(QString strFileName, WId widPlayWid)
 	}
 	emit SigStartPlay(strFileName);//正式播放，发送给标题栏
 
-	play_wid = widPlayWid;
+	m_playWid = widPlayWid;
 
 	VideoState* is;
 

@@ -273,7 +273,8 @@ typedef struct VideoState {
 
     int last_video_stream, last_audio_stream, last_subtitle_stream;
 
-    SDL_cond *continue_read_thread;
+    SDL_mutex* read_wait_mutex = nullptr;
+    SDL_cond *continue_read_thread = nullptr;
 } VideoState;
 
 //数据包队列存放数据包（供队列内部使用）

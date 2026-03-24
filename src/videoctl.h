@@ -15,11 +15,15 @@
 #include <QThread>
 #include <QString>
 #include <shared_mutex>
+#include <barrier>
 
 #include "globalhelper.h"
 #include "datactl.h"
 #include "enums.h"
 
+#ifndef CONFIG_AVFILTER
+#define CONFIG_AVFILTER 1
+#endif
 
 //单例模式
 class VideoCtl : public QObject
@@ -159,9 +163,6 @@ private:
 	void update_video_pts(VideoState* is, double pts, int64_t pos, int serial);
 public:
 	void update_video_state_speed(VideoState* is);
-	//void increase_playback_speed(VideoState* is);
-	//void decrease_playback_speed(VideoState* is);
-	//void reset_playback_speed(VideoState* is);
 
 	int configure_filtergraph(AVFilterGraph* graph, const char* filtergraph,
 		AVFilterContext* source_ctx, AVFilterContext* sink_ctx);
@@ -175,18 +176,18 @@ private:
 	bool m_bInited;	//< 初始化标志
 	bool m_bPlayLoop; //刷新循环标志
 
-	bool autorotate_s = true;
+	bool m_bAutorotate = true;
 
 	VideoState* m_CurStream;
 
-	SDL_Window* window;
-	SDL_Renderer* renderer;
-	SDL_RendererInfo renderer_info = { 0 };
-	SDL_AudioDeviceID audio_dev;
-	WId play_wid;//播放窗口
+	SDL_Window* m_sdlWindow;
+	SDL_Renderer* m_sdlRenderer;
+	SDL_RendererInfo m_sdlRendererInfo = { 0 };
+	SDL_AudioDeviceID m_sdlAudio_dev;
+	WId m_playWid;//播放窗口
 
 	//
-	VideoLoopPolicy m_loop_policy = LOOP_ALL; //循环策略
+	VideoLoopPolicy m_loopPolicy = LOOP_ALL; //循环策略
 
 	/* options specified by the user */
 	int screen_width;
@@ -200,9 +201,11 @@ private:
 	int m_nFrameH;
 
 	// 倍速播放相关
-	bool m_bSpeedChanged = false;  // 当前的播放速度是否被修改过了
-	std::shared_mutex mSpeedMutex; // 保护mPlaybackSpeed的读写
-	float mPlaybackSpeed = 1;      // 当前的播放速度，默认为1倍速
+	bool m_bASpeedChanged = false;    // 当前的播放速度是否被修改过了
+	bool m_bVSpeedChanged = false;
+	std::shared_mutex m_speedMutex;   // 保护mPlaybackSpeed的读写
+	std::barrier<> m_speedBarrier{ 2 };// 同步音视频线程更新播放速度
+	float m_fPlaybackSpeed = 1;       // 当前的播放速度，默认为1倍速
 };
 
 #endif // VIDEOCTL_H
