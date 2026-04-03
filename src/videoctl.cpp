@@ -491,8 +491,7 @@ void VideoCtl::set_play_speed(double dSpeed)
 		return;
 	std::unique_lock<std::shared_mutex> lock(m_speedMutex);
 	m_fPlaybackSpeed = dSpeed;
-	m_bASpeedChanged = true; 
-	// m_bVSpeedChanged = true;
+	m_bSpeedChanged = true;
 }
 
 void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
@@ -536,7 +535,17 @@ double VideoCtl::get_master_clock(VideoState* is)
 	}
 	return val;
 }
-
+/*
+check_external_clock_speed 函数用于动态调整外部时钟（extclk）的播放速度，以实现音视频同步，特别是在音频或视频数据包队列过多或过少时。
+具体作用如下：
+•	当音频或视频队列中的数据包数量过少（小于等于 EXTERNAL_CLOCK_MIN_FRAMES），说明解码速度跟不上播放速度，外部时钟会减慢（防止播放过快）。
+•	当音频和视频队列中的数据包数量都很多（大于 EXTERNAL_CLOCK_MAX_FRAMES），说明解码速度远快于播放速度，外部时钟会加快（防止播放过慢）。
+•	其他情况，如果外部时钟速度不是1.0，则逐步调整回1.0，保持正常速度。
+这样做的目的是让外部时钟根据当前缓冲区的状态自适应调整速度，保证音视频同步和流畅播放，避免卡顿或延迟。
+注意：
+•	该函数只在同步类型为“外部时钟”时才有意义（如网络流或实时流场景）。
+•	通过 set_clock_speed 修改 extclk 的速度，FFMAX 和 FFMIN 用于限制速度调整的上下限。
+*/
 void VideoCtl::check_external_clock_speed(VideoState* is) {
 	if (is->video_stream >= 0 && is->videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES ||
 		is->audio_stream >= 0 && is->audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES) {
@@ -637,7 +646,7 @@ double VideoCtl::vp_duration(VideoState* is, Frame* vp, Frame* nextvp) {
 }
 
 void VideoCtl::update_video_pts(VideoState* is, double pts, int64_t pos, int serial) {
-	/* update current video pts */
+	/* 更新当前视频pts */
 	set_clock(&is->vidclk, pts, serial);
 	sync_clock_to_slave(&is->extclk, &is->vidclk);
 }
@@ -1162,8 +1171,7 @@ int VideoCtl::audio_thread(void* arg)
 			frame_queue_push(&is->sampq);
 #else
 			// config filter
-			std::shared_lock<std::shared_mutex> lock(m_speedMutex);
-			reconfigure = m_bASpeedChanged ||
+			reconfigure =
 				cmp_audio_fmts(is->audio_filter_src.fmt, is->audio_filter_src.ch_layout.nb_channels,
 					static_cast<AVSampleFormat>(frame->format), frame->ch_layout.nb_channels) ||
 				av_channel_layout_compare(&is->audio_filter_src.ch_layout, &frame->ch_layout) ||
@@ -1172,8 +1180,6 @@ int VideoCtl::audio_thread(void* arg)
 
 			if (reconfigure)
 			{
-				m_bASpeedChanged = false;
-				m_bVSpeedChanged = true;
 				char buf1[1024], buf2[1024];
 				av_channel_layout_describe(&is->audio_filter_src.ch_layout, buf1, sizeof(buf1));
 				av_channel_layout_describe(&frame->ch_layout, buf2, sizeof(buf2));
@@ -1186,19 +1192,16 @@ int VideoCtl::audio_thread(void* arg)
 				ret = av_channel_layout_copy(&is->audio_filter_src.ch_layout, &frame->ch_layout);
 				if (ret < 0)
 				{
-					lock.unlock();
 					goto the_end;
 				}
 				is->audio_filter_src.freq = frame->sample_rate;
 				last_serial = is->aud_decoder.pkt_serial;
-				auto mAfilters = std::format("atempo={:.2f}", m_fPlaybackSpeed);
-				if ((ret = configure_audio_filters(is, mAfilters.c_str(), 1)) < 0)
+				auto afilters = std::format("atempo={:.2f}", m_fPlaybackSpeed);
+				if ((ret = configure_audio_filters(is, afilters.c_str(), 1)) < 0)
 				{
-					lock.unlock();
 					goto the_end;
 				}
 			}
-			lock.unlock();
 			// end config avfilter
 			if ((ret = av_buffersrc_add_frame(is->in_audio_filter, frame)) < 0)
 				goto the_end;
@@ -1273,15 +1276,12 @@ int VideoCtl::video_thread(void* arg)
 		av_frame_unref(frame);
 #else
 		// 新建滤镜
-		std::shared_lock<std::shared_mutex> lock(m_speedMutex);
-		if (last_w != frame->width || 
-			last_h != frame->height || 
-			last_format != frame->format || 
-			last_serial != is->vid_decoder.pkt_serial || 
-			last_vfilter_idx != is->vfilter_idx||
-			m_bVSpeedChanged)
+		if (last_w != frame->width ||
+			last_h != frame->height ||
+			last_format != frame->format ||
+			last_serial != is->vid_decoder.pkt_serial ||
+			last_vfilter_idx != is->vfilter_idx)
 		{
-			m_bVSpeedChanged = false;
 			av_log(NULL, AV_LOG_DEBUG,
 				"Video frame changed from size:%dx%d format:%s serial:%d to size:%dx%d format:%s serial:%d\n",
 				last_w, last_h,
@@ -1292,16 +1292,14 @@ int VideoCtl::video_thread(void* arg)
 			graph = avfilter_graph_alloc();
 			if (!graph)
 			{
-				lock.unlock();
 				ret = AVERROR(ENOMEM);
 				goto the_end;
 			}
 			graph->nb_threads = 0;
-			std::string mvfilters = std::format("setpts={:.2f}*PTS", 1/m_fPlaybackSpeed);
+			std::string mvfilters = std::format("setpts={:.2f}*PTS", 1 / m_fPlaybackSpeed);
 			if ((ret = configure_video_filters(graph, is, mvfilters.c_str(), frame)) < 0)
 			{
-				lock.unlock();
-				SDL_Event event;
+				SDL_Event event{};
 				event.type = FF_QUIT_EVENT;
 				event.user.data1 = is;
 				SDL_PushEvent(&event);
@@ -1316,9 +1314,8 @@ int VideoCtl::video_thread(void* arg)
 			last_vfilter_idx = is->vfilter_idx;
 			frame_rate = av_buffersink_get_frame_rate(filt_out);
 		}
-		lock.unlock();
 		// end 新建滤镜
-		
+
 		ret = av_buffersrc_add_frame(filt_in, frame);
 		if (ret < 0)
 			goto the_end;
@@ -1344,7 +1341,7 @@ int VideoCtl::video_thread(void* arg)
 			if (fabs(is->frame_last_filter_delay) > AV_NOSYNC_THRESHOLD / 10.0)
 				is->frame_last_filter_delay = 0;
 			tb = av_buffersink_get_time_base(filt_out);
-			duration = (frame_rate.num && frame_rate.den ? av_q2d(AVRational { frame_rate.den, frame_rate.num }) : 0);
+			duration = (frame_rate.num && frame_rate.den ? av_q2d(AVRational{ frame_rate.den, frame_rate.num }) : 0);
 			pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
 			ret = queue_picture(is, frame, pts, duration, fd ? fd->pkt_pos : -1, is->vid_decoder.pkt_serial);
 			av_frame_unref(frame);
@@ -1493,7 +1490,7 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 		(AVSampleFormat)af->frame->format, 1);
 
 	wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples);
-#if not CONFIG_AVFILTER
+#if (not CONFIG_AVFILTER)
 	wanted_nb_samples /= m_fPlaybackSpeed;
 #endif
 	if (af->frame->format != is->audio_src.fmt ||
@@ -1718,7 +1715,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 	ic->streams[stream_index]->discard = AVDISCARD_DEFAULT;
 	switch (avctx->codec_type) {
 	case AVMEDIA_TYPE_AUDIO:
- #if CONFIG_AVFILTER
+#if CONFIG_AVFILTER
 	{
 		AVFilterContext* sink;
 
@@ -1727,8 +1724,8 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if (ret < 0)
 			goto fail;
 		is->audio_filter_src.fmt = avctx->sample_fmt;
-		auto mAfilters = std::format("atempo={:.2f}", m_fPlaybackSpeed);
-		if ((ret = configure_audio_filters(is, mAfilters.c_str(), 0)) < 0)
+		auto afilters = std::format("atempo={:.2f}", m_fPlaybackSpeed);
+		if ((ret = configure_audio_filters(is, afilters.c_str(), 0)) < 0)
 		{
 			print_error("configure_audio_filters", ret);
 			goto fail;
@@ -1745,36 +1742,36 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if (ret < 0)
 			goto fail;
 #endif
-	/* prepare audio output */
-	if ((ret = audio_open(is, &ch_layout, sample_rate, &is->audio_tgt)) < 0)
-		goto fail;
-	is->audio_hw_buf_size = ret;
-	is->audio_src = is->audio_tgt;
-	is->audio_buf_size = 0;
-	is->audio_buf_index = 0;
+		/* prepare audio output */
+		if ((ret = audio_open(is, &ch_layout, sample_rate, &is->audio_tgt)) < 0)
+			goto fail;
+		is->audio_hw_buf_size = ret;
+		is->audio_src = is->audio_tgt;
+		is->audio_buf_size = 0;
+		is->audio_buf_index = 0;
 
-	/* init averaging filter */
-	is->audio_diff_avg_coef = exp(log(0.01) / AUDIO_DIFF_AVG_NB);
-	is->audio_diff_avg_count = 0;
-	/* since we do not have a precise anough audio FIFO fullness,
-	   we correct audio sync only if larger than this threshold */
-	is->audio_diff_threshold = (double)(is->audio_hw_buf_size) / is->audio_tgt.bytes_per_sec;
+		/* init averaging filter */
+		is->audio_diff_avg_coef = exp(log(0.01) / AUDIO_DIFF_AVG_NB);
+		is->audio_diff_avg_count = 0;
+		/* since we do not have a precise anough audio FIFO fullness,
+		   we correct audio sync only if larger than this threshold */
+		is->audio_diff_threshold = (double)(is->audio_hw_buf_size) / is->audio_tgt.bytes_per_sec;
 
-	is->audio_stream = stream_index;
-	is->audio_st = ic->streams[stream_index];
+		is->audio_stream = stream_index;
+		is->audio_st = ic->streams[stream_index];
 
-	if ((ret = decoder_init(&is->aud_decoder, avctx, &is->audioq, is->continue_read_thread)) < 0)
-		goto fail;
-	if (is->ic->iformat->flags & AVFMT_NOTIMESTAMPS) {
-		is->aud_decoder.start_pts = is->audio_st->start_time;
-		is->aud_decoder.start_pts_tb = is->audio_st->time_base;
-	}
+		if ((ret = decoder_init(&is->aud_decoder, avctx, &is->audioq, is->continue_read_thread)) < 0)
+			goto fail;
+		if (is->ic->iformat->flags & AVFMT_NOTIMESTAMPS) {
+			is->aud_decoder.start_pts = is->audio_st->start_time;
+			is->aud_decoder.start_pts_tb = is->audio_st->time_base;
+		}
 
-	packet_queue_start(is->aud_decoder.queue);
-	is->aud_decoder.decode_thread = std::thread(&VideoCtl::audio_thread, this, is);
+		packet_queue_start(is->aud_decoder.queue);
+		is->aud_decoder.decode_thread = std::thread(&VideoCtl::audio_thread, this, is);
 
-	SDL_PauseAudioDevice(m_sdlAudio_dev, 0);
-	break;
+		SDL_PauseAudioDevice(m_sdlAudio_dev, 0);
+		break;
 	case AVMEDIA_TYPE_VIDEO:
 		is->video_stream = stream_index;
 		is->video_st = ic->streams[stream_index];
@@ -2002,7 +1999,13 @@ void VideoCtl::ReadThread(VideoState* is)
 			else
 				av_read_play(ic);
 		}
-		if (m_bASpeedChanged) {
+		if (m_bSpeedChanged) {
+			std::shared_lock<std::shared_mutex> lock(m_speedMutex);
+			sound_touch.setSampleRate(codec_ctx->sample_rate);
+			sound_touch.setChannels(2); // 立体声
+			sound_touch.setTempoChange(0.0f); // 保持原始速度
+			sound_touch.setPitchSemiTones(0.0f); // 保持原始音调
+			m_bSpeedChanged = false;
 		}
 		if (is->seek_req) {
 			int64_t seek_target = is->seek_pos;
@@ -2333,7 +2336,7 @@ void VideoCtl::seek_chapter(VideoState* is, int incr)
 void VideoCtl::LoopThread()
 {
 	SDL_Event event;
-	double incr, pos, frac;
+	double incr = 0., pos, frac;
 
 	m_bPlayLoop = true;
 

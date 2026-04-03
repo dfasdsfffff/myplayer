@@ -201,10 +201,8 @@ private:
 	int m_nFrameH;
 
 	// 倍速播放相关
-	bool m_bASpeedChanged = false;    // 当前的播放速度是否被修改过了
-	bool m_bVSpeedChanged = false;
+	bool m_bSpeedChanged = false;     // 当前的播放速度是否被修改过了
 	std::shared_mutex m_speedMutex;   // 保护mPlaybackSpeed的读写
-	std::barrier<> m_speedBarrier{ 2 };// 同步音视频线程更新播放速度
 	float m_fPlaybackSpeed = 1;       // 当前的播放速度，默认为1倍速
 };
 

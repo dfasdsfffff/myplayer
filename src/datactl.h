@@ -175,6 +175,7 @@ typedef struct Decoder {
 
 //视频状态，管理所有的视频信息及数据
 typedef struct VideoState {
+    soundtouch::SoundTouch soundTouch;
     std::thread read_tid; //读取线程
     AVInputFormat *iformat;
     int abort_request; //停止读取标志
@@ -351,6 +352,13 @@ static int packet_queue_init(PacketQueue *q)
     }
     q->abort_request = 1;
     return 0;
+}
+//
+static void packet_queue_add_serial(PacketQueue *q)
+{
+    SDL_LockMutex(q->mutex);
+    q->serial++;
+    SDL_UnlockMutex(q->mutex);
 }
 //数据包队列清空
 static void packet_queue_flush(PacketQueue *q)

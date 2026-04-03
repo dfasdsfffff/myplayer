@@ -81,6 +81,8 @@ extern "C" {
 #include "SDL2/SDL.h"
 }
 
+#include <SoundTouch.h>
+
 #define MAX_SLIDER_VALUE 65536
 
 #endif // GLOBALHELPER_H
