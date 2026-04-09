@@ -22,6 +22,7 @@ extern "C" {
 #include <libavfilter/buffersink.h>
 #include <libavutil/display.h>
 }
+#include "soundtouch_wrap.h"
 
 #pragma execution_character_set("utf-8")
 
@@ -365,6 +366,16 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 			is->rdft = NULL;
 			is->rdft_bits = 0;
 		}
+		if (is->soundTouchHandle)
+		{
+			soundtouch_destroy(is->soundTouchHandle);
+			is->soundTouchHandle = nullptr;
+		}
+		if (is->audio_new_buf)
+		{
+			av_freep(&is->audio_new_buf);
+			is->audio_new_buf = NULL;
+		}
 		break;
 	case AVMEDIA_TYPE_VIDEO:
 		decoder_abort(&is->vid_decoder, &is->pictq);
@@ -492,6 +503,9 @@ void VideoCtl::set_play_speed(double dSpeed)
 	std::unique_lock<std::shared_mutex> lock(m_speedMutex);
 	m_fPlaybackSpeed = dSpeed;
 	m_bSpeedChanged = true;
+	if (m_CurStream) {
+		m_CurStream->play_rate = m_fPlaybackSpeed;
+	}
 }
 
 void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
@@ -649,14 +663,6 @@ void VideoCtl::update_video_pts(VideoState* is, double pts, int64_t pos, int ser
 	/* 更新当前视频pts */
 	set_clock(&is->vidclk, pts, serial);
 	sync_clock_to_slave(&is->extclk, &is->vidclk);
-}
-
-void VideoCtl::update_video_state_speed(VideoState* is)
-{
-	// 更新所有时钟的速度
-	is->audclk.speed = m_fPlaybackSpeed;
-	is->vidclk.speed = m_fPlaybackSpeed;
-	is->extclk.speed = m_fPlaybackSpeed;
 }
 
 int VideoCtl::configure_filtergraph(AVFilterGraph* graph, const char* filtergraph, AVFilterContext* source_ctx, AVFilterContext* sink_ctx)
@@ -1158,18 +1164,7 @@ int VideoCtl::audio_thread(void* arg)
 		if (got_frame) {
 			tb = AVRational{ 1, frame->sample_rate };
 			tb = AVRational{ 1, frame->sample_rate };
-#if not CONFIG_AVFILTER
-			if (!(af = frame_queue_peek_writable(&is->sampq)))
-				goto the_end;
-
-			af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
-			af->pos = frame->pkt_pos;
-			af->serial = is->aud_decoder.pkt_serial;
-			af->duration = av_q2d({ frame->nb_samples, frame->sample_rate });
-
-			av_frame_move_ref(af->frame, frame);
-			frame_queue_push(&is->sampq);
-#else
+#if CONFIG_AVFILTER
 			// config filter
 			reconfigure =
 				cmp_audio_fmts(is->audio_filter_src.fmt, is->audio_filter_src.ch_layout.nb_channels,
@@ -1227,6 +1222,17 @@ int VideoCtl::audio_thread(void* arg)
 			if (ret == AVERROR_EOF)
 				is->aud_decoder.finished = is->aud_decoder.pkt_serial;
 			// end config avfilter
+#else
+			if (!(af = frame_queue_peek_writable(&is->sampq)))
+				goto the_end;
+
+			af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
+			af->pos = frame->pkt_pos;
+			af->serial = is->aud_decoder.pkt_serial;
+			af->duration = av_q2d({ frame->nb_samples, frame->sample_rate });
+
+			av_frame_move_ref(af->frame, frame);
+			frame_queue_push(&is->sampq);
 #endif
 		}
 	} while (ret >= 0 || ret == AVERROR(EAGAIN) || ret == AVERROR_EOF);
@@ -1267,14 +1273,7 @@ int VideoCtl::video_thread(void* arg)
 			goto the_end;
 		if (!ret)
 			continue;
-#if (not CONFIG_AVFILTER)
-		// 计算每帧的显示时间，单位为秒
-		duration = (frame_rate.num && frame_rate.den ? av_q2d({ frame_rate.den, frame_rate.num }) : 0);
-		// 计算视频帧的显示时间戳，单位为秒
-		pts = ((frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb));// 根据播放速度调整延迟
-		ret = queue_picture(is, frame, pts, duration, frame->pkt_pos, is->vid_decoder.pkt_serial);
-		av_frame_unref(frame);
-#else
+#if CONFIG_AVFILTER
 		// 新建滤镜
 		if (last_w != frame->width ||
 			last_h != frame->height ||
@@ -1348,6 +1347,14 @@ int VideoCtl::video_thread(void* arg)
 			if (is->videoq.serial != is->vid_decoder.pkt_serial)
 				break;
 		}
+#else
+		
+		// 计算每帧的显示时间，单位为秒
+		duration = (frame_rate.num && frame_rate.den ? av_q2d({ frame_rate.den, frame_rate.num }) : 0);
+		// 计算视频帧的显示时间戳，单位为秒
+		pts = ((frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb));// 根据播放速度调整延迟
+		ret = queue_picture(is, frame, pts, duration, frame->pkt_pos, is->vid_decoder.pkt_serial);
+		av_frame_unref(frame);
 #endif
 		if (ret < 0)
 			goto the_end;
@@ -1468,10 +1475,10 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 	av_unused double audio_clock0;
 	int wanted_nb_samples;
 	Frame* af;
-
+	int translate_time = 1;
 	if (is->paused)
 		return -1;
-
+reload:
 	do {
 #if defined(_WIN32)
 		while (frame_queue_nb_remaining(&is->sampq) == 0) {
@@ -1490,9 +1497,9 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 		(AVSampleFormat)af->frame->format, 1);
 
 	wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples);
-#if (not CONFIG_AVFILTER)
-	wanted_nb_samples /= m_fPlaybackSpeed;
-#endif
+//#if (not CONFIG_AVFILTER)
+//	wanted_nb_samples /= m_fPlaybackSpeed;
+//#endif
 	if (af->frame->format != is->audio_src.fmt ||
 		av_channel_layout_compare(&af->frame->ch_layout, &is->audio_src.ch_layout) ||
 		af->frame->sample_rate != is->audio_src.freq ||
@@ -1548,6 +1555,30 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 		}
 		is->audio_buf = is->audio_buf1;
 		resampled_data_size = len2 * is->audio_tgt.ch_layout.nb_channels * av_get_bytes_per_sample(is->audio_tgt.fmt);
+		//=====================倍速处理 begin==========================
+		int bytes_per_sample = av_get_bytes_per_sample(is->audio_tgt.fmt);
+		if (is->soundTouchHandle && is->play_rate != 1.0f && !is->abort_request)
+		{
+			av_fast_malloc(&is->audio_new_buf, &is->audio_new_buf_size, out_size * translate_time);
+			if (!is->audio_new_buf) {
+				// Allocation failed; buf already freed
+				return AVERROR(ENOMEM);
+			}
+			for (int i = 0; i < (resampled_data_size / 2); i++)
+			{
+				is->audio_new_buf[i] = (is->audio_buf1[i * 2] | (is->audio_buf1[i * 2 + 1] << 8));
+			}
+			int ret_len = soundtouch_translate(is->soundTouchHandle, is->audio_new_buf, (float)(is->play_rate), (float)(1.0f / is->play_rate),
+				resampled_data_size / 2, bytes_per_sample, is->audio_tgt.ch_layout.nb_channels, af->frame->sample_rate);
+			if (ret_len > 0) {
+				is->audio_buf = (uint8_t*)is->audio_new_buf;
+				resampled_data_size = ret_len;
+			}
+			else {
+				translate_time++;
+				goto reload;
+			}
+		}
 	}
 	else {
 		is->audio_buf = af->frame->data[0];
@@ -1999,14 +2030,14 @@ void VideoCtl::ReadThread(VideoState* is)
 			else
 				av_read_play(ic);
 		}
-		if (m_bSpeedChanged) {
-			std::shared_lock<std::shared_mutex> lock(m_speedMutex);
-			sound_touch.setSampleRate(codec_ctx->sample_rate);
-			sound_touch.setChannels(2); // 立体声
-			sound_touch.setTempoChange(0.0f); // 保持原始速度
-			sound_touch.setPitchSemiTones(0.0f); // 保持原始音调
-			m_bSpeedChanged = false;
-		}
+		//if (m_bSpeedChanged) {
+		//	std::shared_lock<std::shared_mutex> lock(m_speedMutex);
+		//	is->sound_touch.setSampleRate(ic->sample_rate);
+		//	is->sound_touch.setChannels(2); // 立体声
+		//	is->sound_touch.setTempoChange(0.0f); // 保持原始速度
+		//	is->sound_touch.setPitchSemiTones(0.0f); // 保持原始音调
+		//	m_bSpeedChanged = false;
+		//}
 		if (is->seek_req) {
 			int64_t seek_target = is->seek_pos;
 			int64_t seek_min = is->seek_rel > 0 ? seek_target - is->seek_rel + 2 : INT64_MIN;
@@ -2151,6 +2182,10 @@ VideoState* VideoCtl::stream_open(const char* filename)
 	is = (VideoState*)av_mallocz(sizeof(VideoState));
 	if (!is)
 		return NULL;
+	is->soundTouchHandle = soundtouch_create();
+	is->audio_new_buf = NULL;
+	is->audio_new_buf_size = 0;
+	is->play_rate =  m_fPlaybackSpeed;;
 	//视频文件名
 	is->last_video_stream = is->video_stream = -1;
 	is->last_audio_stream = is->audio_stream = -1;

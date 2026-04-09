@@ -65,6 +65,9 @@
     <ClCompile Include="xlogger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="soundtouch_wrap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="src\about.h">
@@ -141,6 +144,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="enums.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="soundtouch_wrap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

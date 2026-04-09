@@ -175,7 +175,11 @@ typedef struct Decoder {
 
 //视频状态，管理所有的视频信息及数据
 typedef struct VideoState {
-    soundtouch::SoundTouch soundTouch;
+    void* soundTouchHandle;
+    short* audio_new_buf;  /* soundtouch buf */
+    unsigned int audio_new_buf_size;
+    double play_rate;	/* 播放速度默认1.0 */
+
     std::thread read_tid; //读取线程
     AVInputFormat *iformat;
     int abort_request; //停止读取标志

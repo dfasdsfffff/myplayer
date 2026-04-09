@@ -22,7 +22,7 @@
 #include "enums.h"
 
 #ifndef CONFIG_AVFILTER
-#define CONFIG_AVFILTER 1
+#define CONFIG_AVFILTER 0
 #endif
 
 //单例模式
@@ -162,8 +162,6 @@ private:
 	double vp_duration(VideoState* is, Frame* vp, Frame* nextvp);
 	void update_video_pts(VideoState* is, double pts, int64_t pos, int serial);
 public:
-	void update_video_state_speed(VideoState* is);
-
 	int configure_filtergraph(AVFilterGraph* graph, const char* filtergraph,
 		AVFilterContext* source_ctx, AVFilterContext* sink_ctx);
 	int configure_video_filters(AVFilterGraph* graph, VideoState* is, const char* vfilters, AVFrame* frame);
