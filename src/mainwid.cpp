@@ -226,6 +226,8 @@ bool MainWid::ConnectSignalSlots()
 	connect(VideoCtl::GetInstance(), &VideoCtl::SigStartPlay, &m_stTitle, &Title::OnPlay, Qt::DirectConnection);
 	// 播放完成，自动播放下一首
 	connect(VideoCtl::GetInstance(), &VideoCtl::SigPlayNextOne, &m_stPlaylist, &Playlist::OnForwardPlay);
+	//
+	connect(VideoCtl::GetInstance(), &VideoCtl::SigRandomPlayOne, &m_stPlaylist, &Playlist::OnRandomPlay, Qt::QueuedConnection);
 
 	connect(&m_stCtrlBarAnimationTimer, &QTimer::timeout, this, &MainWid::OnCtrlBarAnimationTimeOut);
 

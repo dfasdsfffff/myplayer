@@ -502,7 +502,6 @@ void VideoCtl::set_play_speed(double dSpeed)
 		return;
 	std::unique_lock<std::shared_mutex> lock(m_speedMutex);
 	m_fPlaybackSpeed = dSpeed;
-	m_bSpeedChanged = true;
 	if (m_CurStream) {
 		m_CurStream->play_rate = m_fPlaybackSpeed;
 	}
@@ -1497,9 +1496,7 @@ reload:
 		(AVSampleFormat)af->frame->format, 1);
 
 	wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples);
-//#if (not CONFIG_AVFILTER)
-//	wanted_nb_samples /= m_fPlaybackSpeed;
-//#endif
+
 	if (af->frame->format != is->audio_src.fmt ||
 		av_channel_layout_compare(&af->frame->ch_layout, &is->audio_src.ch_layout) ||
 		af->frame->sample_rate != is->audio_src.freq ||
@@ -1539,8 +1536,7 @@ reload:
 				av_log(NULL, AV_LOG_ERROR, "swr_set_compensation() failed\n");
 				return -1;
 			}
-		}
-		av_fast_malloc(&is->audio_buf1, &is->audio_buf1_size, out_size);
+		}		av_fast_malloc(&is->audio_buf1, &is->audio_buf1_size, out_size);
 		if (!is->audio_buf1)
 			return AVERROR(ENOMEM);
 		len2 = swr_convert(is->swr_ctx, out, out_count, in, af->frame->nb_samples);
@@ -1564,12 +1560,19 @@ reload:
 				// Allocation failed; buf already freed
 				return AVERROR(ENOMEM);
 			}
+			// 将音频数据转换为SoundTouch库需要的格式（把每两个uint8_t转为short）
 			for (int i = 0; i < (resampled_data_size / 2); i++)
 			{
 				is->audio_new_buf[i] = (is->audio_buf1[i * 2] | (is->audio_buf1[i * 2 + 1] << 8));
 			}
-			int ret_len = soundtouch_translate(is->soundTouchHandle, is->audio_new_buf, (float)(is->play_rate), (float)(1.0f / is->play_rate),
-				resampled_data_size / 2, bytes_per_sample, is->audio_tgt.ch_layout.nb_channels, af->frame->sample_rate);
+			int ret_len = soundtouch_translate(is->soundTouchHandle, 
+				is->audio_new_buf, // input
+				(float)(is->play_rate), // speed
+				(float)(1.0f / is->play_rate),// pitch
+				resampled_data_size / 2,
+				bytes_per_sample, 
+				is->audio_tgt.ch_layout.nb_channels,
+				af->frame->sample_rate);
 			if (ret_len > 0) {
 				is->audio_buf = (uint8_t*)is->audio_new_buf;
 				resampled_data_size = ret_len;
@@ -2105,6 +2108,12 @@ void VideoCtl::ReadThread(VideoState* is)
 			else if (m_loopPolicy == VideoLoopPolicy::LOOP_SINGLE) {
 				// 重新播放
 				stream_seek(is, 0, 0);
+			}
+			else if (m_loopPolicy == VideoLoopPolicy::LOOP_RANDOM) {
+				m_bPlayLoop = false;
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				SigRandomPlayOne();
+				continue;
 			}
 			else {
 				// 先暂停播放循环，再退出

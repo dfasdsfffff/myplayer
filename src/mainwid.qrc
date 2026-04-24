@@ -14,5 +14,6 @@
         <file>res/sequentia-play.svg</file>
         <file>res/shuffle-play.svg</file>
         <file>res/single-play.svg</file>
+        <file>res/non-repeating-play.svg</file>
     </qresource>
 </RCC>

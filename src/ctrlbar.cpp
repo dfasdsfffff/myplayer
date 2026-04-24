@@ -224,7 +224,7 @@ void CtrlBar::OnCycleSettingBtnClicked()
 	switch (m_curLoopPolicy)
 	{
 	case VideoLoopPolicy::LOOP_NONE:
-		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/shuffle-play.svg"));
+		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/non-repeating-play.svg"));
 		ui->CycleSettingBtn->setToolTip("循环模式：不循环");
 		break;
 	case VideoLoopPolicy::LOOP_ALL:
@@ -233,6 +233,10 @@ void CtrlBar::OnCycleSettingBtnClicked()
 		break;
 	case VideoLoopPolicy::LOOP_SINGLE:
 		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/single-play.svg"));
+		ui->CycleSettingBtn->setToolTip("循环模式：单首循环");
+		break;
+	case VideoLoopPolicy::LOOP_RANDOM:
+		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/shuffle-play.svg"));
 		ui->CycleSettingBtn->setToolTip("循环模式：单首循环");
 		break;
 	}

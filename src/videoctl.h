@@ -71,6 +71,8 @@ signals:
 
 	void SigPlayNextOne(); //播放完成
 
+	void SigRandomPlayOne(); //随机播放
+
 public:
 	void OnPlaySeek(double dPercent);
 	void OnPlayVolume(double dPercent);
@@ -199,7 +201,6 @@ private:
 	int m_nFrameH;
 
 	// 倍速播放相关
-	bool m_bSpeedChanged = false;     // 当前的播放速度是否被修改过了
 	std::shared_mutex m_speedMutex;   // 保护mPlaybackSpeed的读写
 	float m_fPlaybackSpeed = 1;       // 当前的播放速度，默认为1倍速
 };

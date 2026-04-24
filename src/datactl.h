@@ -211,7 +211,7 @@ typedef struct VideoState {
 
     int av_sync_type;
 
-    double audio_clock;
+    double audio_clock;    //最新解码并送入音频缓冲区的音频帧的结束时间
     int audio_clock_serial;
     double audio_diff_cum; /* used for AV difference average computation */
     double audio_diff_avg_coef;
@@ -220,8 +220,8 @@ typedef struct VideoState {
     AVStream *audio_st;
     PacketQueue audioq;
     int audio_hw_buf_size;
-    uint8_t *audio_buf;
-    uint8_t *audio_buf1;
+	uint8_t* audio_buf;// 如果有重采样，存储重采样前的音频数据；如果有倍速播放则指向audio_new_buf；否则存储解码后的音频数据
+	uint8_t* audio_buf1;// 存储重采样后的音频数据
     unsigned int audio_buf_size; /* in bytes */
     unsigned int audio_buf1_size;
     int audio_buf_index; /* in bytes */

@@ -1,5 +1,6 @@
 ﻿#include <QDebug>
 #include <QDir>
+#include <QRandomGenerator>
 
 #include "playlist.h"
 #include "ui_playlist.h"
@@ -215,6 +216,18 @@ void Playlist::OnForwardPlay()
         on_List_itemDoubleClicked(ui->List->item(m_nCurrentPlayListIndex));
         ui->List->setCurrentRow(m_nCurrentPlayListIndex);
     }
+}
+
+void Playlist::OnRandomPlay()
+{
+    if (ui->List->count() == 0)
+    {
+        return;
+    }
+    int nRandomIndex = QRandomGenerator::global()->bounded(ui->List->count());
+    on_List_itemDoubleClicked(ui->List->item(nRandomIndex));
+    m_nCurrentPlayListIndex = nRandomIndex;
+    ui->List->setCurrentRow(m_nCurrentPlayListIndex);
 }
 
 void Playlist::dropEvent(QDropEvent *event)

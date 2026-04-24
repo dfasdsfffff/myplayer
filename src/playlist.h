@@ -51,6 +51,7 @@ public:
 
     void OnBackwardPlay();
     void OnForwardPlay();
+	void OnRandomPlay();
 
     /* 在这里定义dock的初始大小 */
     QSize sizeHint() const
