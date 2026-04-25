@@ -46,7 +46,6 @@ set(SOURCE_FILES
     src/about.cpp
     src/ctrlbar.cpp
     src/CustomSlider.cpp
-    src/customthread.cpp
     src/globalhelper.cpp
     src/mainwid.cpp
     src/medialist.cpp
@@ -64,12 +63,17 @@ set(HEADER_FILES
     enums.h
     soundtouch_wrap.h
     src/about.h
+    src/av_constants.h
+    src/av_types.h
     src/ctrlbar.h
     src/CustomSlider.h
-    src/customthread.h
     src/datactl.h
+    src/decoder.h
+    src/frame_queue.h
     src/globalhelper.h
+    src/packet_queue.h
     src/resource.h
+    src/video_state.h
     src/videoctl.h
     src/title.h
     src/show.h

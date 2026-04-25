@@ -139,7 +139,7 @@ private:
 
 	void video_display(VideoState* is);
 	int video_open(VideoState* is);
-	void do_exit(VideoState*& is);
+	void do_exit(VideoState* is);
 
 	int realloc_texture(SDL_Texture** texture, Uint32 new_format, int new_width, int new_height, SDL_BlendMode blendmode, int init_texture);
 	void calculate_display_rect(SDL_Rect* rect, int scr_xleft, int scr_ytop, int scr_width, int scr_height, int pic_width, int pic_height, AVRational pic_sar);
@@ -173,12 +173,13 @@ private:
 
 	static VideoCtl* m_pInstance; //< 单例指针
 
-	bool m_bInited;	//< 初始化标志
+	std::once_flag m_initFlag;    //< 初始化保护（call_once）
 	bool m_bPlayLoop; //刷新循环标志
 
 	bool m_bAutorotate = true;
 
 	VideoState* m_CurStream;
+	std::shared_mutex m_streamMutex;  // 保护 m_CurStream 的读写
 
 	SDL_Window* m_sdlWindow;
 	SDL_Renderer* m_sdlRenderer;

@@ -48,9 +48,15 @@
   <ItemGroup>
     <ClInclude Include="enums.h" />
     <ClInclude Include="soundtouch_wrap.h" />
+    <ClInclude Include="src\av_constants.h" />
+    <ClInclude Include="src\av_types.h" />
     <ClInclude Include="src\datactl.h" />
+    <ClInclude Include="src\decoder.h" />
+    <ClInclude Include="src\frame_queue.h" />
     <ClInclude Include="src\globalhelper.h" />
+    <ClInclude Include="src\packet_queue.h" />
     <ClInclude Include="src\resource.h" />
+    <ClInclude Include="src\video_state.h" />
     <ClInclude Include="xlogger.h" />
     <QtMoc Include="src\videoctl.h" />
     <QtMoc Include="src\title.h" />

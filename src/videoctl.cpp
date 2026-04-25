@@ -14,6 +14,7 @@
 #include <QMutex>
 
 #include <thread>
+#include <mutex>
 #include "videoctl.h"
 
 extern "C" {
@@ -498,9 +499,11 @@ void VideoCtl::sync_clock_to_slave(Clock* c, Clock* slave)
 
 void VideoCtl::set_play_speed(double dSpeed)
 {
-	if (dSpeed <= 0.1 || dSpeed > 2 || dSpeed == m_fPlaybackSpeed)
+	if (dSpeed <= 0.1 || dSpeed > 2)
 		return;
 	std::unique_lock<std::shared_mutex> lock(m_speedMutex);
+	if (dSpeed == m_fPlaybackSpeed)
+		return;
 	m_fPlaybackSpeed = dSpeed;
 	if (m_CurStream) {
 		m_CurStream->play_rate = m_fPlaybackSpeed;
@@ -1190,7 +1193,12 @@ int VideoCtl::audio_thread(void* arg)
 				}
 				is->audio_filter_src.freq = frame->sample_rate;
 				last_serial = is->aud_decoder.pkt_serial;
-				auto afilters = std::format("atempo={:.2f}", m_fPlaybackSpeed);
+				double currentSpeed;
+				{
+					std::shared_lock<std::shared_mutex> lock(m_speedMutex);
+					currentSpeed = m_fPlaybackSpeed;
+				}
+				auto afilters = std::format("atempo={:.2f}", currentSpeed);
 				if ((ret = configure_audio_filters(is, afilters.c_str(), 1)) < 0)
 				{
 					goto the_end;
@@ -1294,7 +1302,12 @@ int VideoCtl::video_thread(void* arg)
 				goto the_end;
 			}
 			graph->nb_threads = 0;
-			std::string mvfilters = std::format("setpts={:.2f}*PTS", 1 / m_fPlaybackSpeed);
+			double currentSpeed;
+			{
+				std::shared_lock<std::shared_mutex> lock(m_speedMutex);
+				currentSpeed = m_fPlaybackSpeed;
+			}
+			std::string mvfilters = std::format("setpts={:.2f}*PTS", 1 / currentSpeed);
 			if ((ret = configure_video_filters(graph, is, mvfilters.c_str(), frame)) < 0)
 			{
 				SDL_Event event{};
@@ -1758,7 +1771,12 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if (ret < 0)
 			goto fail;
 		is->audio_filter_src.fmt = avctx->sample_fmt;
-		auto afilters = std::format("atempo={:.2f}", m_fPlaybackSpeed);
+		double currentSpeed;
+		{
+			std::shared_lock<std::shared_mutex> lock(m_speedMutex);
+			currentSpeed = m_fPlaybackSpeed;
+		}
+		auto afilters = std::format("atempo={:.2f}", currentSpeed);
 		if ((ret = configure_audio_filters(is, afilters.c_str(), 0)) < 0)
 		{
 			print_error("configure_audio_filters", ret);
@@ -2194,7 +2212,10 @@ VideoState* VideoCtl::stream_open(const char* filename)
 	is->soundTouchHandle = soundtouch_create();
 	is->audio_new_buf = NULL;
 	is->audio_new_buf_size = 0;
-	is->play_rate =  m_fPlaybackSpeed;;
+	{
+		std::shared_lock<std::shared_mutex> lock(m_speedMutex);
+		is->play_rate = m_fPlaybackSpeed;
+	}
 	//视频文件名
 	is->last_video_stream = is->video_stream = -1;
 	is->last_audio_stream = is->audio_stream = -1;
@@ -2434,13 +2455,13 @@ void VideoCtl::LoopThread()
 
 
 	do_exit(m_CurStream);
-	//m_CurStream = nullptr;
 
 }
 
 
 void VideoCtl::OnPlaySeek(double dPercent)
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2454,6 +2475,7 @@ void VideoCtl::OnPlaySeek(double dPercent)
 void VideoCtl::OnPlayVolume(double dPercent)
 {
 	startup_volume = dPercent * SDL_MIX_MAXVOLUME;
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2463,6 +2485,7 @@ void VideoCtl::OnPlayVolume(double dPercent)
 
 void VideoCtl::OnSeekForward()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2479,6 +2502,7 @@ void VideoCtl::OnSeekForward()
 
 void VideoCtl::OnSeekBack()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2495,6 +2519,7 @@ void VideoCtl::OnSeekBack()
 
 void VideoCtl::UpdateVolume(int sign, double step)
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2570,12 +2595,15 @@ int VideoCtl::video_open(VideoState* is)
 	return 0;
 }
 
-void VideoCtl::do_exit(VideoState*& is)
+void VideoCtl::do_exit(VideoState* is)
 {
 	if (is)
 	{
 		stream_close(is);
-		is = nullptr;
+	}
+	{
+		std::unique_lock<std::shared_mutex> lock(m_streamMutex);
+		m_CurStream = nullptr;
 	}
 	if (m_sdlRenderer)
 	{
@@ -2594,24 +2622,33 @@ void VideoCtl::do_exit(VideoState*& is)
 
 void VideoCtl::OnAddVolume()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
 	}
-	UpdateVolume(1, SDL_VOLUME_STEP);
+	double volume_level = m_CurStream->audio_volume ? (20 * log(m_CurStream->audio_volume / (double)SDL_MIX_MAXVOLUME) / log(10)) : -1000.0;
+	int new_volume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volume_level + SDL_VOLUME_STEP) / 20.0));
+	m_CurStream->audio_volume = av_clip(m_CurStream->audio_volume == new_volume ? (m_CurStream->audio_volume + 1) : new_volume, 0, SDL_MIX_MAXVOLUME);
+	emit SigVideoVolume(m_CurStream->audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
 }
 
 void VideoCtl::OnSubVolume()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
 	}
-	UpdateVolume(-1, SDL_VOLUME_STEP);
+	double volume_level = m_CurStream->audio_volume ? (20 * log(m_CurStream->audio_volume / (double)SDL_MIX_MAXVOLUME) / log(10)) : -1000.0;
+	int new_volume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volume_level - SDL_VOLUME_STEP) / 20.0));
+	m_CurStream->audio_volume = av_clip(m_CurStream->audio_volume == new_volume ? (m_CurStream->audio_volume - 1) : new_volume, 0, SDL_MIX_MAXVOLUME);
+	emit SigVideoVolume(m_CurStream->audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
 }
 
 void VideoCtl::OnPause()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 
@@ -2629,7 +2666,6 @@ void VideoCtl::OnStop()
 
 VideoCtl::VideoCtl(QObject* parent) :
 	QObject(parent),
-	m_bInited(false),
 	m_CurStream(nullptr),
 	m_bPlayLoop(false),
 	screen_width(0),
@@ -2647,11 +2683,6 @@ VideoCtl::VideoCtl(QObject* parent) :
 
 bool VideoCtl::Init()
 {
-	if (m_bInited == true)
-	{
-		return true;
-	}
-
 	if (ConnectSignalSlots() == false)
 	{
 		return false;
@@ -2665,8 +2696,6 @@ bool VideoCtl::Init()
 	}
 	SDL_EventState(SDL_SYSWMEVENT, SDL_IGNORE);
 	SDL_EventState(SDL_USEREVENT, SDL_IGNORE);
-
-	m_bInited = true;
 
 	return true;
 }
@@ -2683,10 +2712,10 @@ VideoCtl* VideoCtl::m_pInstance = new VideoCtl();
 
 VideoCtl* VideoCtl::GetInstance()
 {
-	if (false == m_pInstance->Init())
-	{
-		return nullptr;
-	}
+	std::call_once(m_pInstance->m_initFlag, []() {
+		if (!m_pInstance->Init())
+			m_pInstance = nullptr;
+	});
 	return m_pInstance;
 }
 
@@ -2722,7 +2751,10 @@ bool VideoCtl::StartPlay(QString strFileName, WId widPlayWid)
 		do_exit(m_CurStream);
 	}
 
-	m_CurStream = is;
+	{
+		std::unique_lock<std::shared_mutex> lock(m_streamMutex);
+		m_CurStream = is;
+	}
 
 	//事件循环
 	m_tPlayLoopThread = std::thread(&VideoCtl::LoopThread, this);
