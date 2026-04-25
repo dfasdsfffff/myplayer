@@ -15,7 +15,6 @@
     <ClCompile Include="src\about.cpp" />
     <ClCompile Include="src\ctrlbar.cpp" />
     <ClCompile Include="src\CustomSlider.cpp" />
-    <ClCompile Include="src\customthread.cpp" />
     <ClCompile Include="src\globalhelper.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\mainwid.cpp" />
@@ -49,7 +48,6 @@
   <ItemGroup>
     <ClInclude Include="enums.h" />
     <ClInclude Include="soundtouch_wrap.h" />
-    <ClInclude Include="src\customthread.h" />
     <ClInclude Include="src\datactl.h" />
     <ClInclude Include="src\globalhelper.h" />
     <ClInclude Include="src\resource.h" />

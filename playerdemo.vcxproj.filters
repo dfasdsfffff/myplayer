@@ -32,9 +32,6 @@
     <ClCompile Include="src\CustomSlider.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\customthread.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\globalhelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -128,9 +125,6 @@
     </QtUic>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\customthread.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\datactl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
