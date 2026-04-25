@@ -81,7 +81,7 @@ extern "C" {
 #include "SDL2/SDL.h"
 }
 
-#include <SoundTouch.h>
+#include <SoundTouchDLL.h>
 
 #define MAX_SLIDER_VALUE 65536
 
