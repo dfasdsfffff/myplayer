@@ -28,7 +28,8 @@ bool About::Init()
     this->setWindowIcon(QIcon("://res/player.png"));
     ui->LogoLabel->setPixmap(QPixmap("://res/player.png").scaled(80, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
-    //setStyleSheet(GlobalHelper::GetQssStr("://res/qss/about.css"));
+    // 加载样式（使用统一设计系统）
+    setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/about.css"));
 
     QString strVersion = QString("版本：%1\n时间：%2").arg(GlobalHelper::GetAppVersion()).arg(QString(__DATE__) + " " + QString(__TIME__));
     ui->VersionLabel->setText(strVersion);

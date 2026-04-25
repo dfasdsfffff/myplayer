@@ -53,7 +53,7 @@ bool Playlist::Init()
 
 bool Playlist::InitUi()
 {
-    setStyleSheet(GlobalHelper::GetQssStr("://res/qss/playlist.css"));
+    setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/playlist.css"));
     //ui->List->hide();
     //this->setFixedWidth(ui->HideOrShowBtn->width());
     //GlobalHelper::SetIcon(ui->HideOrShowBtn, 12, QChar(0xf104));
@@ -120,6 +120,16 @@ bool Playlist::GetPlaylistStatus()
     }
 
     return true;
+}
+
+void Playlist::GetPlaylist(QStringList& playList)
+{
+    playList.clear();
+    for (int i = 0; i < ui->List->count(); i++)
+    {
+        QListWidgetItem* item = ui->List->item(i);
+        playList.append(item->toolTip());
+    }
 }
 
 void Playlist::OnAddFile(QString strFileName)

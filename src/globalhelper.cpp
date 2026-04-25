@@ -33,6 +33,24 @@ QString GlobalHelper::GetQssStr(QString strQssPath)
     return strQss;
 }
 
+QString GlobalHelper::GetThemeStr(QString componentQssPath)
+{
+    // 加载统一设计系统
+    QString designSystem = GetQssStr(":/res/qss/design-system.css");
+    
+    // 如果有组件特定样式，追加加载
+    if (!componentQssPath.isEmpty())
+    {
+        QString componentQss = GetQssStr(componentQssPath);
+        if (!componentQss.isEmpty())
+        {
+            designSystem += "\n" + componentQss;
+        }
+    }
+    
+    return designSystem;
+}
+
 void GlobalHelper::SetIcon(QPushButton* btn, int iconSize, QChar icon)
 {
     QFont font;
@@ -94,8 +112,73 @@ void GlobalHelper::GetPlayVolume(double& nVolume)
 {
     QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
-    QString str = settings.value("volume/size").toString();
     nVolume = settings.value("volume/size", nVolume).toDouble();
+}
+
+// 新增：窗口状态持久化
+void GlobalHelper::SaveWindowState(const QByteArray& geometry, const QByteArray& windowState)
+{
+    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
+    settings.setValue("window/geometry", geometry);
+    settings.setValue("window/state", windowState);
+    settings.sync();
+}
+
+void GlobalHelper::RestoreWindowState(QByteArray& geometry, QByteArray& windowState)
+{
+    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
+    geometry = settings.value("window/geometry").toByteArray();
+    windowState = settings.value("window/state").toByteArray();
+}
+
+// 新增：播放设置
+void GlobalHelper::SavePlaySettings(double volume, int loopPolicy, double speed)
+{
+    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
+    settings.setValue("play/volume", volume);
+    settings.setValue("play/loop_policy", loopPolicy);
+    settings.setValue("play/speed", speed);
+    settings.sync();
+}
+
+void GlobalHelper::LoadPlaySettings(double& volume, int& loopPolicy, double& speed)
+{
+    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
+    volume = settings.value("play/volume", 1.0).toDouble();
+    loopPolicy = settings.value("play/loop_policy", 0).toInt();
+    speed = settings.value("play/speed", 1.0).toDouble();
+}
+
+// 新增：最近打开的文件
+void GlobalHelper::SaveRecentFiles(const QStringList& recentFiles)
+{
+    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
+    settings.beginWriteArray("recent_files");
+    for (int i = 0; i < recentFiles.size(); ++i)
+    {
+        settings.setArrayIndex(i);
+        settings.setValue("file", recentFiles.at(i));
+    }
+    settings.endArray();
+    settings.sync();
+}
+
+void GlobalHelper::GetRecentFiles(QStringList& recentFiles)
+{
+    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
+    int size = settings.beginReadArray("recent_files");
+    for (int i = 0; i < size; ++i)
+    {
+        settings.setArrayIndex(i);
+        recentFiles.append(settings.value("file").toString());
+    }
+    settings.endArray();
 }
 
 QString GlobalHelper::GetAppVersion()

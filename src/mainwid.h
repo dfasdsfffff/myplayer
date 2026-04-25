@@ -62,6 +62,9 @@ protected:
 
     void contextMenuEvent(QContextMenuEvent* event);
 
+    // 全屏模式事件过滤器（替代定时器轮询）
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 
 private:
     //连接信号槽
@@ -128,7 +131,6 @@ private:
     QRect m_stCtrlBarAnimationHide;//控制面板隐藏区域
 
     QTimer m_stCtrlBarAnimationTimer;
-    QTimer m_stFullscreenMouseDetectTimer;//全屏时鼠标位置监测时钟
     bool m_bFullscreenCtrlBarShow;
     QTimer stCtrlBarHideTimer;
 

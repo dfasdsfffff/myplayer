@@ -31,6 +31,12 @@ CtrlBar::~CtrlBar()
 	delete ui;
 }
 
+double CtrlBar::GetSpeed() const
+{
+	// 从 SpeedCombo 获取当前选中的速度
+	return ui->SpeedCombo->currentText().left(ui->SpeedCombo->currentText().length() - 1).toDouble();
+}
+
 bool CtrlBar::Init()
 {
 	ui->SpeedCombo->setToolTip("播放速度");
@@ -41,7 +47,7 @@ bool CtrlBar::Init()
 	ui->SpeedCombo->addItem("2.0x");
 	ui->SpeedCombo->setCurrentIndex(2); // 默认选择1.0x
 
-	setStyleSheet(GlobalHelper::GetQssStr("://res/qss/ctrlbar.css"));
+	setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/ctrlbar.css"));
 
 	GlobalHelper::SetIcon(ui->PlayOrPauseBtn, 12, QChar(0xf04b));
 	GlobalHelper::SetIcon(ui->StopBtn, 12, QChar(0xf04d));

@@ -30,8 +30,8 @@ Show::Show(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    //加载样式
-    setStyleSheet(GlobalHelper::GetQssStr("://res/qss/show.css"));
+    // 加载样式（使用统一设计系统）
+    setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/show.css"));
     setAcceptDrops(true);
 
 	

@@ -39,6 +39,14 @@ public:
 	 * @note 	
 	 */
     bool GetPlaylistStatus();
+
+	/**
+	 * @brief	获取播放列表文件路径
+	 * 
+	 * @param	playList 输出参数，播放列表文件路径
+	 * @note 	
+	 */
+	void GetPlaylist(QStringList& playList);
 public:
 	/**
 	 * @brief	添加文件

@@ -34,6 +34,11 @@ public:
     bool Init();
     void ResetSpeed();
 
+    // 新增：获取当前状态（用于配置持久化）
+    double GetVolume() const { return m_dLastVolumePercent; }
+    int GetLoopPolicy() const { return static_cast<int>(m_curLoopPolicy); }
+    double GetSpeed() const;
+
 public:
     void OnVideoTotalSeconds(int nSeconds);
     void OnVideoPlaySeconds(int nSeconds);

@@ -113,8 +113,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <IncludePath>lib/ffmpeg/include;lib/SDL2/include;src;lib\soundtouch\include;$(IncludePath)</IncludePath>
-    <LibraryPath>lib\ffmpeg\bin;lib\SDL2\lib\x64;lib\soundtouch\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>lib/ffmpeg/include;lib/SDL2/include;src;lib\soundtouch-2.3.3\include;lib\soundtouch-2.3.3\lib;$(IncludePath)</IncludePath>
+    <LibraryPath>lib\ffmpeg\bin;lib\SDL2\lib\x64;lib\soundtouch-2.3.3\lib;$(LibraryPath)</LibraryPath>
     <OutDir>bin\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
@@ -124,7 +124,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Link>
-      <AdditionalDependencies>SDL2.lib;avcodec.lib;avdevice.lib;avfilter.lib;avformat.lib;avutil.lib;swresample.lib;swscale.lib;SoundTouch_x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL2.lib;avcodec.lib;avdevice.lib;avfilter.lib;avformat.lib;avutil.lib;swresample.lib;swscale.lib;SoundTouchDLL_x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>

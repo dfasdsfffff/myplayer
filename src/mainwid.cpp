@@ -24,14 +24,18 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QJsonParseError>
+#include <QApplication>
+#include <QStatusBar>
 
 
 #include "mainwid.h"
 #include "ui_mainwid.h"
 #include "globalhelper.h"
 #include "videoctl.h"
+#include "enums.h"
 
-const int FULLSCREEN_MOUSE_DETECT_TIME = 500;
+const int FULLSCREEN_CTRLBAR_HIDE_DELAY = 2000; // 控制面板隐藏延迟（毫秒）
+const int CTRLBAR_ANIMATION_DURATION = 1000;    // 动画持续时间（毫秒）
 
 MainWid::MainWid(QMainWindow* parent) :
 	QMainWindow(parent),
@@ -48,8 +52,8 @@ MainWid::MainWid(QMainWindow* parent) :
 	setWindowFlags(Qt::FramelessWindowHint /*| Qt::WindowSystemMenuHint*/ | Qt::WindowMinimizeButtonHint);
 	//设置任务栏图标
 	this->setWindowIcon(QIcon("://res/player.png"));
-	//加载样式
-	QString qss = GlobalHelper::GetQssStr("://res/qss/mainwid.css");
+	//加载样式（使用统一设计系统）
+	QString qss = GlobalHelper::GetThemeStr("://res/qss/mainwid.css");
 	setStyleSheet(qss);
 
 	// 追踪鼠标 用于播放时隐藏鼠标
@@ -80,8 +84,7 @@ MainWid::MainWid(QMainWindow* parent) :
 
 	m_bFullScreenPlay = false;
 
-	m_stCtrlBarAnimationTimer.setInterval(2000);
-	m_stFullscreenMouseDetectTimer.setInterval(FULLSCREEN_MOUSE_DETECT_TIME);
+	m_stCtrlBarAnimationTimer.setInterval(FULLSCREEN_CTRLBAR_HIDE_DELAY);
 
 
 }
@@ -93,6 +96,24 @@ MainWid::~MainWid()
 
 bool MainWid::Init()
 {
+	// 恢复上次保存的窗口状态
+	QByteArray geometry, windowState;
+	GlobalHelper::RestoreWindowState(geometry, windowState);
+	if (!geometry.isEmpty())
+	{
+		restoreGeometry(geometry);
+	}
+	if (!windowState.isEmpty())
+	{
+		restoreState(windowState);
+	}
+
+	// 加载播放设置（音量、循环模式、播放速度）
+	double volume = 1.0;
+	int loopPolicy = 0;
+	double speed = 1.0;
+	GlobalHelper::LoadPlaySettings(volume, loopPolicy, speed);
+
 	// 去除播放列表标题栏自带的边框
 	QWidget* em = new QWidget(this);
 	ui->PlaylistWid->setTitleBarWidget(em);
@@ -231,8 +252,6 @@ bool MainWid::ConnectSignalSlots()
 
 	connect(&m_stCtrlBarAnimationTimer, &QTimer::timeout, this, &MainWid::OnCtrlBarAnimationTimeOut);
 
-	connect(&m_stFullscreenMouseDetectTimer, &QTimer::timeout, this, &MainWid::OnFullscreenMouseDetectTimeOut);
-
 
 	connect(&m_stActFullscreen, &QAction::triggered, this, &MainWid::OnFullScreenPlay);
 
@@ -338,11 +357,11 @@ void MainWid::OnFullScreenPlay()
 
 		m_stCtrlbarAnimationShow->setStartValue(m_stCtrlBarAnimationHide);
 		m_stCtrlbarAnimationShow->setEndValue(m_stCtrlBarAnimationShow);
-		m_stCtrlbarAnimationShow->setDuration(1000);
+		m_stCtrlbarAnimationShow->setDuration(CTRLBAR_ANIMATION_DURATION);
 
 		m_stCtrlbarAnimationHide->setStartValue(m_stCtrlBarAnimationShow);
 		m_stCtrlbarAnimationHide->setEndValue(m_stCtrlBarAnimationHide);
-		m_stCtrlbarAnimationHide->setDuration(1000);
+		m_stCtrlbarAnimationHide->setDuration(CTRLBAR_ANIMATION_DURATION);
 
 		ui->CtrlBarWid->setWindowFlags(Qt::FramelessWindowHint | Qt::Window);
 		ui->CtrlBarWid->windowHandle()->setScreen(pStCurScreen);
@@ -353,7 +372,11 @@ void MainWid::OnFullScreenPlay()
 
 		m_stCtrlbarAnimationShow->start();
 		m_bFullscreenCtrlBarShow = true;
-		m_stFullscreenMouseDetectTimer.start();
+
+		// 安装事件过滤器，使用事件驱动替代定时器轮询
+		ui->CtrlBarWid->installEventFilter(this);
+		ui->ShowWid->installEventFilter(this);
+		QApplication::instance()->installEventFilter(this);
 
 		this->setFocus();
 	}
@@ -372,7 +395,11 @@ void MainWid::OnFullScreenPlay()
 		ui->CtrlBarWid->showNormal();
 		ui->ShowWid->showNormal();
 
-		m_stFullscreenMouseDetectTimer.stop();
+		// 移除事件过滤器
+		ui->CtrlBarWid->removeEventFilter(this);
+		ui->ShowWid->removeEventFilter(this);
+		QApplication::instance()->removeEventFilter(this);
+
 		this->setFocus();
 	}
 }
@@ -382,6 +409,63 @@ void MainWid::OnCtrlBarAnimationTimeOut()
 	QApplication::setOverrideCursor(Qt::BlankCursor);
 }
 
+// 新：使用事件过滤器处理全屏模式下的鼠标事件（替代定时器轮询）
+bool MainWid::eventFilter(QObject* watched, QEvent* event)
+{
+	if (!m_bFullScreenPlay)
+	{
+		return QMainWindow::eventFilter(watched, event);
+	}
+
+	if (event->type() == QEvent::MouseMove)
+	{
+		QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+		QPoint globalPos = mouseEvent->globalPos();
+
+		// 检查鼠标是否在控制面板区域
+		if (m_stCtrlBarAnimationShow.contains(globalPos))
+		{
+			// 鼠标在控制栏附近，显示控制栏
+			if (!ui->CtrlBarWid->geometry().contains(globalPos))
+			{
+				// 需要显示控制栏
+				ui->CtrlBarWid->raise();
+				m_stCtrlbarAnimationShow->start();
+				m_stCtrlbarAnimationHide->stop();
+				stCtrlBarHideTimer.stop();
+				QApplication::restoreOverrideCursor();
+			}
+			else
+			{
+				// 鼠标在控制面板上，保持显示
+				m_bFullscreenCtrlBarShow = true;
+				QApplication::restoreOverrideCursor();
+			}
+		}
+		else
+		{
+			// 鼠标远离控制栏，准备隐藏
+			if (m_bFullscreenCtrlBarShow)
+			{
+				m_bFullscreenCtrlBarShow = false;
+				stCtrlBarHideTimer.singleShot(FULLSCREEN_CTRLBAR_HIDE_DELAY, this, &MainWid::OnCtrlBarHideTimeOut);
+			}
+		}
+	}
+	else if (event->type() == QEvent::Leave)
+	{
+		// 鼠标离开窗口，准备隐藏控制栏
+		if (m_bFullscreenCtrlBarShow)
+		{
+			m_bFullscreenCtrlBarShow = false;
+			stCtrlBarHideTimer.singleShot(FULLSCREEN_CTRLBAR_HIDE_DELAY, this, &MainWid::OnCtrlBarHideTimeOut);
+		}
+	}
+
+	return QMainWindow::eventFilter(watched, event);
+}
+
+// 旧：定时器轮询方式（已废弃，保留以防需要回退）
 void MainWid::OnFullscreenMouseDetectTimeOut()
 {
 	//     qDebug() << m_stCtrlBarAnimationShow;
@@ -532,6 +616,24 @@ void MainWid::AddActionFun(QString action_title, QMenu* menu, void(MainWid::* sl
 
 void MainWid::OnCloseBtnClicked()
 {
+	// 保存窗口状态
+	GlobalHelper::SaveWindowState(saveGeometry(), saveState());
+
+	// 保存播放列表
+	QStringList playlist;
+	m_stPlaylist.GetPlaylist(playlist);
+	GlobalHelper::SavePlaylist(playlist);
+
+	// 保存播放设置
+	double volume = 1.0;
+	int loopPolicy = 0;
+	double speed = 1.0;
+	// 从控制栏获取当前音量和循环模式
+	volume = ui->CtrlBarWid->GetVolume();
+	loopPolicy = ui->CtrlBarWid->GetLoopPolicy();
+	speed = ui->CtrlBarWid->GetSpeed();
+	GlobalHelper::SavePlaySettings(volume, loopPolicy, speed);
+
 	this->close();
 }
 

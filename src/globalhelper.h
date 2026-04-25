@@ -33,6 +33,15 @@ public:
 	static QString GetQssStr(QString strQssPath);
 
 	/**
+	 * 加载完整的设计系统样式（包含全局样式 + 组件特定样式）
+	 *
+	 * @param	componentQssPath 组件特定样式文件路径（可选）
+	 * @return	完整样式表
+	 * @note
+	 */
+	static QString GetThemeStr(QString componentQssPath = QString());
+
+	/**
 	 * 为按钮设置显示图标
 	 *
 	 * @param	btn 按钮指针
@@ -46,6 +55,18 @@ public:
 	static void GetPlaylist(QStringList& playList);
 	static void SavePlayVolume(double& nVolume);
 	static void GetPlayVolume(double& nVolume);
+
+	// 新增：窗口状态持久化
+	static void SaveWindowState(const QByteArray& geometry, const QByteArray& windowState);
+	static void RestoreWindowState(QByteArray& geometry, QByteArray& windowState);
+
+	// 新增：播放设置
+	static void SavePlaySettings(double volume, int loopPolicy, double speed);
+	static void LoadPlaySettings(double& volume, int& loopPolicy, double& speed);
+
+	// 新增：最近打开的文件
+	static void SaveRecentFiles(const QStringList& recentFiles);
+	static void GetRecentFiles(QStringList& recentFiles);
 
 	static QString GetAppVersion();
 };
