@@ -2,7 +2,7 @@
 #include <string>
 #include <cstdarg>
 
-// ±ã½İºê£¨Ìí¼Óµ½ĞèÒªµÄ¹«¹²Í·»òÖ±½Ó°üº¬ xlogger.h ºóÊ¹ÓÃ£©
+// ä¾¿æ·å®ï¼ˆæ·»åŠ åˆ°éœ€è¦çš„å…¬å…±å¤´æˆ–ç›´æ¥åŒ…å« xlogger.h åä½¿ç”¨ï¼‰
 #ifndef XLOG_DEBUG
 #define XLOG_DEBUG(fmt, ...) XLogger::Log(XLogger::Level::Debug, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__)
 #define XLOG_INFO(fmt, ...)  XLogger::Log(XLogger::Level::Info,  __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__)
@@ -15,12 +15,12 @@ class XLogger
 {
 public:
 	enum class Level { Debug = 0, Info, Warn, Error, Fatal };
-	// ³õÊ¼»¯ÈÕÖ¾£¨±ØĞëÔÚ¶àÏß³ÌÊ¹ÓÃÇ°µ÷ÓÃÒ»´Î£©
-	// logFile: ÈÕÖ¾ÎÄ¼şÂ·¾¶£¨¿Õ±íÊ¾²»Ğ´ÎÄ¼ş£©
-	// level: ×îµÍÊä³ö¼¶±ğ
-	// maxFileSize: µ¥¸öÈÕÖ¾ÎÄ¼ş×î´ó×Ö½ÚÊı£¬³¬¹ıÔò´¥·¢¹ö¶¯
-	// maxFiles: ±£Áô¶àÉÙ¸ö±¸·İ£¨>=1£©
-	// toConsole: ÊÇ·ñÍ¬Ê±Êä³öµ½¿ØÖÆÌ¨
+	// åˆå§‹åŒ–æ—¥å¿—ï¼ˆå¿…é¡»åœ¨å¤šçº¿ç¨‹ä½¿ç”¨å‰è°ƒç”¨ä¸€æ¬¡ï¼‰
+	// logFile: æ—¥å¿—æ–‡ä»¶è·¯å¾„ï¼ˆç©ºè¡¨ç¤ºä¸å†™æ–‡ä»¶ï¼‰
+	// level: æœ€ä½è¾“å‡ºçº§åˆ«
+	// maxFileSize: å•ä¸ªæ—¥å¿—æ–‡ä»¶æœ€å¤§å­—èŠ‚æ•°ï¼Œè¶…è¿‡åˆ™è§¦å‘æ»šåŠ¨
+	// maxFiles: ä¿ç•™å¤šå°‘ä¸ªå¤‡ä»½ï¼ˆ>=1ï¼‰
+	// toConsole: æ˜¯å¦åŒæ—¶è¾“å‡ºåˆ°æ§åˆ¶å°
 	static bool Init(const std::string& logFile, Level level = Level::Info,
 		size_t maxFileSize = 10 * 1024 * 1024, int maxFiles = 3, bool toConsole = true);
 	static void Shutdown();
@@ -28,10 +28,10 @@ public:
 	static void SetLevel(Level level);
 	static void EnableConsole(bool enable);
 
-	// Ö÷ÈÕÖ¾º¯Êı£¬°üº¬Ô´ĞÅÏ¢
+	// ä¸»æ—¥å¿—å‡½æ•°ï¼ŒåŒ…å«æºä¿¡æ¯
 	static void Log(Level lvl, const char* file, int line, const char* func, const char* fmt, ...);
 
-	// Ïòºó¼æÈİ£ºÄ¬ÈÏ Info ¼¶±ğ
+	// å‘åå…¼å®¹ï¼šé»˜è®¤ Info çº§åˆ«
 	static void Log(const char* fmt, ...);
 	//
 	static const char* LevelName(Level lvl);
