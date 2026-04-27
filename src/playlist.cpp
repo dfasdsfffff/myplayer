@@ -198,6 +198,9 @@ void Playlist::OnAddFileAndPlay(QString strFileName)
 
 void Playlist::OnBackwardPlay()
 {
+    if (ui->List->count() == 0)
+        return;
+
     if (m_nCurrentPlayListIndex == 0)
     {
         m_nCurrentPlayListIndex = ui->List->count() - 1;
@@ -214,6 +217,9 @@ void Playlist::OnBackwardPlay()
 
 void Playlist::OnForwardPlay()
 {
+    if (ui->List->count() == 0)
+        return;
+
     if (m_nCurrentPlayListIndex == ui->List->count() - 1)
     {
         m_nCurrentPlayListIndex = 0;
