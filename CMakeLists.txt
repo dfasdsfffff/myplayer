@@ -53,6 +53,8 @@ set(SOURCE_FILES
     src/mainwid.cpp
     src/medialist.cpp
     src/packet_queue.cpp
+    src/frame_queue.cpp
+    src/decoder.cpp
     src/playlist.cpp
     src/settingwid.cpp
     src/show.cpp
