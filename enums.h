@@ -1,8 +1,8 @@
 #pragma once
 enum VideoLoopPolicy {
-	LOOP_NONE = 0,      // ²»Ñ­»·
-	LOOP_SINGLE = 1,    // Ñ­»·µ¥¸öÊÓÆµ
-	LOOP_ALL = 2,       // Ñ­»·È«²¿
-	LOOP_RANDOM = 3,    // Ëæ»ú²¥·Å
+	LOOP_NONE = 0,      // ä¸å¾ªçŽ¯
+	LOOP_SINGLE = 1,    // å¾ªçŽ¯å•ä¸ªè§†é¢‘
+	LOOP_ALL = 2,       // å¾ªçŽ¯å…¨éƒ¨
+	LOOP_RANDOM = 3,    // éšæœºæ’­æ”¾
 	LOOP_MAX = 4,
 };
