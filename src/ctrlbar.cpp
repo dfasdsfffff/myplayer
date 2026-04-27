@@ -130,7 +130,8 @@ void CtrlBar::OnVideoPlaySeconds(int nSeconds)
 
 	ui->VideoPlayTimeTimeEdit->setTime(TotalTime);
 
-	ui->PlaySlider->setValue(nSeconds * 1.0 / m_nTotalPlaySeconds * MAX_SLIDER_VALUE);
+	if (m_nTotalPlaySeconds > 0)
+		ui->PlaySlider->setValue(nSeconds * 1.0 / m_nTotalPlaySeconds * MAX_SLIDER_VALUE);
 }
 
 void CtrlBar::OnVideopVolume(double dPercent)
