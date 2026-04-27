@@ -5,6 +5,7 @@
 #include <QDir>
 
 #include "globalhelper.h"
+#include "av_constants.h"
 
 const QString PLAYER_CONFIG_BASEDIR = QDir::tempPath();
 
@@ -184,5 +185,17 @@ void GlobalHelper::GetRecentFiles(QStringList& recentFiles)
 QString GlobalHelper::GetAppVersion()
 {
     return APP_VERSION;
+}
+
+QString GlobalHelper::FormatTime(int seconds)
+{
+    int hh = seconds / SECONDS_PER_HOUR;
+    int mm = (seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE;
+    int ss = (seconds % SECONDS_PER_MINUTE);
+    
+    return QString("%1:%2:%3")
+        .arg(hh, 2, 10, QChar('0'))
+        .arg(mm, 2, 10, QChar('0'))
+        .arg(ss, 2, 10, QChar('0'));
 }
 

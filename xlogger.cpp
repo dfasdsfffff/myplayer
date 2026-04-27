@@ -105,12 +105,6 @@ std::string XLogger::FormatString(const char* fmt, va_list ap)
 
 void XLogger::Log(Level lvl, const char* file, int line, const char* func, const char* fmt, ...)
 {
-    // ¹ıÂË¼¶±ğ
-    {
-        std::lock_guard<std::mutex> lk(g_log_mutex);
-        if (lvl < g_log_level) return;
-    }
-
     va_list ap;
     va_start(ap, fmt);
     std::string msg = FormatString(fmt, ap);
@@ -121,7 +115,10 @@ void XLogger::Log(Level lvl, const char* file, int line, const char* func, const
         << file << ":" << line << " (" << func << ") - " << msg << '\n';
     std::string out = oss.str();
 
+    // å•æ¬¡åŠ é”ï¼ŒåŒæ—¶å®Œæˆæ£€æŸ¥å’Œå†™å…¥æ“ä½œ
     std::lock_guard<std::mutex> lk(g_log_mutex);
+
+    if (lvl < g_log_level) return;  // æ£€æŸ¥æ—¥å¿—çº§åˆ«
 
     if (g_log_console) {
         std::fwrite(out.data(), 1, out.size(), stdout);
@@ -132,10 +129,10 @@ void XLogger::Log(Level lvl, const char* file, int line, const char* func, const
         g_log_ofs.flush();
         g_log_cur_size += out.size();
 
-        // ¼òµ¥¹ö¶¯£º³¬¹ı×î´ó´óĞ¡ÔòÒÆ¶¯±¸·İ²¢ÖØ½¨ÎÄ¼ş
+        // æ»šåŠ¨æ—¥å¿—ï¼šå½“æ–‡ä»¶å¤§å°è¶…è¿‡é™åˆ¶æ—¶ï¼Œç§»åŠ¨å¹¶é‡å‘½åæ–‡ä»¶
         if (g_log_cur_size >= g_log_max_size) {
             g_log_ofs.close();
-            // ÒÀ´ÎÒÆ¶¯ÒÑÓĞ±¸·İ£º base.(n-1) -> base.n
+            // ä»åå¾€å‰ç§»åŠ¨å¤‡ä»½æ–‡ä»¶ï¼šbase.(n-1) -> base.n
             for (int i = g_log_max_files - 1; i >= 1; --i) {
                 std::string src = g_log_filename + "." + std::to_string(i);
                 std::string dst = g_log_filename + "." + std::to_string(i + 1);
@@ -160,7 +157,7 @@ void XLogger::Log(const char* fmt, ...)
     std::string msg = FormatString(fmt, ap);
     va_end(ap);
 
-    // ²»º¬Ô´ĞÅÏ¢Ê±ÊÓÎª Info ¼¶±ğ£¬file/line/func Ê¹ÓÃÕ¼Î»
+    // æ— æºä¿¡æ¯æ—¶ä½¿ç”¨ Info çº§åˆ«ï¼Œfile/line/func ä½¿ç”¨å ä½ç¬¦
     Log(Level::Info, "unknown", 0, "unknown", "%s", msg.c_str());
 }
 

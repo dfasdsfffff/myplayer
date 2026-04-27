@@ -43,7 +43,7 @@ public:
 	* @return	true 成功 false 失败
 	* @note
 	*/
-	bool StartPlay(QString strFileName, WId widPlayWid);
+	bool StartPlay(const QString& strFileName, WId widPlayWid);
 
 
 	int audio_decode_frame(VideoState* is);
@@ -171,9 +171,6 @@ public:
 
 private:
 
-	static VideoCtl* m_pInstance; //< 单例指针
-
-	std::once_flag m_initFlag;    //< 初始化保护（call_once）
 	bool m_bPlayLoop; //刷新循环标志
 
 	bool m_bAutorotate = true;

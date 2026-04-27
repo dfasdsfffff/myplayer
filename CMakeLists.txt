@@ -22,6 +22,9 @@ if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
+# 强制所有配置使用 Qt6 的 Release 版本库（包括 Debug 构建）
+set(QT_NO_CREATE_VERSIONLESS_FUNCTIONS ON)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 find_package(sdl2 REQUIRED)
 
@@ -132,9 +135,17 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     SoundTouchDLL_x64
 )
 
-# 设置输出目录
+# 设置输出目录 - Debug 和 Release 都输出到 bin 目录
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/$<CONFIG>
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin
+)
+
+# 设置可执行文件名称 - Debug 版本添加 _debug 后缀
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    OUTPUT_NAME_DEBUG "${PROJECT_NAME}_debug"
+    OUTPUT_NAME_RELEASE "${PROJECT_NAME}"
 )
 
 # Windows 特定设置

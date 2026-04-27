@@ -499,12 +499,20 @@ void VideoCtl::sync_clock_to_slave(Clock* c, Clock* slave)
 
 void VideoCtl::set_play_speed(double dSpeed)
 {
-	if (dSpeed <= 0.1 || dSpeed > 2)
+	constexpr double MIN_PLAYBACK_SPEED = 0.1;
+	constexpr double MAX_PLAYBACK_SPEED = 2.0;
+
+	if (dSpeed <= MIN_PLAYBACK_SPEED || dSpeed > MAX_PLAYBACK_SPEED)
 		return;
-	std::unique_lock<std::shared_mutex> lock(m_speedMutex);
+
+	std::unique_lock<std::shared_mutex> speedLock(m_speedMutex);
 	if (dSpeed == m_fPlaybackSpeed)
 		return;
 	m_fPlaybackSpeed = dSpeed;
+	speedLock.unlock();
+
+	// 保护 m_CurStream 访问
+	std::shared_lock<std::shared_mutex> streamLock(m_streamMutex);
 	if (m_CurStream) {
 		m_CurStream->play_rate = m_fPlaybackSpeed;
 	}
@@ -1493,10 +1501,23 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 reload:
 	do {
 #if defined(_WIN32)
-		while (frame_queue_nb_remaining(&is->sampq) == 0) {
-			if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio_hw_buf_size / is->audio_tgt.bytes_per_sec / 2)
+		// 使用条件变量等待，替代忙等待
+		SDL_LockMutex(is->sampq.mutex);
+		while (frame_queue_nb_remaining(&is->sampq) == 0 && !is->audioq.abort_request) {
+			// 设置超时，避免永久阻塞
+			audio_callback_time = av_gettime_relative();
+			SDL_CondWaitTimeout(is->sampq.cond, is->sampq.mutex, 100); // 100ms超时
+			// 检查是否超时过长
+			if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio_hw_buf_size / is->audio_tgt.bytes_per_sec / 2) {
+				SDL_UnlockMutex(is->sampq.mutex);
 				return -1;
-			av_usleep(1000);
+			}
+		}
+		SDL_UnlockMutex(is->sampq.mutex);
+		
+		// 检查是否因中止请求而退出
+		if (is->audioq.abort_request) {
+			return -1;
 		}
 #endif
 		if (!(af = frame_queue_peek_readable(&is->sampq)))
@@ -2708,15 +2729,19 @@ bool VideoCtl::ConnectSignalSlots()
 }
 
 
-VideoCtl* VideoCtl::m_pInstance = new VideoCtl();
-
 VideoCtl* VideoCtl::GetInstance()
 {
-	std::call_once(m_pInstance->m_initFlag, []() {
-		if (!m_pInstance->Init())
-			m_pInstance = nullptr;
-	});
-	return m_pInstance;
+	// Meyers' Singleton - C++11 保证线程安全初始化，程序退出时自动析构
+	static VideoCtl instance;
+	static bool initialized = false;
+	if (!initialized) {
+		if (instance.Init()) {
+			initialized = true;
+		} else {
+			return nullptr;
+		}
+	}
+	return &instance;
 }
 
 VideoCtl::~VideoCtl()
@@ -2727,7 +2752,7 @@ VideoCtl::~VideoCtl()
 
 }
 
-bool VideoCtl::StartPlay(QString strFileName, WId widPlayWid)
+bool VideoCtl::StartPlay(const QString& strFileName, WId widPlayWid)
 {
 	m_bPlayLoop = false;
 	if (m_tPlayLoopThread.joinable())

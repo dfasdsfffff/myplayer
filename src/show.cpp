@@ -88,7 +88,7 @@ void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
 
 void Show::ChangeShow()
 {
-    g_show_rect_mutex.lock();
+    QMutexLocker locker(&g_show_rect_mutex);  // RAII 锁，自动释放
 
     if (m_nLastFrameWidth == 0 && m_nLastFrameHeight == 0)
     {
@@ -116,8 +116,6 @@ void Show::ChangeShow()
 
         ui->label->setGeometry(x, y, width, height);
     }
-
-    g_show_rect_mutex.unlock();
 }
 
 void Show::dragEnterEvent(QDragEnterEvent *event)

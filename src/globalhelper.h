@@ -69,6 +69,15 @@ public:
 	static void GetRecentFiles(QStringList& recentFiles);
 
 	static QString GetAppVersion();
+
+	/**
+	 * 格式化时间为 HH:MM:SS 格式
+	 *
+	 * @param	seconds 秒数
+	 * @return	格式化后的时间字符串
+	 * @note	例如：3661 -> "01:01:01"
+	 */
+	static QString FormatTime(int seconds);
 };
 
 // 必须加以下内容,否则编译不能通过,为了兼容C和C99标准

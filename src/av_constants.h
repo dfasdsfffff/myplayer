@@ -58,3 +58,21 @@
 #define CURSOR_HIDE_DELAY 1000000
 
 #define USE_ONEPASS_SUBTITLE_RENDER 1
+
+/* 时间转换常量 */
+constexpr int SECONDS_PER_MINUTE = 60;
+constexpr int SECONDS_PER_HOUR = 3600;
+
+/* 播放速度限制 */
+constexpr double MIN_PLAYBACK_SPEED = 0.1;
+constexpr double MAX_PLAYBACK_SPEED = 2.0;
+
+/* 音量范围 */
+constexpr int MIN_VOLUME = 0;
+constexpr int MAX_VOLUME = 100;
+
+/* 队列大小常量 */
+constexpr int VIDEO_PICTURE_QUEUE_SIZE = 3;
+constexpr int SUBPICTURE_QUEUE_SIZE = 16;
+constexpr int SAMPLE_QUEUE_SIZE = 9;
+constexpr int FRAME_QUEUE_SIZE = 25;

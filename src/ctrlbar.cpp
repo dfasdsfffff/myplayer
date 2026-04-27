@@ -110,25 +110,19 @@ void CtrlBar::OnVideoTotalSeconds(int nSeconds)
 {
 	m_nTotalPlaySeconds = nSeconds;
 
-	int thh, tmm, tss;
-	thh = nSeconds / 3600;
-	tmm = (nSeconds % 3600) / 60;
-	tss = (nSeconds % 60);
-	QTime TotalTime(thh, tmm, tss);
-
-	ui->VideoTotalTimeTimeEdit->setTime(TotalTime);
+	QString timeStr = GlobalHelper::FormatTime(nSeconds);
+	// 将 "HH:MM:SS" 格式转换为 QTime
+	QTime totalTime = QTime::fromString(timeStr, "hh:mm:ss");
+	ui->VideoTotalTimeTimeEdit->setTime(totalTime);
 }
 
 
 void CtrlBar::OnVideoPlaySeconds(int nSeconds)
 {
-	int thh, tmm, tss;
-	thh = nSeconds / 3600;
-	tmm = (nSeconds % 3600) / 60;
-	tss = (nSeconds % 60);
-	QTime TotalTime(thh, tmm, tss);
-
-	ui->VideoPlayTimeTimeEdit->setTime(TotalTime);
+	QString timeStr = GlobalHelper::FormatTime(nSeconds);
+	// 将 "HH:MM:SS" 格式转换为 QTime
+	QTime playTime = QTime::fromString(timeStr, "hh:mm:ss");
+	ui->VideoPlayTimeTimeEdit->setTime(playTime);
 
 	if (m_nTotalPlaySeconds > 0)
 		ui->PlaySlider->setValue(nSeconds * 1.0 / m_nTotalPlaySeconds * MAX_SLIDER_VALUE);
