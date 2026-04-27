@@ -49,6 +49,7 @@ set(SOURCE_FILES
     src/globalhelper.cpp
     src/mainwid.cpp
     src/medialist.cpp
+    src/packet_queue.cpp
     src/playlist.cpp
     src/settingwid.cpp
     src/show.cpp
