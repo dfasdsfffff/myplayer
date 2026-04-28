@@ -261,10 +261,10 @@ void VideoCtl::video_image_display(VideoState* is)
 	Frame* sp = NULL;
 	SDL_Rect rect;
 
-	vp = frame_queue_peek_last(&is->pictq);
+	vp = is->pictq.peek_last();
 	if (is->subtitle_st) {
-		if (frame_queue_nb_remaining(&is->subpq) > 0) {
-			sp = frame_queue_peek(&is->subpq);
+		if (is->subpq.nb_remaining() > 0) {
+			sp = is->subpq.peek();
 
 			if (vp->pts >= sp->pts + ((float)sp->sub.start_display_time / 1000)) {
 				if (!sp->uploaded) {
@@ -424,9 +424,9 @@ void VideoCtl::stream_close(VideoState* is)
 	packet_queue_destroy(&is->subtitleq);
 
 	/* free all pictures */
-	frame_queue_destory(&is->pictq);
-	frame_queue_destory(&is->sampq);
-	frame_queue_destory(&is->subpq);
+	is->pictq.destroy();
+	is->sampq.destroy();
+	is->subpq.destroy();
 	SDL_DestroyCond(is->continue_read_thread);
 	sws_freeContext(is->img_convert_ctx);
 	sws_freeContext(is->sub_convert_ctx);
@@ -972,7 +972,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 	}
 	if (is->video_st) {
 	retry:
-		if (frame_queue_nb_remaining(&is->pictq) == 0) {
+		if (is->pictq.nb_remaining() == 0) {
 			// nothing to do, no picture to display in the queue
 		}
 		else {
@@ -980,11 +980,11 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			Frame* vp, * lastvp;
 
 			/* dequeue the picture */
-			lastvp = frame_queue_peek_last(&is->pictq);
-			vp = frame_queue_peek(&is->pictq);
+			lastvp = is->pictq.peek_last();
+			vp = is->pictq.peek();
 
 			if (vp->serial != is->videoq.serial) {
-				frame_queue_next(&is->pictq);
+				is->pictq.next();
 				goto retry;
 			}
 
@@ -1012,22 +1012,22 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 				update_video_pts(is, vp->pts, vp->pos, vp->serial);
 			SDL_UnlockMutex(is->pictq.mutex);
 
-			if (frame_queue_nb_remaining(&is->pictq) > 1) {
-				Frame* nextvp = frame_queue_peek_next(&is->pictq);
+			if (is->pictq.nb_remaining() > 1) {
+				Frame* nextvp = is->pictq.peek_next();
 				duration = vp_duration(is, vp, nextvp);
 				if (!is->step && (framedrop > 0 || (framedrop && get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) && time > is->frame_timer + duration) {
 					is->frame_drops_late++;
-					frame_queue_next(&is->pictq);
+					is->pictq.next();
 					goto retry;
 				}
 			}
 
 			if (is->subtitle_st) {
-				while (frame_queue_nb_remaining(&is->subpq) > 0) {
-					sp = frame_queue_peek(&is->subpq);
+				while (is->subpq.nb_remaining() > 0) {
+					sp = is->subpq.peek();
 
-					if (frame_queue_nb_remaining(&is->subpq) > 1)
-						sp2 = frame_queue_peek_next(&is->subpq);
+					if (is->subpq.nb_remaining() > 1)
+						sp2 = is->subpq.peek_next();
 					else
 						sp2 = NULL;
 
@@ -1049,7 +1049,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 								}
 							}
 						}
-						frame_queue_next(&is->subpq);
+						is->subpq.next();
 					}
 					else {
 						break;
@@ -1057,7 +1057,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 				}
 			}
 
-			frame_queue_next(&is->pictq);
+			is->pictq.next();
 			is->force_refresh = 1;
 
 			if (is->step && !is->paused)
@@ -1077,7 +1077,7 @@ int VideoCtl::queue_picture(VideoState* is, AVFrame* src_frame, double pts, doub
 {
 	Frame* vp;
 
-	if (!(vp = frame_queue_peek_writable(&is->pictq)))
+	if (!(vp = is->pictq.peek_writable()))
 		return -1;
 
 	vp->sar = src_frame->sample_aspect_ratio;
@@ -1092,7 +1092,7 @@ int VideoCtl::queue_picture(VideoState* is, AVFrame* src_frame, double pts, doub
 	vp->serial = serial;
 
 	av_frame_move_ref(vp->frame, src_frame);
-	frame_queue_push(&is->pictq);
+	is->pictq.push();
 	return 0;
 }
 
@@ -1232,7 +1232,7 @@ int VideoCtl::audio_thread(void* arg)
 				is->aud_decoder.finished = is->aud_decoder.pkt_serial;
 			// end config avfilter
 #else
-			if (!(af = frame_queue_peek_writable(&is->sampq)))
+			if (!(af = is->sampq.peek_writable()))
 				goto the_end;
 
 			af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
@@ -1241,7 +1241,7 @@ int VideoCtl::audio_thread(void* arg)
 			af->duration = av_q2d({ frame->nb_samples, frame->sample_rate });
 
 			av_frame_move_ref(af->frame, frame);
-			frame_queue_push(&is->sampq);
+			is->sampq.push();
 #endif
 		}
 	} while (ret >= 0 || ret == AVERROR(EAGAIN) || ret == AVERROR_EOF);
@@ -1387,7 +1387,7 @@ int VideoCtl::subtitle_thread(void* arg)
 	double pts;
 
 	for (;;) {
-		if (!(sp = frame_queue_peek_writable(&is->subpq)))
+		if (!(sp = is->subpq.peek_writable()))
 			return 0;
 
 		if ((got_subtitle = is->sub_decoder.decode_frame(NULL, &sp->sub)) < 0)
@@ -1405,7 +1405,7 @@ int VideoCtl::subtitle_thread(void* arg)
 			sp->uploaded = 0;
 
 			/* now we can update the picture count */
-			frame_queue_push(&is->subpq);
+			is->subpq.push();
 		}
 		else if (got_subtitle) {
 			avsubtitle_free(&sp->sub);
@@ -1497,7 +1497,7 @@ reload:
 #if defined(_WIN32)
 		// 使用条件变量等待，替代忙等待
 		SDL_LockMutex(is->sampq.mutex);
-		while (frame_queue_nb_remaining(&is->sampq) == 0 && !is->audioq.abort_request) {
+		while (is->sampq.nb_remaining() == 0 && !is->audioq.abort_request) {
 			// 设置超时，避免永久阻塞
 			audio_callback_time = av_gettime_relative();
 			SDL_CondWaitTimeout(is->sampq.cond, is->sampq.mutex, 100); // 100ms超时
@@ -1514,9 +1514,9 @@ reload:
 			return -1;
 		}
 #endif
-		if (!(af = frame_queue_peek_readable(&is->sampq)))
+		if (!(af = is->sampq.peek_readable()))
 			return -1;
-		frame_queue_next(&is->sampq);
+		is->sampq.next();
 	} while (af->serial != is->audioq.serial);
 	// 根据frame中指定的音频参数获取缓冲区的大小 af->frame->channels * af->frame->nb_samples * 2
 	data_size = av_samples_get_buffer_size(NULL, af->frame->ch_layout.nb_channels,
@@ -2129,8 +2129,8 @@ void VideoCtl::ReadThread(VideoState* is)
 			continue;
 		}
 		if (!is->paused &&
-			(!is->audio_st || (is->aud_decoder.finished == is->audioq.serial && frame_queue_nb_remaining(&is->sampq) == 0)) &&
-			(!is->video_st || (is->vid_decoder.finished == is->videoq.serial && frame_queue_nb_remaining(&is->pictq) == 0))) {
+			(!is->audio_st || (is->aud_decoder.finished == is->audioq.serial && is->sampq.nb_remaining() == 0)) &&
+			(!is->video_st || (is->vid_decoder.finished == is->videoq.serial && is->pictq.nb_remaining() == 0))) {
 			if (m_loopPolicy == VideoLoopPolicy::LOOP_ALL) {
 				//播放结束
 				m_bPlayLoop = false;
@@ -2244,18 +2244,18 @@ VideoState* VideoCtl::stream_open(const char* filename)
 
 	/* start video display */
 	//初始化视频帧队列
-	if (frame_queue_init(&is->pictq, &is->videoq, VIDEO_PICTURE_QUEUE_SIZE, 1) < 0)
+	if (is->pictq.init( &is->videoq, VIDEO_PICTURE_QUEUE_SIZE, 1) < 0)
 		goto fail;
 	//初始化字幕帧队列
-	if (frame_queue_init(&is->subpq, &is->subtitleq, SUBPICTURE_QUEUE_SIZE, 0) < 0)
+	if (is->subpq.init( &is->subtitleq, SUBPICTURE_QUEUE_SIZE, 0) < 0)
 		goto fail;
 	//初始化音频帧队列
-	if (frame_queue_init(&is->sampq, &is->audioq, SAMPLE_QUEUE_SIZE, 1) < 0)
+	if (is->sampq.init( &is->audioq, SAMPLE_QUEUE_SIZE, 1) < 0)
 		goto fail;
 	//初始化队列中的数据包
-	if (packet_queue_init(&is->videoq) < 0 ||
-		packet_queue_init(&is->audioq) < 0 ||
-		packet_queue_init(&is->subtitleq) < 0)
+	if (is->videoq.init() < 0 ||
+		is->audioq.init() < 0 ||
+		is->subtitleq.init() < 0)
 		goto fail;
 	//构建 继续读取线程 信号量
 	if (!(is->continue_read_thread = SDL_CreateCond())) {

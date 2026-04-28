@@ -39,7 +39,7 @@ int FrameQueue::init(PacketQueue* _pktq, int _max_size, int _keep_last)
 }
 
 //帧队列销毁
-void FrameQueue::destory()
+void FrameQueue::destroy()
 {
 	int i;
 	for (i = 0; i < max_size; i++) {

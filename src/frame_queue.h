@@ -30,7 +30,7 @@ typedef struct Frame {
 class FrameQueue {
 public:
 	int init(PacketQueue* pktq, int max_size, int keep_last);
-	void destory();
+	void destroy();
 	void signal();
 	Frame* peek();
 	Frame* peek_next();
@@ -59,15 +59,15 @@ private:
 };
 
 // 向后兼容的自由函数包装器
-inline int frame_queue_init(FrameQueue* f, PacketQueue* pktq, int max_size, int keep_last) { return f->init(pktq, max_size, keep_last); }
-inline void frame_queue_destory(FrameQueue* f) { f->destory(); }
-inline void frame_queue_signal(FrameQueue* f) { f->signal(); }
-inline Frame* frame_queue_peek(FrameQueue* f) { return f->peek(); }
-inline Frame* frame_queue_peek_next(FrameQueue* f) { return f->peek_next(); }
-inline Frame* frame_queue_peek_last(FrameQueue* f) { return f->peek_last(); }
-inline Frame* frame_queue_peek_writable(FrameQueue* f) { return f->peek_writable(); }
-inline Frame* frame_queue_peek_readable(FrameQueue* f) { return f->peek_readable(); }
-inline void frame_queue_push(FrameQueue* f) { f->push(); }
-inline void frame_queue_next(FrameQueue* f) { f->next(); }
-inline int frame_queue_nb_remaining(FrameQueue* f) { return f->nb_remaining(); }
-inline int64_t frame_queue_last_pos(FrameQueue* f) { return f->last_pos(); }
+// inline int frame_queue_init(FrameQueue* f, PacketQueue* pktq, int max_size, int keep_last) { return f->init(pktq, max_size, keep_last); }
+// inline void frame_queue_destory(FrameQueue* f) { f->destroy(); }
+// inline void frame_queue_signal(FrameQueue* f) { f->signal(); }
+// inline Frame* frame_queue_peek(FrameQueue* f) { return f->peek(); }
+// inline Frame* frame_queue_peek_next(FrameQueue* f) { return f->peek_next(); }
+// inline Frame* frame_queue_peek_last(FrameQueue* f) { return f->peek_last(); }
+// inline Frame* frame_queue_peek_writable(FrameQueue* f) { return f->peek_writable(); }
+// inline Frame* frame_queue_peek_readable(FrameQueue* f) { return f->peek_readable(); }
+// inline void frame_queue_push(FrameQueue* f) { f->push(); }
+// inline void frame_queue_next(FrameQueue* f) { f->next(); }
+// inline int frame_queue_nb_remaining(FrameQueue* f) { return f->nb_remaining(); }
+// inline int64_t frame_queue_last_pos(FrameQueue* f) { return f->last_pos(); }

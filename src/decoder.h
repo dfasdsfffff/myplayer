@@ -39,7 +39,7 @@ public:
 
 
 // 向后兼容的自由函数包装器
-inline int decoder_init(Decoder* d, AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond) { return d->init(avctx, queue, empty_queue_cond); }
-inline int decoder_decode_frame(Decoder* d, AVFrame* frame, AVSubtitle* sub) { return d->decode_frame(frame, sub); }
-inline void decoder_destroy(Decoder* d) { d->destroy(); }
-inline void decoder_abort(Decoder* d, FrameQueue* fq) { d->abort(fq); }
+// inline int decoder_init(Decoder* d, AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond) { return d->init(avctx, queue, empty_queue_cond); }
+// inline int decoder_decode_frame(Decoder* d, AVFrame* frame, AVSubtitle* sub) { return d->decode_frame(frame, sub); }
+// inline void decoder_destroy(Decoder* d) { d->destroy(); }
+// inline void decoder_abort(Decoder* d, FrameQueue* fq) { d->abort(fq); }
