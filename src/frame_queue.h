@@ -1,38 +1,73 @@
 /*
 * @file 	frame_queue.h
-* @brief 	帧队列操作接口声明
-* @note 	从 datactl.h 拆分出的 FrameQueue 函数声明
+* @brief 	帧队列类
+* @note 	从 datactl.h 拆分，由 C 结构体+自由函数 封装为 class
 */
 
 #pragma once
 
-#include "av_types.h"
+#include "av_compat.h"
+#include "av_constants.h"
+#include "packet_queue.h"
 
-//帧队列初始化（绑定数据包队列，初始化最大值）
-int frame_queue_init(FrameQueue *f, PacketQueue *pktq, int max_size, int keep_last);
+//解码后的帧
+typedef struct Frame {
+	AVFrame* frame;
+	AVSubtitle sub;
+	int serial;
+	double pts;           /* presentation timestamp for the frame */
+	double duration;      /* estimated duration of the frame */
+	int64_t pos;          /* byte position of the frame in the input file */
+	int width;
+	int height;
+	int format;
+	AVRational sar;
+	int uploaded;
+	int flip_v;
+} Frame;
 
-//帧队列销毁
-void frame_queue_destory(FrameQueue *f);
+//帧队列
+class FrameQueue {
+public:
+	int init(PacketQueue* pktq, int max_size, int keep_last);
+	void destory();
+	void signal();
+	Frame* peek();
+	Frame* peek_next();
+	Frame* peek_last();
+	Frame* peek_writable();
+	Frame* peek_readable();
+	void push();
+	void next();
+	int nb_remaining();
+	int64_t last_pos();
 
-//帧队列信号
-void frame_queue_signal(FrameQueue *f);
+	// 过渡期间保持 public
+	Frame queue[FRAME_QUEUE_SIZE];
+	int rindex = 0;
+	int windex = 0;
+	int size = 0;
+	int max_size = 0;
+	int keep_last = 0;
+	int rindex_shown = 0;
+	SDL_mutex* mutex = nullptr;
+	SDL_cond* cond = nullptr;
+	PacketQueue* pktq = nullptr;
 
-Frame* frame_queue_peek(FrameQueue* f);
+private:
+	void unref_item(Frame* vp);
+};
 
-Frame* frame_queue_peek_next(FrameQueue* f);
-
-Frame* frame_queue_peek_last(FrameQueue* f);
-
-Frame* frame_queue_peek_writable(FrameQueue* f);
-
-Frame* frame_queue_peek_readable(FrameQueue* f);
-
-void frame_queue_push(FrameQueue* f);
-
-void frame_queue_next(FrameQueue* f);
-
-/* return the number of undisplayed frames in the queue */
-int frame_queue_nb_remaining(FrameQueue* f);
-
-/* return last shown position */
-int64_t frame_queue_last_pos(FrameQueue* f);
+// 向后兼容的自由函数包装器
+inline int frame_queue_init(FrameQueue* f, PacketQueue* pktq, int max_size, int keep_last) { return f->init(pktq, max_size, keep_last); }
+inline void frame_queue_destory(FrameQueue* f) { f->destory(); }
+inline void frame_queue_signal(FrameQueue* f) { f->signal(); }
+inline Frame* frame_queue_peek(FrameQueue* f) { return f->peek(); }
+inline Frame* frame_queue_peek_next(FrameQueue* f) { return f->peek_next(); }
+inline Frame* frame_queue_peek_last(FrameQueue* f) { return f->peek_last(); }
+inline Frame* frame_queue_peek_writable(FrameQueue* f) { return f->peek_writable(); }
+inline Frame* frame_queue_peek_readable(FrameQueue* f) { return f->peek_readable(); }
+inline void frame_queue_push(FrameQueue* f) { f->push(); }
+inline void frame_queue_next(FrameQueue* f) { f->next(); }
+inline int frame_queue_nb_remaining(FrameQueue* f) { return f->nb_remaining(); }
+inline int64_t frame_queue_last_pos(FrameQueue* f) { return f->last_pos(); }

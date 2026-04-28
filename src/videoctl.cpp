@@ -347,9 +347,9 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 
 	switch (codecpar->codec_type) {
 	case AVMEDIA_TYPE_AUDIO:
-		decoder_abort(&is->aud_decoder, &is->sampq);
+		is->aud_decoder.abort(&is->sampq);
 		SDL_CloseAudioDevice(m_sdlAudio_dev);
-		decoder_destroy(&is->aud_decoder);
+		is->aud_decoder.destroy();
 		swr_free(&is->swr_ctx);
 		av_freep(&is->audio_buf1);
 		is->audio_buf1_size = 0;
@@ -373,12 +373,12 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 		}
 		break;
 	case AVMEDIA_TYPE_VIDEO:
-		decoder_abort(&is->vid_decoder, &is->pictq);
-		decoder_destroy(&is->vid_decoder);
+		is->vid_decoder.abort(&is->pictq);
+		is->vid_decoder.destroy();
 		break;
 	case AVMEDIA_TYPE_SUBTITLE:
-		decoder_abort(&is->sub_decoder, &is->subpq);
-		decoder_destroy(&is->sub_decoder);
+		is->sub_decoder.abort(&is->subpq);
+		is->sub_decoder.destroy();
 		break;
 	default:
 		break;
@@ -1102,7 +1102,7 @@ int VideoCtl::get_video_frame(VideoState* is, AVFrame* frame)
 {
 	int got_picture;
 
-	if ((got_picture = decoder_decode_frame(&is->vid_decoder, frame, NULL)) < 0)
+	if ((got_picture = is->vid_decoder.decode_frame(frame, NULL)) < 0)
 		return -1;
 
 	if (got_picture) {
@@ -1162,7 +1162,7 @@ int VideoCtl::audio_thread(void* arg)
 		return AVERROR(ENOMEM);
 
 	do {
-		if ((got_frame = decoder_decode_frame(&is->aud_decoder, frame, NULL)) < 0)
+		if ((got_frame = is->aud_decoder.decode_frame(frame, NULL)) < 0)
 			goto the_end;
 
 		if (got_frame) {
@@ -1390,7 +1390,7 @@ int VideoCtl::subtitle_thread(void* arg)
 		if (!(sp = frame_queue_peek_writable(&is->subpq)))
 			return 0;
 
-		if ((got_subtitle = decoder_decode_frame(&is->sub_decoder, NULL, &sp->sub)) < 0)
+		if ((got_subtitle = is->sub_decoder.decode_frame(NULL, &sp->sub)) < 0)
 			break;
 
 		pts = 0;
@@ -1827,7 +1827,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		is->audio_stream = stream_index;
 		is->audio_st = ic->streams[stream_index];
 
-		if ((ret = decoder_init(&is->aud_decoder, avctx, &is->audioq, is->continue_read_thread)) < 0)
+		if ((ret = is->aud_decoder.init(avctx, &is->audioq, is->continue_read_thread)) < 0)
 			goto fail;
 		if (is->ic->iformat->flags & AVFMT_NOTIMESTAMPS) {
 			is->aud_decoder.start_pts = is->audio_st->start_time;
@@ -1843,7 +1843,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		is->video_stream = stream_index;
 		is->video_st = ic->streams[stream_index];
 
-		if ((ret = decoder_init(&is->vid_decoder, avctx, &is->videoq, is->continue_read_thread)) < 0)
+		if ((ret = is->vid_decoder.init(avctx, &is->videoq, is->continue_read_thread)) < 0)
 			goto fail;
 		packet_queue_start(is->vid_decoder.queue);
 		is->vid_decoder.decode_thread = std::thread(&VideoCtl::video_thread, this, is);
@@ -1853,7 +1853,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		is->subtitle_stream = stream_index;
 		is->subtitle_st = ic->streams[stream_index];
 
-		if ((ret = decoder_init(&is->sub_decoder, avctx, &is->subtitleq, is->continue_read_thread)) < 0)
+		if ((ret = is->sub_decoder.init(avctx, &is->subtitleq, is->continue_read_thread)) < 0)
 			goto fail;
 		packet_queue_start(is->sub_decoder.queue);
 		is->sub_decoder.decode_thread = std::thread(&VideoCtl::subtitle_thread, this, is);

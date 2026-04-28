@@ -1,37 +1,53 @@
 /*
 * @file 	packet_queue.h
-* @brief 	数据包队列操作接口声明
-* @note 	从 datactl.h 拆分出的 PacketQueue 函数声明
+* @brief 	数据包队列类
+* @note 	从 datactl.h 拆分，由 C 结构体+自由函数 封装为 class
 */
 
 #pragma once
 
-#include "av_types.h"
+#include "av_compat.h"
 
-//数据包队列初始化
-int packet_queue_init(PacketQueue *q);
+//数据包列表
+typedef struct MyAVPacketList {
+	AVPacket* pkt;
+	int serial;
+} MyAVPacketList;
 
-//数据包队列销毁
-void packet_queue_destroy(PacketQueue *q);
+//数据包队列
+class PacketQueue {
+public:
+	int init();
+	void destroy();
+	void start();
+	void abort();
+	void flush();
+	void add_serial();
+	int put(AVPacket* pkt);
+	int put_nullpacket(AVPacket* pkt, int stream_index);
+	int get(AVPacket* pkt, int block, int* serial);
 
-//数据包队列开始使用
-void packet_queue_start(PacketQueue *q);
+	// 过渡期间保持 public，供 Decoder/FrameQueue 直接访问
+	AVFifo* pkt_list = nullptr;
+	int nb_packets = 0;
+	int size = 0;
+	int64_t duration = 0;
+	int abort_request = 1;
+	int serial = 0;
+	SDL_mutex* mutex = nullptr;
+	SDL_cond* cond = nullptr;
 
-//数据包队列停用
-void packet_queue_abort(PacketQueue *q);
+private:
+	int put_private(AVPacket* pkt);
+};
 
-//数据包队列清空
-void packet_queue_flush(PacketQueue *q);
-
-//增加序列号
-void packet_queue_add_serial(PacketQueue *q);
-
-//数据包队列存放数据包
-int packet_queue_put(PacketQueue *q, AVPacket *pkt);
-
-//数据包队列存放空数据包
-int packet_queue_put_nullpacket(PacketQueue* q, AVPacket* pkt, int stream_index);
-
-/* return < 0 if aborted, 0 if no packet and > 0 if packet.  */
-//从数据包队列中获取数据包
-int packet_queue_get(PacketQueue* q, AVPacket* pkt, int block, int* serial);
+// 向后兼容的自由函数包装器（过渡期使用，新代码请用成员函数）
+inline int packet_queue_init(PacketQueue* q) { return q->init(); }
+inline void packet_queue_destroy(PacketQueue* q) { q->destroy(); }
+inline void packet_queue_start(PacketQueue* q) { q->start(); }
+inline void packet_queue_abort(PacketQueue* q) { q->abort(); }
+inline void packet_queue_flush(PacketQueue* q) { q->flush(); }
+inline void packet_queue_add_serial(PacketQueue* q) { q->add_serial(); }
+inline int packet_queue_put(PacketQueue* q, AVPacket* pkt) { return q->put(pkt); }
+inline int packet_queue_put_nullpacket(PacketQueue* q, AVPacket* pkt, int stream_index) { return q->put_nullpacket(pkt, stream_index); }
+inline int packet_queue_get(PacketQueue* q, AVPacket* pkt, int block, int* serial) { return q->get(pkt, block, serial); }

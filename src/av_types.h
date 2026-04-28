@@ -17,26 +17,12 @@
 
 #include "av_constants.h"
 #include "av_compat.h"
-
-//数据包列表
-typedef struct MyAVPacketList {
-    AVPacket* pkt;
-    int serial;
-} MyAVPacketList;
-
-//数据包队列
-typedef struct PacketQueue {
-    AVFifo* pkt_list;
-    int nb_packets;
-    int size;
-    int64_t duration;
-    int abort_request;
-    int serial;
-    SDL_mutex* mutex;
-    SDL_cond* cond;
-} PacketQueue;
+#include "packet_queue.h"
+#include "frame_queue.h"
 
 // 队列大小常量统一在 av_constants.h 中定义
+// PacketQueue 已移至 packet_queue.h
+// Frame/FrameQueue 已移至 frame_queue.h
 
 //音频参数
 typedef struct AudioParams {
@@ -57,37 +43,6 @@ typedef struct Clock {
     int paused;
     int *queue_serial;    /* pointer to the current packet queue serial, used for obsolete clock detection */
 } Clock;
-
-/* Common struct for handling all types of decoded data and allocated render buffers. */
-//解码后的帧
-typedef struct Frame {
-    AVFrame* frame;
-    AVSubtitle sub;
-    int serial;
-    double pts;           /* presentation timestamp for the frame */
-    double duration;      /* estimated duration of the frame */
-    int64_t pos;          /* byte position of the frame in the input file */
-    int width;
-    int height;
-    int format;
-    AVRational sar;
-    int uploaded;
-    int flip_v;
-} Frame;
-
-//帧队列
-typedef struct FrameQueue {
-    Frame queue[FRAME_QUEUE_SIZE];
-    int rindex;
-    int windex;
-    int size;
-    int max_size;
-    int keep_last;
-    int rindex_shown;
-    SDL_mutex* mutex;
-    SDL_cond* cond;
-    PacketQueue* pktq;
-} FrameQueue;
 
 enum {
     AV_SYNC_AUDIO_MASTER, /* default choice */

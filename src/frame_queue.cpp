@@ -1,146 +1,148 @@
 /*
 * @file 	frame_queue.cpp
-* @brief 	帧队列操作实现
-* @note 	从 datactl.h 拆分出的 FrameQueue 函数实现
+* @brief 	帧队列类实现
+* @note 	从 datactl.h 拆分，由 C 结构体+自由函数 封装为 class
 */
-
-#include "av_compat.h"
 
 #include "frame_queue.h"
 
-static void frame_queue_unref_item(Frame *vp)
+void FrameQueue::unref_item(Frame* vp)
 {
-    av_frame_unref(vp->frame);
-    avsubtitle_free(&vp->sub);
+	av_frame_unref(vp->frame);
+	avsubtitle_free(&vp->sub);
 }
 
 //帧队列初始化（绑定数据包队列，初始化最大值）
-int frame_queue_init(FrameQueue *f, PacketQueue *pktq, int max_size, int keep_last)
+int FrameQueue::init(PacketQueue* _pktq, int _max_size, int _keep_last)
 {
-    int i;
-    memset(f, 0, sizeof(FrameQueue));
-    if (!(f->mutex = SDL_CreateMutex())) {
-        av_log(NULL, AV_LOG_FATAL, "SDL_CreateMutex(): %s\n", SDL_GetError());
-        return AVERROR(ENOMEM);
-    }
-    if (!(f->cond = SDL_CreateCond())) {
-        av_log(NULL, AV_LOG_FATAL, "SDL_CreateCond(): %s\n", SDL_GetError());
-        return AVERROR(ENOMEM);
-    }
-    f->pktq = pktq;
-    f->max_size = FFMIN(max_size, FRAME_QUEUE_SIZE);
-    f->keep_last = !!keep_last;
-    for (i = 0; i < f->max_size; i++)
-        if (!(f->queue[i].frame = av_frame_alloc()))
-            return AVERROR(ENOMEM);
-    return 0;
+	int i;
+	rindex = 0;
+	windex = 0;
+	size = 0;
+	max_size = FFMIN(_max_size, FRAME_QUEUE_SIZE);
+	keep_last = !!_keep_last;
+	rindex_shown = 0;
+	pktq = _pktq;
+
+	if (!(mutex = SDL_CreateMutex())) {
+		av_log(NULL, AV_LOG_FATAL, "SDL_CreateMutex(): %s\n", SDL_GetError());
+		return AVERROR(ENOMEM);
+	}
+	if (!(cond = SDL_CreateCond())) {
+		av_log(NULL, AV_LOG_FATAL, "SDL_CreateCond(): %s\n", SDL_GetError());
+		return AVERROR(ENOMEM);
+	}
+	for (i = 0; i < max_size; i++)
+		if (!(queue[i].frame = av_frame_alloc()))
+			return AVERROR(ENOMEM);
+	return 0;
 }
 
 //帧队列销毁
-void frame_queue_destory(FrameQueue *f)
+void FrameQueue::destory()
 {
-    int i;
-    for (i = 0; i < f->max_size; i++) {
-        Frame* vp = &f->queue[i];
-        frame_queue_unref_item(vp);
-        av_frame_free(&vp->frame);
-    }
-    SDL_DestroyMutex(f->mutex);
-    SDL_DestroyCond(f->cond);
+	int i;
+	for (i = 0; i < max_size; i++) {
+		Frame* vp = &queue[i];
+		unref_item(vp);
+		av_frame_free(&vp->frame);
+	}
+	SDL_DestroyMutex(mutex);
+	SDL_DestroyCond(cond);
 }
 
 //帧队列信号
-void frame_queue_signal(FrameQueue *f)
+void FrameQueue::signal()
 {
-    SDL_LockMutex(f->mutex);
-    SDL_CondSignal(f->cond);
-    SDL_UnlockMutex(f->mutex);
+	SDL_LockMutex(mutex);
+	SDL_CondSignal(cond);
+	SDL_UnlockMutex(mutex);
 }
 
-Frame* frame_queue_peek(FrameQueue* f)
+Frame* FrameQueue::peek()
 {
-    return &f->queue[(f->rindex + f->rindex_shown) % f->max_size];
+	return &queue[(rindex + rindex_shown) % max_size];
 }
 
-Frame* frame_queue_peek_next(FrameQueue* f)
+Frame* FrameQueue::peek_next()
 {
-    return &f->queue[(f->rindex + f->rindex_shown + 1) % f->max_size];
+	return &queue[(rindex + rindex_shown + 1) % max_size];
 }
 
-Frame* frame_queue_peek_last(FrameQueue* f)
+Frame* FrameQueue::peek_last()
 {
-    return &f->queue[f->rindex];
+	return &queue[rindex];
 }
 
-Frame* frame_queue_peek_writable(FrameQueue* f)
+Frame* FrameQueue::peek_writable()
 {
-    /* wait until we have space to put a new frame */
-    SDL_LockMutex(f->mutex);
-    while (f->size >= f->max_size &&
-        !f->pktq->abort_request) {
-        SDL_CondWait(f->cond, f->mutex);
-    }
-    SDL_UnlockMutex(f->mutex);
+	/* wait until we have space to put a new frame */
+	SDL_LockMutex(mutex);
+	while (size >= max_size &&
+		!pktq->abort_request) {
+		SDL_CondWait(cond, mutex);
+	}
+	SDL_UnlockMutex(mutex);
 
-    if (f->pktq->abort_request)
-        return NULL;
+	if (pktq->abort_request)
+		return nullptr;
 
-    return &f->queue[f->windex];
+	return &queue[windex];
 }
 
-Frame* frame_queue_peek_readable(FrameQueue* f)
+Frame* FrameQueue::peek_readable()
 {
-    /* wait until we have a readable a new frame */
-    SDL_LockMutex(f->mutex);
-    while (f->size - f->rindex_shown <= 0 &&
-        !f->pktq->abort_request) {
-        SDL_CondWait(f->cond, f->mutex);
-    }
-    SDL_UnlockMutex(f->mutex);
+	/* wait until we have a readable a new frame */
+	SDL_LockMutex(mutex);
+	while (size - rindex_shown <= 0 &&
+		!pktq->abort_request) {
+		SDL_CondWait(cond, mutex);
+	}
+	SDL_UnlockMutex(mutex);
 
-    if (f->pktq->abort_request)
-        return NULL;
+	if (pktq->abort_request)
+		return nullptr;
 
-    return &f->queue[(f->rindex + f->rindex_shown) % f->max_size];
+	return &queue[(rindex + rindex_shown) % max_size];
 }
 
-void frame_queue_push(FrameQueue* f)
+void FrameQueue::push()
 {
-    if (++f->windex == f->max_size)
-        f->windex = 0;
-    SDL_LockMutex(f->mutex);
-    f->size++;
-    SDL_CondSignal(f->cond);
-    SDL_UnlockMutex(f->mutex);
+	if (++windex == max_size)
+		windex = 0;
+	SDL_LockMutex(mutex);
+	size++;
+	SDL_CondSignal(cond);
+	SDL_UnlockMutex(mutex);
 }
 
-void frame_queue_next(FrameQueue* f)
+void FrameQueue::next()
 {
-    if (f->keep_last && !f->rindex_shown) {
-        f->rindex_shown = 1;
-        return;
-    }
-    frame_queue_unref_item(&f->queue[f->rindex]);
-    if (++f->rindex == f->max_size)
-        f->rindex = 0;
-    SDL_LockMutex(f->mutex);
-    f->size--;
-    SDL_CondSignal(f->cond);
-    SDL_UnlockMutex(f->mutex);
+	if (keep_last && !rindex_shown) {
+		rindex_shown = 1;
+		return;
+	}
+	unref_item(&queue[rindex]);
+	if (++rindex == max_size)
+		rindex = 0;
+	SDL_LockMutex(mutex);
+	size--;
+	SDL_CondSignal(cond);
+	SDL_UnlockMutex(mutex);
 }
 
 /* return the number of undisplayed frames in the queue */
-int frame_queue_nb_remaining(FrameQueue* f)
+int FrameQueue::nb_remaining()
 {
-    return f->size - f->rindex_shown;
+	return size - rindex_shown;
 }
 
 /* return last shown position */
-int64_t frame_queue_last_pos(FrameQueue* f)
+int64_t FrameQueue::last_pos()
 {
-    Frame* fp = &f->queue[f->rindex];
-    if (f->rindex_shown && fp->serial == f->pktq->serial)
-        return fp->pos;
-    else
-        return -1;
+	Frame* fp = &queue[rindex];
+	if (rindex_shown && fp->serial == pktq->serial)
+		return fp->pos;
+	else
+		return -1;
 }
