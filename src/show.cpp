@@ -11,7 +11,7 @@
 
 
 #include <QDebug>
-#include <QMutex>
+#include <mutex>
 
 #include "show.h"
 #include "ui_show.h"
@@ -20,7 +20,7 @@
 
 #pragma execution_character_set("utf-8")
 
-QMutex g_show_rect_mutex;
+std::mutex g_show_rect_mutex;
 
 Show::Show(QWidget *parent) :
     QWidget(parent),
@@ -88,7 +88,7 @@ void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
 
 void Show::ChangeShow()
 {
-    QMutexLocker locker(&g_show_rect_mutex);  // RAII 锁，自动释放
+    std::lock_guard<std::mutex> locker(g_show_rect_mutex);
 
     if (m_nLastFrameWidth == 0 && m_nLastFrameHeight == 0)
     {

@@ -21,7 +21,7 @@
 
 #pragma execution_character_set("utf-8")
 
-extern QMutex g_show_rect_mutex;
+extern std::mutex g_show_rect_mutex;
 // 是否允许丢帧（如果视频太慢了，跟不上音频或者外部时钟）
 // -1为自动丢帧，0为不丢帧，1为强制丢帧
 static int framedrop = 1;
@@ -2504,14 +2504,16 @@ void VideoCtl::video_display(VideoState* is)
 	if (m_sdlRenderer)
 	{
 		//恰好显示控件大小在变化，则不刷新显示
-		if (g_show_rect_mutex.tryLock())
+		if (g_show_rect_mutex.try_lock())
 		{
+			std::unique_lock<std::mutex> lock(g_show_rect_mutex, std::adopt_lock);
+			// 二次检查：获锁后 renderer 可能已被 do_exit 销毁
+			if (!m_sdlRenderer)
+				return;
 			SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
 			SDL_RenderClear(m_sdlRenderer);
 			video_image_display(is);
 			SDL_RenderPresent(m_sdlRenderer);
-
-			g_show_rect_mutex.unlock();
 		}
 	}
 
@@ -2572,8 +2574,14 @@ void VideoCtl::do_exit(VideoState* is)
 	}
 	if (m_sdlRenderer)
 	{
-		SDL_DestroyRenderer(m_sdlRenderer);
-		m_sdlRenderer = nullptr;
+		// 先在锁保护下置空，防止 video_display 使用已销毁的 renderer
+		SDL_Renderer* renderer_to_destroy = nullptr;
+		{
+			std::lock_guard<std::mutex> lock(g_show_rect_mutex);
+			renderer_to_destroy = m_sdlRenderer;
+			m_sdlRenderer = nullptr;
+		}
+		SDL_DestroyRenderer(renderer_to_destroy);
 	}
 
 	if (m_sdlWindow)
@@ -2690,6 +2698,11 @@ VideoCtl* VideoCtl::GetInstance()
 
 VideoCtl::~VideoCtl()
 {
+	// 确保播放循环线程在析构前完全退出
+	m_bPlayLoop = false;
+	if (m_tPlayLoopThread.joinable())
+		m_tPlayLoopThread.join();
+
 	avformat_network_deinit();
 
 	SDL_Quit();
