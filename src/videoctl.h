@@ -48,8 +48,6 @@ public:
 
 	int audio_decode_frame(VideoState* is);
 	void update_sample_display(VideoState* is, short* samples, int samples_size);
-	void set_clock_at(Clock* c, double pts, int serial, double time);
-	void sync_clock_to_slave(Clock* c, Clock* slave);
 	void set_play_speed(double dSpeed);
 	void set_play_loop_policy(VideoLoopPolicy loopPolicy);
 
@@ -147,11 +145,6 @@ private:
 	void video_image_display(VideoState* is);
 	void stream_component_close(VideoState* is, int stream_index);
 	void stream_close(VideoState* is);
-	double get_clock(Clock* c);
-
-	void set_clock(Clock* c, double pts, int serial);
-	void set_clock_speed(Clock* c, double speed);
-	void init_clock(Clock* c, int* queue_serial);
 
 	int get_master_sync_type(VideoState* is);
 	double get_master_clock(VideoState* is);

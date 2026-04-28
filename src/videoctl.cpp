@@ -143,11 +143,11 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 	is->audio_write_buf_size = is->audio_buf_size - is->audio_buf_index;
 	/* Let's assume the audio driver that is used by SDL has two periods. */
 	if (!std::isnan(is->audio_clock)) {
-		pVideoCtl->set_clock_at(&is->audclk,
+		is->audclk.set_at(
 			is->audio_clock - (double)(2 * is->audio_hw_buf_size + is->audio_write_buf_size) / is->audio_tgt.bytes_per_sec,
 			is->audio_clock_serial,
 			audio_callback_time / 1000000.0);
-		pVideoCtl->sync_clock_to_slave(&is->extclk, &is->audclk);
+		is->extclk.sync_to_slave(is->audclk);
 	}
 }
 
@@ -441,56 +441,6 @@ void VideoCtl::stream_close(VideoState* is)
 	av_free(is);
 }
 
-double VideoCtl::get_clock(Clock* c)
-{
-	if (*c->queue_serial != c->serial)
-		return NAN;
-	if (c->paused) {
-		return c->pts;
-	}
-	else {
-		double time = av_gettime_relative() / 1000000.0;
-		// 根据播放速度调整时钟
-		return c->pts_drift + time - (time - c->last_updated) * (1.0 - c->speed);
-	}
-}
-
-void VideoCtl::set_clock_at(Clock* c, double pts, int serial, double time)
-{
-	c->pts = pts;
-	c->last_updated = time;
-	c->pts_drift = c->pts - time;
-	c->serial = serial;
-}
-
-void VideoCtl::set_clock(Clock* c, double pts, int serial)
-{
-	double time = av_gettime_relative() / 1000000.0;
-	set_clock_at(c, pts, serial, time);
-}
-
-void VideoCtl::set_clock_speed(Clock* c, double speed)
-{
-	set_clock(c, get_clock(c), c->serial);
-	c->speed = speed;
-}
-
-void VideoCtl::init_clock(Clock* c, int* queue_serial)
-{
-	c->speed = 1.0;
-	c->paused = 0;
-	c->queue_serial = queue_serial;
-	set_clock(c, NAN, -1);
-}
-
-void VideoCtl::sync_clock_to_slave(Clock* c, Clock* slave)
-{
-	double clock = get_clock(c);
-	double slave_clock = get_clock(slave);
-	if (!std::isnan(slave_clock) && (std::isnan(clock) || fabs(clock - slave_clock) > AV_NOSYNC_THRESHOLD))
-		set_clock(c, slave_clock, slave->serial);
-}
-
 void VideoCtl::set_play_speed(double dSpeed)
 {
 	constexpr double MIN_PLAYBACK_SPEED = 0.1;
@@ -542,13 +492,13 @@ double VideoCtl::get_master_clock(VideoState* is)
 
 	switch (get_master_sync_type(is)) {
 	case AV_SYNC_VIDEO_MASTER:
-		val = get_clock(&is->vidclk);
+		val = is->vidclk.get();
 		break;
 	case AV_SYNC_AUDIO_MASTER:
-		val = get_clock(&is->audclk);
+		val = is->audclk.get();
 		break;
 	default:
-		val = get_clock(&is->extclk);
+		val = is->extclk.get();
 		break;
 	}
 	return val;
@@ -567,16 +517,16 @@ check_external_clock_speed 函数用于动态调整外部时钟（extclk）的�
 void VideoCtl::check_external_clock_speed(VideoState* is) {
 	if (is->video_stream >= 0 && is->videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES ||
 		is->audio_stream >= 0 && is->audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES) {
-		set_clock_speed(&is->extclk, FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->extclk.speed - EXTERNAL_CLOCK_SPEED_STEP));
+		is->extclk.set_speed( FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->extclk.speed - EXTERNAL_CLOCK_SPEED_STEP));
 	}
 	else if ((is->video_stream < 0 || is->videoq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES) &&
 		(is->audio_stream < 0 || is->audioq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES)) {
-		set_clock_speed(&is->extclk, FFMIN(EXTERNAL_CLOCK_SPEED_MAX, is->extclk.speed + EXTERNAL_CLOCK_SPEED_STEP));
+		is->extclk.set_speed( FFMIN(EXTERNAL_CLOCK_SPEED_MAX, is->extclk.speed + EXTERNAL_CLOCK_SPEED_STEP));
 	}
 	else {
 		double speed = is->extclk.speed;
 		if (speed != 1.0)
-			set_clock_speed(&is->extclk, speed + EXTERNAL_CLOCK_SPEED_STEP * (1.0 - speed) / fabs(1.0 - speed));
+			is->extclk.set_speed( speed + EXTERNAL_CLOCK_SPEED_STEP * (1.0 - speed) / fabs(1.0 - speed));
 	}
 }
 
@@ -600,9 +550,9 @@ void VideoCtl::stream_toggle_pause(VideoState* is)
 		if (is->read_pause_return != AVERROR(ENOSYS)) {
 			is->vidclk.paused = 0;
 		}
-		set_clock(&is->vidclk, get_clock(&is->vidclk), is->vidclk.serial);
+		is->vidclk.set(is->vidclk.get(), is->vidclk.serial);
 	}
-	set_clock(&is->extclk, get_clock(&is->extclk), is->extclk.serial);
+	is->extclk.set(is->extclk.get(), is->extclk.serial);
 	is->paused = is->audclk.paused = is->vidclk.paused = is->extclk.paused = !is->paused;
 }
 
@@ -629,7 +579,7 @@ double VideoCtl::compute_target_delay(double delay, VideoState* is)
 	if (get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER) {
 		/* if video is slave, we try to correct big delays by
 		duplicating or deleting a frame */
-		diff = get_clock(&is->vidclk) - get_master_clock(is);
+		diff = is->vidclk.get() - get_master_clock(is);
 
 		/* 跳过或重复帧。我们考虑延迟来计算阈值。我仍然不知道这是不是最好的猜测 */
 		sync_threshold = FFMAX(AV_SYNC_THRESHOLD_MIN, FFMIN(AV_SYNC_THRESHOLD_MAX, delay));
@@ -665,8 +615,8 @@ double VideoCtl::vp_duration(VideoState* is, Frame* vp, Frame* nextvp) {
 
 void VideoCtl::update_video_pts(VideoState* is, double pts, int64_t pos, int serial) {
 	/* 更新当前视频pts */
-	set_clock(&is->vidclk, pts, serial);
-	sync_clock_to_slave(&is->extclk, &is->vidclk);
+	is->vidclk.set(pts, serial);
+	is->extclk.sync_to_slave(is->vidclk);
 }
 
 int VideoCtl::configure_filtergraph(AVFilterGraph* graph, const char* filtergraph, AVFilterContext* source_ctx, AVFilterContext* sink_ctx)
@@ -1443,7 +1393,7 @@ int VideoCtl::synchronize_audio(VideoState* is, int nb_samples)
 		double diff, avg_diff;
 		int min_nb_samples, max_nb_samples;
 
-		diff = get_clock(&is->audclk) - get_master_clock(is);
+		diff = is->audclk.get() - get_master_clock(is);
 
 		if (!std::isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD) {
 			is->audio_diff_cum = diff + is->audio_diff_avg_coef * is->audio_diff_cum;
@@ -2094,10 +2044,10 @@ void VideoCtl::ReadThread(VideoState* is)
 				if (is->video_stream >= 0)
 					packet_queue_flush(&is->videoq);
 				if (is->seek_flags & AVSEEK_FLAG_BYTE) {
-					set_clock(&is->extclk, NAN, 0);
+					is->extclk.set(NAN, 0);
 				}
 				else {
-					set_clock(&is->extclk, seek_target / (double)AV_TIME_BASE, 0);
+					is->extclk.set(seek_target / (double)AV_TIME_BASE, 0);
 				}
 			}
 			is->seek_req = 0;
@@ -2263,9 +2213,9 @@ VideoState* VideoCtl::stream_open(const char* filename)
 		goto fail;
 	}
 	//视频、音频 时钟
-	init_clock(&is->vidclk, &is->videoq.serial);
-	init_clock(&is->audclk, &is->audioq.serial);
-	init_clock(&is->extclk, &is->extclk.serial);
+	is->vidclk.init(&is->videoq.serial);
+	is->audclk.init(&is->audioq.serial);
+	is->extclk.init(&is->extclk.serial);
 	is->audio_clock_serial = -1;
 	//音量
 	if (startup_volume < 0)

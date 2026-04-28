@@ -50,6 +50,7 @@ link_directories(
 set(SOURCE_FILES
     src/main.cpp
     src/about.cpp
+    src/clock.cpp
     src/ctrlbar.cpp
     src/CustomSlider.cpp
     src/globalhelper.cpp
@@ -73,6 +74,7 @@ set(HEADER_FILES
     soundtouch_wrap.h
     src/about.h
     src/av_compat.h
+    src/clock.h
     src/av_constants.h
     src/av_types.h
     src/ctrlbar.h

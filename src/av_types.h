@@ -17,6 +17,7 @@
 
 #include "av_constants.h"
 #include "av_compat.h"
+#include "clock.h"
 #include "packet_queue.h"
 #include "frame_queue.h"
 
@@ -33,16 +34,7 @@ typedef struct AudioParams {
     int bytes_per_sec;
 } AudioParams;
 
-//时钟
-typedef struct Clock {
-    double pts;           /* clock base */
-    double pts_drift;     /* clock base minus time at which we updated the clock */
-    double last_updated;
-    double speed;
-    int serial;           /* clock is based on a packet with this serial */
-    int paused;
-    int *queue_serial;    /* pointer to the current packet queue serial, used for obsolete clock detection */
-} Clock;
+// Clock 已移至 clock.h
 
 enum {
     AV_SYNC_AUDIO_MASTER, /* default choice */
