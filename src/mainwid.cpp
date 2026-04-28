@@ -59,29 +59,6 @@ MainWid::MainWid(QMainWindow* parent) :
 	// 追踪鼠标 用于播放时隐藏鼠标
 	this->setMouseTracking(true);
 
-	//ui->ShowWid->setMouseTracking(true);
-
-	//保证窗口不被绘制上的部分透明
-	//setAttribute(Qt::WA_TranslucentBackground);
-
-	//接受放下事件
-	//setAcceptDrops(true);
-	//可以清晰地看到放下过程中的图标指示
-	//setDropIndicatorShown(true);
-
-//    setAcceptDrops(true);
-//    setDragDropMode(QAbstractItemView::DragDrop);
-//    setDragEnabled(true);
-//    setDropIndicatorShown(true);
-
-	//窗口大小调节
-//    QSizeGrip   *pSizeGrip = new QSizeGrip(this);
-//    pSizeGrip->setMinimumSize(10, 10);
-//    pSizeGrip->setMaximumSize(10, 10);
-//    ui->verticalLayout->addWidget(pSizeGrip, 0, Qt::AlignBottom | Qt::AlignRight);
-
-	m_bPlaying = false;
-
 	m_bFullScreenPlay = false;
 
 	m_stCtrlBarAnimationTimer.setInterval(FULLSCREEN_CTRLBAR_HIDE_DELAY);
@@ -148,25 +125,6 @@ bool MainWid::Init()
 		return false;
 	}
 
-	//{
-	//    QMenu* menu = AddMenuFun(tr("屏幕"), &m_stMenu);
-	//    m_stActFullscreen.setText(tr("全屏"));
-	//    m_stActFullscreen.setCheckable(true);
-	//    menu->addAction(&m_stActFullscreen);
-	//}
-	//{
-	//    QMenu* menu = AddMenuFun(tr("声音"), &m_stMenu);
-	//    AddActionFun(tr("音量 +"), menu, &MainWid::SigAddVolume);
-	//    AddActionFun(tr("音量 -"), menu, &MainWid::SigSubVolume);
-	//}
-
-	//{
-	//    QMenu* menu = AddMenuFun(tr("打开"), &m_stMenu);
-	//    AddActionFun(tr("打开文件"), menu, &MainWid::OpenFile);
-	//}
-
-	//AddActionFun(tr("关于"), &m_stMenu, &MainWid::OnShowAbout);
-	//AddActionFun(tr("退出"), &m_stMenu, &MainWid::OnCloseBtnClicked);
 
 
 	InitMenu();
@@ -465,54 +423,12 @@ bool MainWid::eventFilter(QObject* watched, QEvent* event)
 	return QMainWindow::eventFilter(watched, event);
 }
 
-// 旧：定时器轮询方式（已废弃，保留以防需要回退）
-void MainWid::OnFullscreenMouseDetectTimeOut()
-{
-	//     qDebug() << m_stCtrlBarAnimationShow;
-	//     qDebug() << cursor().pos();
-	//     qDebug() << ui->CtrlBarWid->geometry();
-	if (m_bFullScreenPlay)
-	{
-		if (m_stCtrlBarAnimationShow.contains(cursor().pos()))
-		{
-			//判断鼠标是否在控制面板上面
-			if (ui->CtrlBarWid->geometry().contains(cursor().pos()))
-			{
-				//继续显示
-				m_bFullscreenCtrlBarShow = true;
-			}
-			else
-			{
-				//需要显示
-				ui->CtrlBarWid->raise();
-
-				m_stCtrlbarAnimationShow->start();
-				m_stCtrlbarAnimationHide->stop();
-				stCtrlBarHideTimer.stop();
-			}
-		}
-		else
-		{
-			if (m_bFullscreenCtrlBarShow)
-			{
-				//需要隐藏
-				m_bFullscreenCtrlBarShow = false;
-				stCtrlBarHideTimer.singleShot(2000, this, &MainWid::OnCtrlBarHideTimeOut);
-			}
-
-		}
-
-	}
-}
-
 void MainWid::OnCtrlBarHideTimeOut()
 {
 	if (m_bFullScreenPlay)
 	{
 		m_stCtrlbarAnimationHide->start();
 	}
-	//setCursor(Qt::BlankCursor);
-
 }
 
 void MainWid::OnShowMenu()

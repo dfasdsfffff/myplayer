@@ -4,13 +4,7 @@
 * @note 	从 datactl.h 拆分出的 PacketQueue 函数实现
 */
 
-extern "C" {
-#include <libavutil/fifo.h>
-#include <libavcodec/avcodec.h>
-#include <libavutil/log.h>
-}
-
-#include <SDL2/SDL.h>
+#include "av_compat.h"
 
 #include "packet_queue.h"
 

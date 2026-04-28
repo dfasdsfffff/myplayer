@@ -13,7 +13,6 @@
 
 #include <QWidget>
 #include <QMouseEvent>
-#include <QDragEnterEvent>
 #include <QMenu>
 #include <QAction>
 #include <QPropertyAnimation>
@@ -42,16 +41,8 @@ protected:
     //绘制
     void paintEvent(QPaintEvent *event);
 
-//     //窗口大小变化事件
-//     void resizeEvent(QResizeEvent *event);
-//     //窗口移动事件
-//     void moveEvent(QMoveEvent *event);
-
     void enterEvent(QEvent *event);
     void leaveEvent(QEvent *event);
-    //void dragEnterEvent(QDragEnterEvent *event);
-    //void dragMoveEvent(QDragMoveEvent *event);
-    //void dropEvent(QDropEvent *event);
 
     //按键事件
     void keyReleaseEvent(QKeyEvent *event);
@@ -85,7 +76,6 @@ private:
     void OnFullScreenPlay();
 
     void OnCtrlBarAnimationTimeOut();
-    void OnFullscreenMouseDetectTimeOut();
 
     void OnCtrlBarHideTimeOut();
     void OnShowMenu();
@@ -113,14 +103,6 @@ signals:
 private:
     Ui::MainWid *ui;
 
-    bool m_bPlaying; ///< 正在播放
-
-//     CtrlBar     *m_pCtrlBar;    ///< 播放控制面板
-//     Playlist    *m_pPlaylist;   ///< 播放列表面板
-//     Title       *m_pTitle;      ///< 标题栏面板
-//     DisplayWid  *m_pDisplay;    ///< 显示区域
-//     PlaylistCtrlBar *m_pPlaylistCtrlBar; ///< 播放列表控制按钮
-
     const int m_nShadowWidth; ///< 阴影宽度
 
     bool m_bFullScreenPlay; ///< 全屏播放标志
@@ -145,7 +127,6 @@ private:
 
     QMenu m_stMenu;
     QAction m_stActFullscreen;
-    QMap<QString, void(MainWid::*)()> map_act_;
 };
 
 #endif // MainWid_H

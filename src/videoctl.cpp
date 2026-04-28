@@ -17,12 +17,6 @@
 #include <mutex>
 #include "videoctl.h"
 
-extern "C" {
-#include <libavfilter/avfilter.h>
-#include <libavfilter/buffersrc.h>
-#include <libavfilter/buffersink.h>
-#include <libavutil/display.h>
-}
 #include "soundtouch_wrap.h"
 
 #pragma execution_character_set("utf-8")

@@ -69,6 +69,7 @@ set(HEADER_FILES
     enums.h
     soundtouch_wrap.h
     src/about.h
+    src/av_compat.h
     src/av_constants.h
     src/av_types.h
     src/ctrlbar.h

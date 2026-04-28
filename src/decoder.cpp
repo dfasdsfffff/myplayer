@@ -4,13 +4,7 @@
 * @note 	从 datactl.h 拆分出的 Decoder 函数实现
 */
 
-extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavutil/log.h>
-#include <libavutil/frame.h>
-}
-
-#include <SDL2/SDL.h>
+#include "av_compat.h"
 
 #include "decoder.h"
 #include "packet_queue.h"

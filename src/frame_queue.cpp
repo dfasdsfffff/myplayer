@@ -4,13 +4,7 @@
 * @note 	从 datactl.h 拆分出的 FrameQueue 函数实现
 */
 
-extern "C" {
-#include <libavutil/frame.h>
-#include <libavcodec/avcodec.h>
-#include <libavutil/log.h>
-}
-
-#include <SDL2/SDL.h>
+#include "av_compat.h"
 
 #include "frame_queue.h"
 

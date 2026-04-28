@@ -16,7 +16,7 @@
 #include <assert.h>
 
 #include "av_constants.h"
-#include "globalhelper.h"
+#include "av_compat.h"
 
 //数据包列表
 typedef struct MyAVPacketList {
@@ -36,10 +36,7 @@ typedef struct PacketQueue {
     SDL_cond* cond;
 } PacketQueue;
 
-#define VIDEO_PICTURE_QUEUE_SIZE 3
-#define SUBPICTURE_QUEUE_SIZE 16
-#define SAMPLE_QUEUE_SIZE 9
-#define FRAME_QUEUE_SIZE FFMAX(SAMPLE_QUEUE_SIZE, FFMAX(VIDEO_PICTURE_QUEUE_SIZE, SUBPICTURE_QUEUE_SIZE))
+// 队列大小常量统一在 av_constants.h 中定义
 
 //音频参数
 typedef struct AudioParams {

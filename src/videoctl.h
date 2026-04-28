@@ -14,10 +14,10 @@
 #include <QObject>
 #include <QThread>
 #include <QString>
+#include <QWidget>
 #include <shared_mutex>
 #include <barrier>
 
-#include "globalhelper.h"
 #include "datactl.h"
 #include "enums.h"
 

@@ -13,6 +13,12 @@ const QString PLAYER_CONFIG = "player_config.ini";
 
 const QString APP_VERSION = "0.1.0";
 
+QString GlobalHelper::GetConfigFilePath()
+{
+	static const QString path = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+	return path;
+}
+
 GlobalHelper::GlobalHelper()
 {
 
@@ -76,7 +82,7 @@ void GlobalHelper::SetIcon(QPushButton* btn, int iconSize,const QIcon& icon, QSt
 void GlobalHelper::SavePlaylist(QStringList& playList)
 {
     //QString strPlayerConfigFileName = QCoreApplication::applicationDirPath() + QDir::separator() + PLAYER_CONFIG;
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     settings.beginWriteArray("playlist");
     for (int i = 0; i < playList.size(); ++i)
@@ -90,7 +96,7 @@ void GlobalHelper::SavePlaylist(QStringList& playList)
 void GlobalHelper::GetPlaylist(QStringList& playList)
 {
     //QString strPlayerConfigFileName = QCoreApplication::applicationDirPath() + QDir::separator() + PLAYER_CONFIG;
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
 
     int size = settings.beginReadArray("playlist");
@@ -104,14 +110,14 @@ void GlobalHelper::GetPlaylist(QStringList& playList)
 
 void GlobalHelper::SavePlayVolume(double& nVolume)
 {
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     settings.setValue("volume/size", nVolume);
 }
 
 void GlobalHelper::GetPlayVolume(double& nVolume)
 {
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     nVolume = settings.value("volume/size", nVolume).toDouble();
 }
@@ -119,7 +125,7 @@ void GlobalHelper::GetPlayVolume(double& nVolume)
 // 新增：窗口状态持久化
 void GlobalHelper::SaveWindowState(const QByteArray& geometry, const QByteArray& windowState)
 {
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     settings.setValue("window/geometry", geometry);
     settings.setValue("window/state", windowState);
@@ -128,7 +134,7 @@ void GlobalHelper::SaveWindowState(const QByteArray& geometry, const QByteArray&
 
 void GlobalHelper::RestoreWindowState(QByteArray& geometry, QByteArray& windowState)
 {
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     geometry = settings.value("window/geometry").toByteArray();
     windowState = settings.value("window/state").toByteArray();
@@ -137,7 +143,7 @@ void GlobalHelper::RestoreWindowState(QByteArray& geometry, QByteArray& windowSt
 // 新增：播放设置
 void GlobalHelper::SavePlaySettings(double volume, int loopPolicy, double speed)
 {
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     settings.setValue("play/volume", volume);
     settings.setValue("play/loop_policy", loopPolicy);
@@ -147,7 +153,7 @@ void GlobalHelper::SavePlaySettings(double volume, int loopPolicy, double speed)
 
 void GlobalHelper::LoadPlaySettings(double& volume, int& loopPolicy, double& speed)
 {
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     volume = settings.value("play/volume", 1.0).toDouble();
     loopPolicy = settings.value("play/loop_policy", 0).toInt();
@@ -157,7 +163,7 @@ void GlobalHelper::LoadPlaySettings(double& volume, int& loopPolicy, double& spe
 // 新增：最近打开的文件
 void GlobalHelper::SaveRecentFiles(const QStringList& recentFiles)
 {
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     settings.beginWriteArray("recent_files");
     for (int i = 0; i < recentFiles.size(); ++i)
@@ -171,7 +177,7 @@ void GlobalHelper::SaveRecentFiles(const QStringList& recentFiles)
 
 void GlobalHelper::GetRecentFiles(QStringList& recentFiles)
 {
-    QString strPlayerConfigFileName = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+    QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
     int size = settings.beginReadArray("recent_files");
     for (int i = 0; i < size; ++i)
