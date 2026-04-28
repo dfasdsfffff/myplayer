@@ -17,6 +17,7 @@
 #include "ui_show.h"
 
 #include "globalhelper.h"
+#include "videoctl.h"
 
 #pragma execution_character_set("utf-8")
 
@@ -187,7 +188,9 @@ void Show::OnDisplayMsg(QString strMsg)
 
 void Show::OnPlay(QString strFile)
 {
-    VideoCtl::GetInstance()->StartPlay(strFile, ui->label->winId());
+    VideoCtl::GetInstance()->StartPlay(
+        strFile.toStdString(),
+        reinterpret_cast<void*>(ui->label->winId()));
 }
 
 void Show::OnStopFinished()

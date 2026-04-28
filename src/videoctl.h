@@ -1,4 +1,4 @@
-﻿/*
+/*
  * @file 	videoctl.h
  * @date 	2018/01/07 10:48
  *
@@ -6,44 +6,38 @@
  * @Contact	itisyang@gmail.com
  *
  * @brief 	视频控制类
- * @note
+ * @note 	纯 C++ 实现，无 Qt 依赖
  */
 #ifndef VIDEOCTL_H
 #define VIDEOCTL_H
 
-#include <QObject>
-#include <QThread>
-#include <QString>
-#include <QWidget>
+#include <string>
 #include <shared_mutex>
 #include <barrier>
 
 #include "datactl.h"
 #include "enums.h"
+#include "signal.h"
 
 #ifndef CONFIG_AVFILTER
 #define CONFIG_AVFILTER 0
 #endif
 
 //单例模式
-class VideoCtl : public QObject
+class VideoCtl
 {
-	Q_OBJECT
-
 public:
-	//explicit VideoCtl(QObject *parent = nullptr);
-
 	static VideoCtl* GetInstance();
 	~VideoCtl();
 	/**
 	* @brief	开始播放
 	*
-	* @param	strFileName 文件完整路径
-	* @param	widPlayWid 播放窗口id
+	* @param	strFileName 文件完整路径（UTF-8）
+	* @param	widPlayWid 播放窗口原生句柄
 	* @return	true 成功 false 失败
 	* @note
 	*/
-	bool StartPlay(const QString& strFileName, WId widPlayWid);
+	bool StartPlay(const std::string& strFileName, void* widPlayWid);
 
 
 	int audio_decode_frame(VideoState* is);
@@ -51,25 +45,18 @@ public:
 	void set_play_speed(double dSpeed);
 	void set_play_loop_policy(VideoLoopPolicy loopPolicy);
 
-signals:
-	void SigPlayMsg(QString strMsg);//< 错误信息
-	void SigFrameDimensionsChanged(int nFrameWidth, int nFrameHeight); //<视频宽高发生变化
-
-	void SigVideoTotalSeconds(int nSeconds);
-	void SigVideoPlaySeconds(int nSeconds);
-
-	void SigVideoVolume(double dPercent);
-	void SigPauseStat(bool bPaused);
-
-	void SigStop();
-
-	void SigStopFinished();//停止播放完成
-
-	void SigStartPlay(QString strFileName);
-
-	void SigPlayNextOne(); //播放完成
-
-	void SigRandomPlayOne(); //随机播放
+	// Signal 成员，替代 Qt signals
+	Signal<std::string>  SigPlayMsg;
+	Signal<int, int>     SigFrameDimensionsChanged;
+	Signal<int>          SigVideoTotalSeconds;
+	Signal<int>          SigVideoPlaySeconds;
+	Signal<double>       SigVideoVolume;
+	Signal<bool>         SigPauseStat;
+	Signal<>             SigStop;
+	Signal<>             SigStopFinished;
+	Signal<std::string>  SigStartPlay;
+	Signal<>             SigPlayNextOne;
+	Signal<>             SigRandomPlayOne;
 
 public:
 	void OnPlaySeek(double dPercent);
@@ -82,7 +69,7 @@ public:
 	void OnStop();
 
 private:
-	explicit VideoCtl(QObject* parent = nullptr);
+	VideoCtl();
 	/**
 	 * @brief	初始化
 	 *
@@ -92,7 +79,7 @@ private:
 	bool Init();
 
 	/**
-	 * @brief	连接信号槽
+	 * @brief	连接内部信号
 	 *
 	 * @return	true 成功 false 失败
 	 * @note
@@ -175,7 +162,7 @@ private:
 	SDL_Renderer* m_sdlRenderer;
 	SDL_RendererInfo m_sdlRendererInfo = { 0 };
 	SDL_AudioDeviceID m_sdlAudio_dev;
-	WId m_playWid;//播放窗口
+	void* m_playWid;//播放窗口原生句柄
 
 	//
 	VideoLoopPolicy m_loopPolicy = LOOP_ALL; //循环策略

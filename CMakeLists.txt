@@ -64,6 +64,7 @@ set(SOURCE_FILES
     src/show.cpp
     src/title.cpp
     src/videoctl.cpp
+    src/videoctl_bridge.cpp
     soundtouch_wrap.cpp
     xlogger.cpp
 )
@@ -87,6 +88,8 @@ set(HEADER_FILES
     src/resource.h
     src/video_state.h
     src/videoctl.h
+    src/videoctl_bridge.h
+    src/signal.h
     src/title.h
     src/show.h
     src/settingwid.h

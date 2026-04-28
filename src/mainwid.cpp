@@ -153,6 +153,10 @@ void MainWid::leaveEvent(QEvent* event)
 
 bool MainWid::ConnectSignalSlots()
 {
+	// 创建 VideoCtl 的 Qt 桥接，将原生 Signal 转发为 Qt signals
+	m_pVideoCtlBridge = new VideoCtlBridge(this);
+	m_pVideoCtlBridge->attach(VideoCtl::GetInstance());
+
 	//连接信号与槽
 	connect(&m_stTitle, &Title::SigCloseBtnClicked, this, &MainWid::OnCloseBtnClicked);
 	connect(&m_stTitle, &Title::SigMaxBtnClicked, this, &MainWid::OnMaxBtnClicked);
@@ -166,20 +170,20 @@ bool MainWid::ConnectSignalSlots()
 
 	connect(ui->ShowWid, &Show::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
 	connect(ui->ShowWid, &Show::SigFullScreen, this, &MainWid::OnFullScreenPlay);
-	connect(ui->ShowWid, &Show::SigPlayOrPause, VideoCtl::GetInstance(), &VideoCtl::OnPause);
-	connect(ui->ShowWid, &Show::SigStop, VideoCtl::GetInstance(), &VideoCtl::OnStop);
+	connect(ui->ShowWid, &Show::SigPlayOrPause, this, []() { VideoCtl::GetInstance()->OnPause(); });
+	connect(ui->ShowWid, &Show::SigStop, this, []() { VideoCtl::GetInstance()->OnStop(); });
 	connect(ui->ShowWid, &Show::SigShowMenu, this, &MainWid::OnShowMenu);
-	connect(ui->ShowWid, &Show::SigSeekForward, VideoCtl::GetInstance(), &VideoCtl::OnSeekForward);
-	connect(ui->ShowWid, &Show::SigSeekBack, VideoCtl::GetInstance(), &VideoCtl::OnSeekBack);
-	connect(ui->ShowWid, &Show::SigAddVolume, VideoCtl::GetInstance(), &VideoCtl::OnAddVolume);
-	connect(ui->ShowWid, &Show::SigSubVolume, VideoCtl::GetInstance(), &VideoCtl::OnSubVolume);
+	connect(ui->ShowWid, &Show::SigSeekForward, this, []() { VideoCtl::GetInstance()->OnSeekForward(); });
+	connect(ui->ShowWid, &Show::SigSeekBack, this, []() { VideoCtl::GetInstance()->OnSeekBack(); });
+	connect(ui->ShowWid, &Show::SigAddVolume, this, []() { VideoCtl::GetInstance()->OnAddVolume(); });
+	connect(ui->ShowWid, &Show::SigSubVolume, this, []() { VideoCtl::GetInstance()->OnSubVolume(); });
 
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowOrHidePlaylist, this, &MainWid::OnShowOrHidePlaylist);
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlaySeek, VideoCtl::GetInstance(), &VideoCtl::OnPlaySeek);
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayVolume, VideoCtl::GetInstance(), &VideoCtl::OnPlayVolume);
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayOrPause, VideoCtl::GetInstance(), &VideoCtl::OnPause);
-	connect(ui->CtrlBarWid, &CtrlBar::SigStop, VideoCtl::GetInstance(), &VideoCtl::OnStop);
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayLoopPolicyChanged, VideoCtl::GetInstance(), &VideoCtl::set_play_loop_policy);
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlaySeek, this, [](double d) { VideoCtl::GetInstance()->OnPlaySeek(d); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayVolume, this, [](double d) { VideoCtl::GetInstance()->OnPlayVolume(d); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayOrPause, this, []() { VideoCtl::GetInstance()->OnPause(); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigStop, this, []() { VideoCtl::GetInstance()->OnStop(); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayLoopPolicyChanged, this, [](VideoLoopPolicy p) { VideoCtl::GetInstance()->set_play_loop_policy(p); });
 	connect(ui->CtrlBarWid, &CtrlBar::SigBackwardPlay, &m_stPlaylist, &Playlist::OnBackwardPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigForwardPlay, &m_stPlaylist, &Playlist::OnForwardPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowMenu, this, &MainWid::OnShowMenu);
@@ -187,26 +191,27 @@ bool MainWid::ConnectSignalSlots()
 	connect(ui->CtrlBarWid, &CtrlBar::SigSpeedChanged, this, &MainWid::OnSpeedChanged);
 
 	connect(this, &MainWid::SigShowMax, &m_stTitle, &Title::OnChangeMaxBtnStyle);
-	connect(this, &MainWid::SigSeekForward, VideoCtl::GetInstance(), &VideoCtl::OnSeekForward);
-	connect(this, &MainWid::SigSeekBack, VideoCtl::GetInstance(), &VideoCtl::OnSeekBack);
-	connect(this, &MainWid::SigAddVolume, VideoCtl::GetInstance(), &VideoCtl::OnAddVolume);
-	connect(this, &MainWid::SigSubVolume, VideoCtl::GetInstance(), &VideoCtl::OnSubVolume);
+	connect(this, &MainWid::SigSeekForward, this, []() { VideoCtl::GetInstance()->OnSeekForward(); });
+	connect(this, &MainWid::SigSeekBack, this, []() { VideoCtl::GetInstance()->OnSeekBack(); });
+	connect(this, &MainWid::SigAddVolume, this, []() { VideoCtl::GetInstance()->OnAddVolume(); });
+	connect(this, &MainWid::SigSubVolume, this, []() { VideoCtl::GetInstance()->OnSubVolume(); });
 	connect(this, &MainWid::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
 
 
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigVideoTotalSeconds, ui->CtrlBarWid, &CtrlBar::OnVideoTotalSeconds);
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigVideoPlaySeconds, ui->CtrlBarWid, &CtrlBar::OnVideoPlaySeconds);
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigVideoVolume, ui->CtrlBarWid, &CtrlBar::OnVideopVolume);
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigPauseStat, ui->CtrlBarWid, &CtrlBar::OnPauseStat, Qt::QueuedConnection);
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigStopFinished, ui->CtrlBarWid, &CtrlBar::OnStopFinished, Qt::QueuedConnection);
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigStopFinished, ui->ShowWid, &Show::OnStopFinished, Qt::QueuedConnection);
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigFrameDimensionsChanged, ui->ShowWid, &Show::OnFrameDimensionsChanged, Qt::QueuedConnection);
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigStopFinished, &m_stTitle, &Title::OnStopFinished, Qt::DirectConnection);
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigStartPlay, &m_stTitle, &Title::OnPlay, Qt::DirectConnection);
+	// VideoCtl→UI 方向：通过 bridge 转发（bridge 已保证主线程投递，无需 Qt::QueuedConnection）
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoTotalSeconds, ui->CtrlBarWid, &CtrlBar::OnVideoTotalSeconds);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoPlaySeconds, ui->CtrlBarWid, &CtrlBar::OnVideoPlaySeconds);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoVolume, ui->CtrlBarWid, &CtrlBar::OnVideopVolume);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigPauseStat, ui->CtrlBarWid, &CtrlBar::OnPauseStat);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, ui->CtrlBarWid, &CtrlBar::OnStopFinished);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, ui->ShowWid, &Show::OnStopFinished);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigFrameDimensionsChanged, ui->ShowWid, &Show::OnFrameDimensionsChanged);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, &m_stTitle, &Title::OnStopFinished);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStartPlay, &m_stTitle, &Title::OnPlay);
 	// 播放完成，自动播放下一首
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigPlayNextOne, &m_stPlaylist, &Playlist::OnForwardPlay);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigPlayNextOne, &m_stPlaylist, &Playlist::OnForwardPlay);
 	//
-	connect(VideoCtl::GetInstance(), &VideoCtl::SigRandomPlayOne, &m_stPlaylist, &Playlist::OnRandomPlay, Qt::QueuedConnection);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigRandomPlayOne, &m_stPlaylist, &Playlist::OnRandomPlay);
 
 	connect(&m_stCtrlBarAnimationTimer, &QTimer::timeout, this, &MainWid::OnCtrlBarAnimationTimeOut);
 

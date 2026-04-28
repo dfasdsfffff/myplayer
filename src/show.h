@@ -21,8 +21,6 @@
 #include <QActionGroup>
 #include <QAction>
 
-#include "videoctl.h"
-
 namespace Ui {
 class Show;
 }

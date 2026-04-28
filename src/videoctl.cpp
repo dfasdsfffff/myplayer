@@ -10,9 +10,6 @@
  */
 
 
-#include <QDebug>
-#include <QMutex>
-
 #include <thread>
 #include <mutex>
 #include "videoctl.h"
@@ -324,7 +321,7 @@ void VideoCtl::video_image_display(VideoState* is)
 		{
 			m_nFrameW = vp->frame->width;
 			m_nFrameH = vp->frame->height;
-			emit SigFrameDimensionsChanged(m_nFrameW, m_nFrameH);
+			SigFrameDimensionsChanged(m_nFrameW, m_nFrameH);
 		}
 	}
 
@@ -1020,7 +1017,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 	}
 	is->force_refresh = 0;
 
-	emit SigVideoPlaySeconds(get_master_clock(is));
+	SigVideoPlaySeconds(static_cast<int>(get_master_clock(is)));
 }
 
 int VideoCtl::queue_picture(VideoState* is, AVFrame* src_frame, double pts, double duration, int64_t pos, int serial)
@@ -1930,7 +1927,7 @@ void VideoCtl::ReadThread(VideoState* is)
 	is->realtime = is_realtime(ic);
 
 	// 发送视频总时长信号，单位为秒
-	emit SigVideoTotalSeconds(ic->duration / 1000000LL);
+	SigVideoTotalSeconds(static_cast<int>(ic->duration / 1000000LL));
 
 	// 根据用户指定的流 specifier 来设置每种媒体类型的流索引。 
 	// specifier 是一个流选择表达式（stream specifier），
@@ -2085,7 +2082,7 @@ void VideoCtl::ReadThread(VideoState* is)
 				//播放结束
 				m_bPlayLoop = false;
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
-				emit SigPlayNextOne();
+				SigPlayNextOne();
 				continue;
 			}
 			else if (m_loopPolicy == VideoLoopPolicy::LOOP_SINGLE) {
@@ -2100,7 +2097,7 @@ void VideoCtl::ReadThread(VideoState* is)
 			}
 			else {
 				// 先暂停播放循环，再退出
-				emit SigStop();
+				SigStop();
 				continue;
 			}
 		}
@@ -2226,8 +2223,8 @@ VideoState* VideoCtl::stream_open(const char* filename)
 	startup_volume = av_clip(SDL_MIX_MAXVOLUME * startup_volume / 100, 0, SDL_MIX_MAXVOLUME);
 	is->audio_volume = startup_volume;
 
-	emit SigVideoVolume(startup_volume * 1.0 / SDL_MIX_MAXVOLUME);
-	emit SigPauseStat(is->paused);
+	SigVideoVolume(startup_volume * 1.0 / SDL_MIX_MAXVOLUME);
+	SigPauseStat(is->paused != 0);
 
 	is->av_sync_type = AV_SYNC_AUDIO_MASTER;
 	//构建读取线程
@@ -2493,7 +2490,7 @@ void VideoCtl::UpdateVolume(int sign, double step)
 	int new_volume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volume_level + sign * step) / 20.0));
 	m_CurStream->audio_volume = av_clip(m_CurStream->audio_volume == new_volume ? (m_CurStream->audio_volume + sign) : new_volume, 0, SDL_MIX_MAXVOLUME);
 
-	emit SigVideoVolume(m_CurStream->audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
+	SigVideoVolume(m_CurStream->audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
 }
 
 /* display the current picture, if any */
@@ -2530,7 +2527,7 @@ int VideoCtl::video_open(VideoState* is)
 		int flags = SDL_WINDOW_SHOWN;
 		flags |= SDL_WINDOW_RESIZABLE;
 
-		m_sdlWindow = SDL_CreateWindowFrom((void*)m_playWid);
+		m_sdlWindow = SDL_CreateWindowFrom(m_playWid);
 		SDL_GetWindowSize(m_sdlWindow, &w, &h);//初始宽高设置为显示控件宽高
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 		if (m_sdlWindow) {
@@ -2590,7 +2587,7 @@ void VideoCtl::do_exit(VideoState* is)
 		m_sdlWindow = nullptr;
 	}
 
-	emit SigStopFinished();
+	SigStopFinished();
 }
 
 void VideoCtl::OnAddVolume()
@@ -2603,7 +2600,7 @@ void VideoCtl::OnAddVolume()
 	double volume_level = m_CurStream->audio_volume ? (20 * log(m_CurStream->audio_volume / (double)SDL_MIX_MAXVOLUME) / log(10)) : -1000.0;
 	int new_volume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volume_level + SDL_VOLUME_STEP) / 20.0));
 	m_CurStream->audio_volume = av_clip(m_CurStream->audio_volume == new_volume ? (m_CurStream->audio_volume + 1) : new_volume, 0, SDL_MIX_MAXVOLUME);
-	emit SigVideoVolume(m_CurStream->audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
+	SigVideoVolume(m_CurStream->audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
 }
 
 void VideoCtl::OnSubVolume()
@@ -2616,7 +2613,7 @@ void VideoCtl::OnSubVolume()
 	double volume_level = m_CurStream->audio_volume ? (20 * log(m_CurStream->audio_volume / (double)SDL_MIX_MAXVOLUME) / log(10)) : -1000.0;
 	int new_volume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volume_level - SDL_VOLUME_STEP) / 20.0));
 	m_CurStream->audio_volume = av_clip(m_CurStream->audio_volume == new_volume ? (m_CurStream->audio_volume - 1) : new_volume, 0, SDL_MIX_MAXVOLUME);
-	emit SigVideoVolume(m_CurStream->audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
+	SigVideoVolume(m_CurStream->audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
 }
 
 void VideoCtl::OnPause()
@@ -2628,7 +2625,7 @@ void VideoCtl::OnPause()
 		return;
 	}
 	toggle_pause(m_CurStream);
-	emit SigPauseStat(m_CurStream->paused);
+	SigPauseStat(m_CurStream->paused != 0);
 }
 
 void VideoCtl::OnStop()
@@ -2637,8 +2634,7 @@ void VideoCtl::OnStop()
 	m_bPlayLoop = false;
 }
 
-VideoCtl::VideoCtl(QObject* parent) :
-	QObject(parent),
+VideoCtl::VideoCtl() :
 	m_CurStream(nullptr),
 	m_bPlayLoop(false),
 	screen_width(0),
@@ -2675,7 +2671,7 @@ bool VideoCtl::Init()
 
 bool VideoCtl::ConnectSignalSlots()
 {
-	connect(this, &VideoCtl::SigStop, &VideoCtl::OnStop);
+	SigStop.connect([this]() { OnStop(); });
 
 	return true;
 }
@@ -2709,14 +2705,14 @@ VideoCtl::~VideoCtl()
 
 }
 
-bool VideoCtl::StartPlay(const QString& strFileName, WId widPlayWid)
+bool VideoCtl::StartPlay(const std::string& strFileName, void* widPlayWid)
 {
 	m_bPlayLoop = false;
 	if (m_tPlayLoopThread.joinable())
 	{
 		m_tPlayLoopThread.join();
 	}
-	emit SigStartPlay(strFileName);//正式播放，发送给标题栏
+	SigStartPlay(strFileName);//正式播放，发送给标题栏
 
 	m_playWid = widPlayWid;
 
@@ -2724,10 +2720,9 @@ bool VideoCtl::StartPlay(const QString& strFileName, WId widPlayWid)
 
 	char file_name[1024];
 	memset(file_name, 0, 1024);
-	auto s = strFileName.toUtf8();
 
 	//打开流
-	is = stream_open(s.data());
+	is = stream_open(strFileName.c_str());
 	if (!is) {
 		av_log(NULL, AV_LOG_FATAL, "Failed to initialize VideoState!\n");
 		do_exit(m_CurStream);

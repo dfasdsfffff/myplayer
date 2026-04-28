@@ -22,6 +22,7 @@
 #include "playlist.h"
 #include "title.h"
 #include "settingwid.h"
+#include "videoctl_bridge.h"
 
 namespace Ui {
 class MainWid;
@@ -127,6 +128,8 @@ private:
 
     QMenu m_stMenu;
     QAction m_stActFullscreen;
+
+    VideoCtlBridge* m_pVideoCtlBridge = nullptr;
 };
 
 #endif // MainWid_H
