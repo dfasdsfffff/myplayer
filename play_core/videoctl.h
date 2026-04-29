@@ -26,14 +26,18 @@
 class VideoCtl
 {
 private:
-	/// @brief 
+	/// @brief 构造函数
 	VideoCtl();
 public:
-	/// @brief 
-	/// @return 
+	/// @brief 获取一个d静态实例的指针
 	static VideoCtl* GetInstance();
 
-	/// @brief 
+	/**
+	* @brief 创建一个视频播放实例，不是单例
+	*/
+	static VideoCtl* MakeInstance();
+
+	/// @brief 析构函数
 	~VideoCtl();
 	/**
 	* @brief	开始播放

@@ -106,7 +106,7 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 	VideoState* is = (VideoState*)opaque;
 	int audio_size, len1;
 
-	VideoCtl* pVideoCtl = VideoCtl::GetInstance();
+	VideoCtl* pVideoCtl = is->videoCtl;
 
 	audio_callback_time = av_gettime_relative();
 
@@ -2171,6 +2171,7 @@ VideoState* VideoCtl::stream_open(const char* filename)
 	is = (VideoState*)av_mallocz(sizeof(VideoState));
 	if (!is)
 		return NULL;
+	is->videoCtl = this;
 	is->soundTouchHandle = soundtouch_create();
 	is->audio_new_buf = NULL;
 	is->audio_new_buf_size = 0;
@@ -2699,17 +2700,24 @@ VideoCtl* VideoCtl::GetInstance()
 	return &instance;
 }
 
-VideoCtl::~VideoCtl()
-{
-	// 确保播放循环线程在析构前完全退出
-	m_bPlayLoop = false;
-	if (m_tPlayLoopThread.joinable())
-		m_tPlayLoopThread.join();
+VideoCtl *VideoCtl::MakeInstance() {
+	VideoCtl *p = new VideoCtl();
+	if (p->Init()) {
+		return p;
+	}
+	delete p;
+	return nullptr; 
+}
 
-	avformat_network_deinit();
+VideoCtl::~VideoCtl() {
+  // 确保播放循环线程在析构前完全退出
+  m_bPlayLoop = false;
+  if (m_tPlayLoopThread.joinable())
+    m_tPlayLoopThread.join();
 
-	SDL_Quit();
+  avformat_network_deinit();
 
+  SDL_Quit();
 }
 
 bool VideoCtl::StartPlay(const std::string& strFileName, void* widPlayWid)
