@@ -2469,9 +2469,13 @@ void VideoCtl::LoopThread()
 	}
 
 	{
-		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-		if (m_CurStream)
-			do_exit(m_CurStream);
+		VideoState* exitStream = nullptr;
+		{
+			std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+			exitStream = m_CurStream;
+		}
+		if (exitStream)
+			do_exit(exitStream);
 	}
 
 }
