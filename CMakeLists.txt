@@ -1,18 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(playerdemo VERSION 1.0 LANGUAGES CXX)
- 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(QT_DIR [=[C:\Qt\6.9.3\msvc2022_64\lib\cmake\Qt6]=])
 set(Qt6_DIR [=[C:\Qt\6.9.3\msvc2022_64\lib\cmake\Qt6]=])
 set(sdl2_DIR [=[D:\libraries\SDL2-2.32.10\cmake]=])
-
 
 # 针对 MSVC 添加编译选项
 if(MSVC)
@@ -22,82 +17,55 @@ if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
+# 查找 SDL2（play_core 依赖）
+find_package(sdl2 REQUIRED)
+
+# ========== 播放器核心模块（无 Qt 依赖）==========
+add_subdirectory(play_core)
+
+# ========== Qt UI 模块 ==========
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 # 强制所有配置使用 Qt6 的 Release 版本库（包括 Debug 构建）
-# MAP_IMPORTED_CONFIG_DEBUG 让 Debug 构建链接 Release 版本的 Qt 导入库
 set_target_properties(Qt6::Core Qt6::Gui Qt6::Widgets PROPERTIES
     MAP_IMPORTED_CONFIG_DEBUG "Release"
 )
-find_package(sdl2 REQUIRED)
 
-# 包含目录
-include_directories(
-    ${CMAKE_SOURCE_DIR}/lib/ffmpeg/include
-    ${CMAKE_SOURCE_DIR}/lib/SDL2/include
-    ${CMAKE_SOURCE_DIR}/lib/soundtouch-2.3.3/lib
-    ${CMAKE_SOURCE_DIR}/lib/sigslot-1.2.3/include
-    ${CMAKE_SOURCE_DIR}/src
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+# UI 头文件
+set(HEADER_FILES
+    src/about.h
+    src/ctrlbar.h
+    src/CustomSlider.h
+    src/globalhelper.h
+    src/mainwid.h
+    src/medialist.h
+    src/playlist.h
+    src/resource.h
+    src/settingwid.h
+    src/show.h
+    src/title.h
+    src/videoctl_bridge.h
 )
 
-# 链接目录
-link_directories(
-    ${CMAKE_SOURCE_DIR}/lib/ffmpeg/bin
-    ${CMAKE_SOURCE_DIR}/lib/SDL2/lib/x64
-    ${CMAKE_SOURCE_DIR}/lib/soundtouch-2.3.3/lib
-)
-
-# 源文件
+# UI 源文件
 set(SOURCE_FILES
     src/main.cpp
     src/about.cpp
-    src/clock.cpp
     src/ctrlbar.cpp
     src/CustomSlider.cpp
     src/globalhelper.cpp
     src/mainwid.cpp
     src/medialist.cpp
-    src/packet_queue.cpp
-    src/frame_queue.cpp
-    src/decoder.cpp
     src/playlist.cpp
     src/settingwid.cpp
     src/show.cpp
     src/title.cpp
-    src/videoctl.cpp
     src/videoctl_bridge.cpp
-    soundtouch_wrap.cpp
-    xlogger.cpp
-)
-
-# 头文件
-set(HEADER_FILES
-    enums.h
-    soundtouch_wrap.h
-    src/about.h
-    src/av_compat.h
-    src/clock.h
-    src/av_constants.h
-    src/av_types.h
-    src/ctrlbar.h
-    src/CustomSlider.h
-    src/datactl.h
-    src/decoder.h
-    src/frame_queue.h
-    src/globalhelper.h
-    src/packet_queue.h
-    src/resource.h
-    src/video_state.h
-    src/videoctl.h
-    src/videoctl_bridge.h
-    src/signal.h
-    src/title.h
-    src/show.h
-    src/settingwid.h
-    src/playlist.h
-    src/medialist.h
-    src/mainwid.h
-    xlogger.h
 )
 
 # UI 文件
@@ -131,30 +99,27 @@ add_executable(${PROJECT_NAME} WIN32
     ${RC_FILES}
 )
 
-# 链接库
+# UI 的 include 路径
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+# 链接 play_core 静态库 + Qt + SDL
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    play_core
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    SDL2::SDL2
-    avcodec
-    avdevice
-    avfilter
-    avformat
-    avutil
-    swresample
-    swscale
-    SoundTouchDLL_x64
 )
 
-# 设置输出目录 - Debug 和 Release 都输出到 bin 目录
+# 设置输出目录
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin
     RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin
 )
 
-# 设置可执行文件名称 - Debug 版本添加 _debug 后缀
+# 设置可执行文件名称
 set_target_properties(${PROJECT_NAME} PROPERTIES
     OUTPUT_NAME_DEBUG "${PROJECT_NAME}_debug"
     OUTPUT_NAME_RELEASE "${PROJECT_NAME}"

@@ -13,7 +13,6 @@
 
 #include <string>
 #include <shared_mutex>
-#include <barrier>
 
 #include "datactl.h"
 #include "enums.h"
