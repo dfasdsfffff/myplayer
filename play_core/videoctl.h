@@ -25,8 +25,15 @@
 //单例模式
 class VideoCtl
 {
+private:
+	/// @brief 
+	VideoCtl();
 public:
+	/// @brief 
+	/// @return 
 	static VideoCtl* GetInstance();
+
+	/// @brief 
 	~VideoCtl();
 	/**
 	* @brief	开始播放
@@ -45,7 +52,7 @@ public:
 	void set_play_loop_policy(VideoLoopPolicy loopPolicy);
 
 	// Signal 成员，替代 Qt signals
-	Signal<std::string>  SigPlayMsg;
+	Signal<const std::string&>  SigPlayMsg;
 	Signal<int, int>     SigFrameDimensionsChanged;
 	Signal<int>          SigVideoTotalSeconds;
 	Signal<int>          SigVideoPlaySeconds;
@@ -69,7 +76,6 @@ public:
 	void OnStopAndWait();
 
 private:
-	VideoCtl();
 	/**
 	 * @brief	初始化
 	 *
