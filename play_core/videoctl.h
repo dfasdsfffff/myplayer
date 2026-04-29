@@ -66,6 +66,7 @@ public:
 	void OnSubVolume();
 	void OnPause();
 	void OnStop();
+	void OnStopAndWait();
 
 private:
 	VideoCtl();

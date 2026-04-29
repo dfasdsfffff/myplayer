@@ -18,8 +18,6 @@
 #include "globalhelper.h"
 #include "videoctl.h"
 
-#pragma execution_character_set("utf-8")
-
 std::mutex g_show_rect_mutex;
 
 Show::Show(QWidget *parent) : QWidget(parent),

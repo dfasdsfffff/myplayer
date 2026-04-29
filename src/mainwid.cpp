@@ -554,7 +554,7 @@ void MainWid::OnCloseBtnClicked()
 	loopPolicy = ui->CtrlBarWid->GetLoopPolicy();
 	speed = ui->CtrlBarWid->GetSpeed();
 	GlobalHelper::SavePlaySettings(volume, loopPolicy, speed);
-
+	VideoCtl::GetInstance()->OnStopAndWait();
 	this->close();
 }
 

@@ -20,8 +20,6 @@
 
 #include "globalhelper.h"
 
-#pragma execution_character_set("utf-8")
-
 Title::Title(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::Title),

@@ -11,8 +11,6 @@
 #ifndef GLOBALHELPER_H
 #define GLOBALHELPER_H
 
-#pragma execution_character_set("utf-8")
-
 enum ERROR_CODE { NoError = 0, ErrorFileInvalid };
 
 #include <QDebug>

@@ -2634,6 +2634,13 @@ void VideoCtl::OnStop()
 	m_bPlayLoop = false;
 }
 
+void VideoCtl::OnStopAndWait(){
+	// 先暂停播放循环，再退出
+	m_bPlayLoop = false;
+	if (m_tPlayLoopThread.joinable())
+		m_tPlayLoopThread.join();
+}
+
 VideoCtl::VideoCtl() :
 	m_CurStream(nullptr),
 	m_bPlayLoop(false),

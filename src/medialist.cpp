@@ -3,8 +3,6 @@
 
 #include "medialist.h"
 
-#pragma execution_character_set("utf-8")
-
 MediaList::MediaList(QWidget *parent)
     : QListWidget(parent),
       m_stMenu(this),
