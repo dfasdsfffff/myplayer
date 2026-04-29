@@ -36,6 +36,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/lib/ffmpeg/include
     ${CMAKE_SOURCE_DIR}/lib/SDL2/include
     ${CMAKE_SOURCE_DIR}/lib/soundtouch-2.3.3/lib
+    ${CMAKE_SOURCE_DIR}/lib/sigslot-1.2.3/include
     ${CMAKE_SOURCE_DIR}/src
 )
 
