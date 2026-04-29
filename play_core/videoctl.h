@@ -13,6 +13,8 @@
 
 #include <string>
 #include <shared_mutex>
+#include <atomic>
+#include <memory>
 
 #include "datactl.h"
 #include "enums.h"
@@ -35,7 +37,7 @@ public:
 	/**
 	* @brief 创建一个视频播放实例，不是单例
 	*/
-	static VideoCtl* MakeInstance();
+	static std::shared_ptr<VideoCtl> MakeInstance();
 
 	/// @brief 析构函数
 	~VideoCtl();
@@ -172,6 +174,7 @@ private:
 	SDL_Renderer* m_sdlRenderer;
 	SDL_RendererInfo m_sdlRendererInfo = { 0 };
 	SDL_AudioDeviceID m_sdlAudio_dev;
+	Uint32 m_sdlWindowID = 0;  // 本实例窗口ID，用于事件过滤
 	void* m_playWid;//播放窗口原生句柄
 
 	//

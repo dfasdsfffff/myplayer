@@ -19,6 +19,11 @@
 #pragma execution_character_set("utf-8")
 
 extern std::mutex g_show_rect_mutex;
+
+// SDL/FFmpeg 全局初始化引用计数，多实例安全
+static std::atomic<int> g_sdl_init_count{0};
+static std::atomic<int> g_network_init_count{0};
+
 // 是否允许丢帧（如果视频太慢了，跟不上音频或者外部时钟）
 // -1为自动丢帧，0为不丢帧，1为强制丢帧
 static int framedrop = 1;
@@ -402,6 +407,7 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 //关闭流
 void VideoCtl::stream_close(VideoState* is)
 {
+	if (!is) return;
 	/* XXX: 使用特殊的url_shutdown调用来彻底中止解析 */
 	is->abort_request = 1;
 	is->read_tid.join();
@@ -2371,26 +2377,72 @@ void VideoCtl::LoopThread()
 	while (m_bPlayLoop)
 	{
 		double x;
-		refresh_loop_wait_event(m_CurStream, &event);
+		VideoState* is;
+		{
+			std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+			is = m_CurStream;
+		}
+		refresh_loop_wait_event(is, &event);
+
+		// 事件处理后重新读取，可能已被其他线程修改
+		{
+			std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+			is = m_CurStream;
+		}
+		if (!is)
+			continue;
+
+		// 多实例安全：只处理属于本实例窗口的事件
+		// SDL_QUIT / FF_QUIT_EVENT 是全局事件，所有实例都需要处理
+		{
+			bool belongsToUs = true;
+			switch (event.type) {
+			case SDL_WINDOWEVENT:
+				belongsToUs = (m_sdlWindowID == 0 || event.window.windowID == m_sdlWindowID);
+				break;
+			case SDL_KEYDOWN:
+			case SDL_KEYUP:
+				belongsToUs = (m_sdlWindowID == 0 || event.key.windowID == m_sdlWindowID);
+				break;
+			case SDL_MOUSEMOTION:
+				belongsToUs = (m_sdlWindowID == 0 || event.motion.windowID == m_sdlWindowID);
+				break;
+			case SDL_MOUSEBUTTONDOWN:
+			case SDL_MOUSEBUTTONUP:
+				belongsToUs = (m_sdlWindowID == 0 || event.button.windowID == m_sdlWindowID);
+				break;
+			case SDL_MOUSEWHEEL:
+				belongsToUs = (m_sdlWindowID == 0 || event.wheel.windowID == m_sdlWindowID);
+				break;
+			default:
+				break; // SDL_QUIT 等全局事件默认属于本实例
+			}
+			if (!belongsToUs) {
+				SDL_PushEvent(&event); // 放回队列，让其他实例处理
+				av_usleep(1000);       // 避免忙循环
+				continue;
+			}
+		}
+
 		switch (event.type) {
 		case SDL_KEYDOWN:
 			switch (event.key.keysym.sym) {
 			case SDLK_s: // S: Step to next frame
-				step_to_next_frame(m_CurStream);
+				step_to_next_frame(is);
 				break;
 			case SDLK_a:
-				stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_AUDIO);
+				stream_cycle_channel(is, AVMEDIA_TYPE_AUDIO);
 				break;
 			case SDLK_v:
-				stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_VIDEO);
+				stream_cycle_channel(is, AVMEDIA_TYPE_VIDEO);
 				break;
 			case SDLK_c:
-				stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_VIDEO);
-				stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_AUDIO);
-				stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_SUBTITLE);
+				stream_cycle_channel(is, AVMEDIA_TYPE_VIDEO);
+				stream_cycle_channel(is, AVMEDIA_TYPE_AUDIO);
+				stream_cycle_channel(is, AVMEDIA_TYPE_SUBTITLE);
 				break;
 			case SDLK_t:
-				stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_SUBTITLE);
+				stream_cycle_channel(is, AVMEDIA_TYPE_SUBTITLE);
 				break;
 
 			default:
@@ -2401,23 +2453,26 @@ void VideoCtl::LoopThread()
 			//窗口大小改变事件
 			switch (event.window.event) {
 			case SDL_WINDOWEVENT_RESIZED:
-				screen_width = m_CurStream->width = event.window.data1;
-				screen_height = m_CurStream->height = event.window.data2;
+				screen_width = is->width = event.window.data1;
+				screen_height = is->height = event.window.data2;
 			case SDL_WINDOWEVENT_EXPOSED:
-				m_CurStream->force_refresh = 1;
+				is->force_refresh = 1;
 			}
 			break;
 		case SDL_QUIT:
 		case FF_QUIT_EVENT:
-			do_exit(m_CurStream);
+			do_exit(is);
 			break;
 		default:
 			break;
 		}
 	}
 
-
-	do_exit(m_CurStream);
+	{
+		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+		if (m_CurStream)
+			do_exit(m_CurStream);
+	}
 
 }
 
@@ -2532,6 +2587,7 @@ int VideoCtl::video_open(VideoState* is)
 		SDL_GetWindowSize(m_sdlWindow, &w, &h);//初始宽高设置为显示控件宽高
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 		if (m_sdlWindow) {
+			m_sdlWindowID = SDL_GetWindowID(m_sdlWindow);
 			SDL_RendererInfo info;
 			if (!m_sdlRenderer)
 				m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -2654,8 +2710,11 @@ VideoCtl::VideoCtl() :
 	m_nFrameH(0)
 {
 	avdevice_register_all();
-	//网络格式初始化
-	avformat_network_init();
+	//网络格式初始化（引用计数保护）
+	if (g_network_init_count.fetch_add(1) == 0)
+	{
+		avformat_network_init();
+	}
 }
 
 bool VideoCtl::Init()
@@ -2665,14 +2724,19 @@ bool VideoCtl::Init()
 		return false;
 	}
 
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER))
+	// 引用计数：仅第一个实例初始化 SDL
+	if (g_sdl_init_count.fetch_add(1) == 0)
 	{
-		av_log(NULL, AV_LOG_FATAL, "Could not initialize SDL - %s\n", SDL_GetError());
-		av_log(NULL, AV_LOG_FATAL, "(Did you set the DISPLAY variable?)\n");
-		return false;
+		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER))
+		{
+			g_sdl_init_count.fetch_sub(1);
+			av_log(NULL, AV_LOG_FATAL, "Could not initialize SDL - %s\n", SDL_GetError());
+			av_log(NULL, AV_LOG_FATAL, "(Did you set the DISPLAY variable?)\n");
+			return false;
+		}
+		SDL_EventState(SDL_SYSWMEVENT, SDL_IGNORE);
+		SDL_EventState(SDL_USEREVENT, SDL_IGNORE);
 	}
-	SDL_EventState(SDL_SYSWMEVENT, SDL_IGNORE);
-	SDL_EventState(SDL_USEREVENT, SDL_IGNORE);
 
 	return true;
 }
@@ -2700,13 +2764,12 @@ VideoCtl* VideoCtl::GetInstance()
 	return &instance;
 }
 
-VideoCtl *VideoCtl::MakeInstance() {
-	VideoCtl *p = new VideoCtl();
+std::shared_ptr<VideoCtl> VideoCtl::MakeInstance() {
+	auto p = std::shared_ptr<VideoCtl>(new VideoCtl());
 	if (p->Init()) {
 		return p;
 	}
-	delete p;
-	return nullptr; 
+	return nullptr;
 }
 
 VideoCtl::~VideoCtl() {
@@ -2715,9 +2778,15 @@ VideoCtl::~VideoCtl() {
   if (m_tPlayLoopThread.joinable())
     m_tPlayLoopThread.join();
 
-  avformat_network_deinit();
-
-  SDL_Quit();
+  // 引用计数：仅最后一个实例析构时才执行全局清理
+  if (g_network_init_count.fetch_sub(1) == 1)
+  {
+    avformat_network_deinit();
+  }
+  if (g_sdl_init_count.fetch_sub(1) == 1)
+  {
+    SDL_Quit();
+  }
 }
 
 bool VideoCtl::StartPlay(const std::string& strFileName, void* widPlayWid)
@@ -2746,7 +2815,7 @@ bool VideoCtl::StartPlay(const std::string& strFileName, void* widPlayWid)
     is = stream_open(strFileName.c_str());
     if (!is) {
         av_log(NULL, AV_LOG_FATAL, "Failed to initialize VideoState!\n");
-        do_exit(m_CurStream);
+        return false;
     }
 
     {
