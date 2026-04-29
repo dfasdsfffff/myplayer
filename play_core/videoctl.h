@@ -53,7 +53,7 @@ public:
 	Signal<bool>         SigPauseStat;
 	Signal<>             SigStop;
 	Signal<>             SigStopFinished;
-	Signal<std::string>  SigStartPlay;
+	Signal<const std::string&>  SigStartPlay;
 	Signal<>             SigPlayNextOne;
 	Signal<>             SigRandomPlayOne;
 

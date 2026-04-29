@@ -124,7 +124,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     OUTPUT_NAME_DEBUG "${PROJECT_NAME}_debug"
     OUTPUT_NAME_RELEASE "${PROJECT_NAME}"
 )
-
+# MSVC: 启用 UTF-8 源文件编码（解决 C4819 警告）
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /utf-8)
+    add_compile_options("/utf-8")
+endif()
 # Windows 特定设置
 if(WIN32)
     target_compile_definitions(${PROJECT_NAME} PRIVATE

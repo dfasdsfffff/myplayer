@@ -1,4 +1,4 @@
-﻿/*
+/*
  * @file 	videoctl.cpp
  * @date 	2018/01/21 12:15
  *
@@ -2707,35 +2707,40 @@ VideoCtl::~VideoCtl()
 
 bool VideoCtl::StartPlay(const std::string& strFileName, void* widPlayWid)
 {
-	m_bPlayLoop = false;
-	if (m_tPlayLoopThread.joinable())
-	{
-		m_tPlayLoopThread.join();
-	}
-	SigStartPlay(strFileName);//正式播放，发送给标题栏
+    // 检查输入参数
+    if (strFileName.empty()) {
+        av_log(NULL, AV_LOG_ERROR, "File name is empty, cannot start playback!\n");
+        return false;
+    }
 
-	m_playWid = widPlayWid;
+    m_bPlayLoop = false;
+    if (m_tPlayLoopThread.joinable())
+    {
+        m_tPlayLoopThread.join();
+    }
+    SigStartPlay(strFileName);//正式播放，发送给标题栏
 
-	VideoState* is;
+    m_playWid = widPlayWid;
 
-	char file_name[1024];
-	memset(file_name, 0, 1024);
+    VideoState* is;
 
-	//打开流
-	is = stream_open(strFileName.c_str());
-	if (!is) {
-		av_log(NULL, AV_LOG_FATAL, "Failed to initialize VideoState!\n");
-		do_exit(m_CurStream);
-	}
+    char file_name[1024];
+    memset(file_name, 0, 1024);
 
-	{
-		std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-		m_CurStream = is;
-	}
+    //打开流
+    is = stream_open(strFileName.c_str());
+    if (!is) {
+        av_log(NULL, AV_LOG_FATAL, "Failed to initialize VideoState!\n");
+        do_exit(m_CurStream);
+    }
 
-	//事件循环
-	m_tPlayLoopThread = std::thread(&VideoCtl::LoopThread, this);
+    {
+        std::unique_lock<std::shared_mutex> lock(m_streamMutex);
+        m_CurStream = is;
+    }
 
+    //事件循环
+    m_tPlayLoopThread = std::thread(&VideoCtl::LoopThread, this);
 
-	return true;
+    return true;
 }

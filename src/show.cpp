@@ -1,4 +1,4 @@
-﻿/*
+/*
  * @file 	show.cpp
  * @date 	2018/01/22 23:07
  *
@@ -8,7 +8,6 @@
  * @brief 	显示控件
  * @note
  */
-
 
 #include <QDebug>
 #include <mutex>
@@ -23,11 +22,10 @@
 
 std::mutex g_show_rect_mutex;
 
-Show::Show(QWidget *parent) :
-    QWidget(parent),
-    ui(new Ui::Show),
-    m_stActionGroup(this),
-    m_stMenu(this)
+Show::Show(QWidget *parent) : QWidget(parent),
+                              ui(new Ui::Show),
+                              m_stActionGroup(this),
+                              m_stMenu(this)
 {
     ui->setupUi(this);
 
@@ -35,16 +33,13 @@ Show::Show(QWidget *parent) :
     setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/show.css"));
     setAcceptDrops(true);
 
-	
-    //防止过度刷新显示
+    // 防止过度刷新显示
     this->setAttribute(Qt::WA_OpaquePaintEvent);
-    //ui->label->setAttribute(Qt::WA_OpaquePaintEvent);
+    // ui->label->setAttribute(Qt::WA_OpaquePaintEvent);
 
     ui->label->setUpdatesEnabled(false);
 
     this->setMouseTracking(true);
-    
-
 
     m_nLastFrameWidth = 0; ///< 记录视频宽高
     m_nLastFrameHeight = 0;
@@ -54,8 +49,6 @@ Show::Show(QWidget *parent) :
     m_stActionGroup.addAction("停止");
 
     m_stMenu.addActions(m_stActionGroup.actions());
-
-    
 }
 
 Show::~Show()
@@ -70,12 +63,9 @@ bool Show::Init()
         return false;
     }
 
-	//ui->label->setUpdatesEnabled(false);
+    // ui->label->setUpdatesEnabled(false);
 
-
-
-
-	return true;
+    return true;
 }
 
 void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
@@ -83,7 +73,7 @@ void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
     qDebug() << "Show::OnFrameDimensionsChanged" << nFrameWidth << nFrameHeight;
     m_nLastFrameWidth = nFrameWidth;
     m_nLastFrameHeight = nFrameHeight;
-    
+
     ChangeShow();
 }
 
@@ -114,17 +104,16 @@ void Show::ChangeShow()
         x = (scr_width - width) / 2;
         y = (scr_height - height) / 2;
 
-
         ui->label->setGeometry(x, y, width, height);
     }
 }
 
 void Show::dragEnterEvent(QDragEnterEvent *event)
 {
-//    if(event->mimeData()->hasFormat("text/uri-list"))
-//    {
-//        event->acceptProposedAction();
-//    }
+    //    if(event->mimeData()->hasFormat("text/uri-list"))
+    //    {
+    //        event->acceptProposedAction();
+    //    }
     event->acceptProposedAction();
 }
 
@@ -140,23 +129,23 @@ void Show::keyReleaseEvent(QKeyEvent *event)
     qDebug() << "Show::keyPressEvent:" << event->key();
     switch (event->key())
     {
-    case Qt::Key_Return://全屏
+    case Qt::Key_Return: // 全屏
         SigFullScreen();
         break;
-    case Qt::Key_Left://后退5s
+    case Qt::Key_Left: // 后退5s
         emit SigSeekBack();
         break;
-    case Qt::Key_Right://前进5s
+    case Qt::Key_Right: // 前进5s
         qDebug() << "前进5s";
         emit SigSeekForward();
         break;
-    case Qt::Key_Up://增加10音量
+    case Qt::Key_Up: // 增加10音量
         emit SigAddVolume();
         break;
-    case Qt::Key_Down://减少10音量
+    case Qt::Key_Down: // 减少10音量
         emit SigSubVolume();
         break;
-    case Qt::Key_Space://减少10音量
+    case Qt::Key_Space: // 减少10音量
         emit SigPlayOrPause();
         break;
 
@@ -183,14 +172,28 @@ void Show::mousePressEvent(QMouseEvent *event)
 
 void Show::OnDisplayMsg(QString strMsg)
 {
-	qDebug() << "Show::OnDisplayMsg " << strMsg;
+    qDebug() << "Show::OnDisplayMsg " << strMsg;
 }
 
 void Show::OnPlay(QString strFile)
 {
-    VideoCtl::GetInstance()->StartPlay(
-        strFile.toStdString(),
-        reinterpret_cast<void*>(ui->label->winId()));
+    if (strFile.isEmpty()) {
+        qDebug() << "Warning: strFile is empty, not starting playback.";
+        return;
+    }
+    
+    // 使用UTF-8编码转换，更适合Windows下的中文路径
+    std::string s = strFile.toUtf8().constData();
+    qDebug() << "Playing file:" << QString::fromStdString(s);  // 添加调试信息
+    
+    // 再次检查转换后的字符串是否为空
+    if (s.empty()) {
+        qDebug() << "Warning: Converted std::string is empty, not starting playback.";
+        return;
+    }
+    
+    VideoCtl::GetInstance()->StartPlay(s, 
+        reinterpret_cast<void *>(ui->label->winId()));
 }
 
 void Show::OnStopFinished()
@@ -198,11 +201,10 @@ void Show::OnStopFinished()
     update();
 }
 
-
 void Show::OnTimerShowCursorUpdate()
 {
-    //qDebug() << "Show::OnTimerShowCursorUpdate()";
-    //setCursor(Qt::BlankCursor);
+    // qDebug() << "Show::OnTimerShowCursorUpdate()";
+    // setCursor(Qt::BlankCursor);
 }
 
 void Show::OnActionsTriggered(QAction *action)
@@ -224,10 +226,10 @@ void Show::OnActionsTriggered(QAction *action)
 
 bool Show::ConnectSignalSlots()
 {
-	QList<bool> listRet;
-	bool bRet;
+    QList<bool> listRet;
+    bool bRet;
 
-	bRet = connect(this, &Show::SigPlay, this, &Show::OnPlay);
+    bRet = connect(this, &Show::SigPlay, this, &Show::OnPlay);
     listRet.append(bRet);
 
     timerShowCursor.setInterval(2000);
@@ -236,26 +238,26 @@ bool Show::ConnectSignalSlots()
 
     connect(&m_stActionGroup, &QActionGroup::triggered, this, &Show::OnActionsTriggered);
 
-	for (bool bReturn : listRet)
-	{
-		if (bReturn == false)
-		{
-			return false;
-		}
-	}
+    for (bool bReturn : listRet)
+    {
+        if (bReturn == false)
+        {
+            return false;
+        }
+    }
 
-	return true;
+    return true;
 }
 
 void Show::dropEvent(QDropEvent *event)
 {
     QList<QUrl> urls = event->mimeData()->urls();
-    if(urls.isEmpty())
+    if (urls.isEmpty())
     {
         return;
     }
 
-    for(QUrl url: urls)
+    for (QUrl url : urls)
     {
         QString strFileName = url.toLocalFile();
         qDebug() << strFileName;
@@ -263,5 +265,5 @@ void Show::dropEvent(QDropEvent *event)
         break;
     }
 
-	//emit SigPlay(urls.first().toLocalFile());
+    // emit SigPlay(urls.first().toLocalFile());
 }
