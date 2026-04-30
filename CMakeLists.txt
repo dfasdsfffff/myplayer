@@ -7,10 +7,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 设置 Qt6 路径，允许用户通过 -DQt6_DIR=... 覆盖
 # 默认路径为 C:\Qt\6.9.3\msvc2022_64\lib\cmake\Qt6
-set(Qt6_DIR "C:\\Qt\\6.9.3\\msvc2022_64\\lib\\cmake\\Qt6" CACHE PATH "Location of Qt6Config.cmake")
+if(NOT DEFINED Qt6_DIR AND EXISTS "C:/Qt/6.9.3/msvc2022_64/lib/cmake/Qt6")
+    set(Qt6_DIR "C:/Qt/6.9.3/msvc2022_64/lib/cmake/Qt6" CACHE PATH "Location of Qt6Config.cmake")
+endif()
 
 
-set(sdl2_DIR [=[lib\SDL2\cmake]=])
+if(NOT DEFINED sdl2_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/lib/SDL2/cmake/sdl2-config.cmake")
+    set(sdl2_DIR "${CMAKE_SOURCE_DIR}/lib/SDL2/cmake" CACHE PATH "Location of sdl2-config.cmake")
+endif()
 
 # 针对 MSVC 添加编译选项
 if(MSVC)
@@ -134,15 +138,23 @@ if(MSVC)
 endif()
 # Windows 特定设置
 if(WIN32)
+    file(GLOB PLAYERDEMO_RUNTIME_DLLS CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/lib/ffmpeg/bin/*.dll"
+        "${CMAKE_SOURCE_DIR}/lib/SDL2/lib/x64/SDL2.dll"
+        "${CMAKE_SOURCE_DIR}/lib/soundtouch-2.3.3/lib/SoundTouchDLL_x64.dll"
+    )
+
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         _WINDOWS
         UNICODE
         _UNICODE
     )
     # 部署 SoundTouch DLL 到输出目录
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/lib/soundtouch-2.3.3/lib/SoundTouchDLL_x64.dll"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-    )
+    foreach(PLAYERDEMO_RUNTIME_DLL IN LISTS PLAYERDEMO_RUNTIME_DLLS)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PLAYERDEMO_RUNTIME_DLL}"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+        )
+    endforeach()
 endif()
