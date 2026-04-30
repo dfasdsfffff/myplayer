@@ -5,9 +5,12 @@ project(playerdemo VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(QT_DIR [=[C:\Qt\6.9.3\msvc2022_64\lib\cmake\Qt6]=])
-set(Qt6_DIR [=[C:\Qt\6.9.3\msvc2022_64\lib\cmake\Qt6]=])
-set(sdl2_DIR [=[D:\libraries\SDL2-2.32.10\cmake]=])
+# 设置 Qt6 路径，允许用户通过 -DQt6_DIR=... 覆盖
+# 默认路径为 C:\Qt\6.9.3\msvc2022_64\lib\cmake\Qt6
+set(Qt6_DIR "C:\\Qt\\6.9.3\\msvc2022_64\\lib\\cmake\\Qt6" CACHE PATH "Location of Qt6Config.cmake")
+
+
+set(sdl2_DIR [=[lib\SDL2\cmake]=])
 
 # 针对 MSVC 添加编译选项
 if(MSVC)
