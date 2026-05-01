@@ -120,8 +120,8 @@ private:
 
 	int audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, int wanted_sample_rate, struct AudioParams* audio_hw_params);
 	int stream_component_open(VideoState* is, int stream_index);
-	int stream_has_enough_packets(AVStream* st, int stream_id, PacketQueue* queue);
-	int is_realtime(AVFormatContext* s);
+	static int stream_has_enough_packets(AVStream* st, int stream_id, PacketQueue* queue);  // 纯操作，设为static
+	static int is_realtime(AVFormatContext* s);  // 纯操作，设为static
 	void ReadThread(VideoState* CurStream);
 	void LoopThread();
 	VideoState* stream_open(const char* filename);
@@ -134,30 +134,30 @@ private:
 	//更新音量
 	void UpdateVolume(int sign, double step);
 
-	void video_display(VideoState* is);
-	int video_open(VideoState* is);
-	void do_exit(VideoState* is);
+	void video_display();  // 移除参数，使用m_CurStream
+	int video_open();  // 移除参数，使用m_CurStream
+	void do_exit();  // 移除参数，使用m_CurStream
 
 	int realloc_texture(SDL_Texture** texture, Uint32 new_format, int new_width, int new_height, SDL_BlendMode blendmode, int init_texture);
 	void calculate_display_rect(SDL_Rect* rect, int scr_xleft, int scr_ytop, int scr_width, int scr_height, int pic_width, int pic_height, AVRational pic_sar);
 	int upload_texture(SDL_Texture* tex, AVFrame* frame, struct SwsContext** img_convert_ctx);
-	void video_image_display(VideoState* is);
-	void stream_component_close(VideoState* is, int stream_index);
-	void stream_close(VideoState* is);
+	void video_image_display();  // 移除参数，使用m_CurStream
+	void stream_component_close(VideoState* is, int stream_index);  // 保留参数，内部使用
+	void stream_close(VideoState* is);  // 保留参数，清理函数
 
-	int get_master_sync_type(VideoState* is);
-	double get_master_clock(VideoState* is);
-	void check_external_clock_speed(VideoState* is);
-	void stream_seek(VideoState* is, int64_t pos, int64_t rel);
-	void stream_toggle_pause(VideoState* is);
-	void toggle_pause(VideoState* is);
-	void step_to_next_frame(VideoState* is);
-	double compute_target_delay(double delay, VideoState* is);
-	double vp_duration(VideoState* is, Frame* vp, Frame* nextvp);
-	void update_video_pts(VideoState* is, double pts, int64_t pos, int serial);
+	static int get_master_sync_type(VideoState* is);  // 纯计算，设为static
+	static double get_master_clock(VideoState* is);  // 纯计算，设为static
+	static void check_external_clock_speed(VideoState* is);  // 纯操作，设为static
+	void stream_seek(int64_t pos, int64_t rel);  // 移除参数，使用m_CurStream
+	void stream_toggle_pause();  // 移除参数，使用m_CurStream
+	void toggle_pause();  // 移除参数，使用m_CurStream
+	void step_to_next_frame();  // 移除参数，使用m_CurStream
+	static double compute_target_delay(double delay, VideoState* is);  // 纯计算，设为static
+	static double vp_duration(VideoState* is, Frame* vp, Frame* nextvp);  // 纯计算，设为static
+	static void update_video_pts(VideoState* is, double pts, int64_t pos, int serial);  // 纯操作，设为static
 public:
-	int configure_filtergraph(AVFilterGraph* graph, const char* filtergraph,
-		AVFilterContext* source_ctx, AVFilterContext* sink_ctx);
+	static int configure_filtergraph(AVFilterGraph* graph, const char* filtergraph,
+		AVFilterContext* source_ctx, AVFilterContext* sink_ctx);  // 纯配置，设为static
 	int configure_video_filters(AVFilterGraph* graph, VideoState* is, const char* vfilters, AVFrame* frame);
 	int configure_audio_filters(VideoState* is, const char* mAfilters, int force_output_format);
 

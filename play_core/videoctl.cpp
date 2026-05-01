@@ -257,8 +257,12 @@ int VideoCtl::upload_texture(SDL_Texture* tex, AVFrame* frame, struct SwsContext
 }
 
 //显示视频画面
-void VideoCtl::video_image_display(VideoState* is)
+void VideoCtl::video_image_display()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream) return;
+	VideoState* is = m_CurStream;
+
 	Frame* vp;
 	Frame* sp = NULL;
 	SDL_Rect rect;
@@ -470,7 +474,7 @@ void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
 	this->m_loopPolicy = loopPolicy;
 }
 
-int VideoCtl::get_master_sync_type(VideoState* is) {
+int VideoCtl::get_master_sync_type(VideoState* is) {  // static函数
 	if (is->av_sync_type == AV_SYNC_VIDEO_MASTER) {
 		if (is->video_st)
 			return AV_SYNC_VIDEO_MASTER;
@@ -534,8 +538,12 @@ void VideoCtl::check_external_clock_speed(VideoState* is) {
 }
 
 /* seek in the stream */
-void VideoCtl::stream_seek(VideoState* is, int64_t pos, int64_t rel)
+void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream) return;
+	VideoState* is = m_CurStream;
+
 	if (!is->seek_req) {
 		is->seek_pos = pos;
 		is->seek_rel = rel;
@@ -546,8 +554,12 @@ void VideoCtl::stream_seek(VideoState* is, int64_t pos, int64_t rel)
 }
 
 /* pause or resume the video */
-void VideoCtl::stream_toggle_pause(VideoState* is)
+void VideoCtl::stream_toggle_pause()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream) return;
+	VideoState* is = m_CurStream;
+
 	if (is->paused) {
 		is->frame_timer += av_gettime_relative() / 1000000.0 - is->vidclk.last_updated;
 		if (is->read_pause_return != AVERROR(ENOSYS)) {
@@ -559,18 +571,26 @@ void VideoCtl::stream_toggle_pause(VideoState* is)
 	is->paused = is->audclk.paused = is->vidclk.paused = is->extclk.paused = !is->paused;
 }
 
-void VideoCtl::toggle_pause(VideoState* is)
+void VideoCtl::toggle_pause()
 {
-	stream_toggle_pause(is);
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream) return;
+	VideoState* is = m_CurStream;
+
+	stream_toggle_pause();
 	is->step = 0;
 }
 
 
-void VideoCtl::step_to_next_frame(VideoState* is)
+void VideoCtl::step_to_next_frame()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream) return;
+	VideoState* is = m_CurStream;
+
 	/* if the stream is paused unpause it, then step */
 	if (is->paused)
-		stream_toggle_pause(is);
+		stream_toggle_pause();
 	is->step = 1;
 }
 
@@ -918,7 +938,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 		if (is->force_refresh || is->last_vis_time + rdftspeed < time)
 		{
 			// 显示当前图片（如果有）
-			video_display(is);
+			video_display();
 			is->last_vis_time = time;
 		}
 		*remaining_time = FFMIN(*remaining_time, is->last_vis_time + rdftspeed - time);
@@ -1014,12 +1034,12 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			is->force_refresh = 1;
 
 			if (is->step && !is->paused)
-				stream_toggle_pause(is);
+				stream_toggle_pause();
 		}
 	display:
 		/* display picture */
 		if (is->force_refresh && is->pictq.rindex_shown)
-			video_display(is);
+			video_display();
 	}
 	is->force_refresh = 0;
 
@@ -2057,7 +2077,7 @@ void VideoCtl::ReadThread(VideoState* is)
 			is->queue_attachments_req = 1;
 			is->eof = 0;
 			if (is->paused)
-				step_to_next_frame(is);
+				step_to_next_frame();
 		}
 		if (is->queue_attachments_req) {
 			if (is->video_st && is->video_st->disposition & AV_DISPOSITION_ATTACHED_PIC) {
@@ -2093,7 +2113,7 @@ void VideoCtl::ReadThread(VideoState* is)
 			}
 			else if (m_loopPolicy == VideoLoopPolicy::LOOP_SINGLE) {
 				// 重新播放
-				stream_seek(is, 0, 0);
+				stream_seek(0, 0);
 			}
 			else if (m_loopPolicy == VideoLoopPolicy::LOOP_RANDOM) {
 				m_bPlayLoop = false;
@@ -2177,7 +2197,6 @@ VideoState* VideoCtl::stream_open(const char* filename)
 	is = (VideoState*)av_mallocz(sizeof(VideoState));
 	if (!is)
 		return NULL;
-	is->videoCtl = this;
 	is->soundTouchHandle = soundtouch_create();
 	is->audio_new_buf = NULL;
 	is->audio_new_buf_size = 0;
@@ -2362,7 +2381,7 @@ void VideoCtl::seek_chapter(VideoState* is, int incr)
 		return;
 
 	av_log(NULL, AV_LOG_VERBOSE, "Seeking to chapter %d.\n", i);
-	stream_seek(is, av_rescale_q(is->ic->chapters[i]->start, is->ic->chapters[i]->time_base,
+	stream_seek(av_rescale_q(is->ic->chapters[i]->start, is->ic->chapters[i]->time_base,
 		/*AV_TIME_BASE_Q*/{ 1, AV_TIME_BASE }), 0);
 }
 
@@ -2428,7 +2447,7 @@ void VideoCtl::LoopThread()
 		case SDL_KEYDOWN:
 			switch (event.key.keysym.sym) {
 			case SDLK_s: // S: Step to next frame
-				step_to_next_frame(is);
+				step_to_next_frame();
 				break;
 			case SDLK_a:
 				stream_cycle_channel(is, AVMEDIA_TYPE_AUDIO);
@@ -2461,7 +2480,7 @@ void VideoCtl::LoopThread()
 			break;
 		case SDL_QUIT:
 		case FF_QUIT_EVENT:
-			do_exit(is);
+			do_exit();
 			break;
 		default:
 			break;
@@ -2475,7 +2494,7 @@ void VideoCtl::LoopThread()
 			exitStream = m_CurStream;
 		}
 		if (exitStream)
-			do_exit(exitStream);
+			do_exit();
 	}
 
 }
@@ -2491,7 +2510,7 @@ void VideoCtl::OnPlaySeek(double dPercent)
 	int64_t ts = dPercent * m_CurStream->ic->duration;
 	if (m_CurStream->ic->start_time != AV_NOPTS_VALUE)
 		ts += m_CurStream->ic->start_time;
-	stream_seek(m_CurStream, ts, 0);
+	stream_seek(ts, 0);
 }
 
 void VideoCtl::OnPlayVolume(double dPercent)
@@ -2519,7 +2538,7 @@ void VideoCtl::OnSeekForward()
 	pos += incr;
 	if (m_CurStream->ic->start_time != AV_NOPTS_VALUE && pos < m_CurStream->ic->start_time / (double)AV_TIME_BASE)
 		pos = m_CurStream->ic->start_time / (double)AV_TIME_BASE;
-	stream_seek(m_CurStream, (int64_t)(pos * AV_TIME_BASE), (int64_t)(incr * AV_TIME_BASE));
+	stream_seek((int64_t)(pos * AV_TIME_BASE), (int64_t)(incr * AV_TIME_BASE));
 }
 
 void VideoCtl::OnSeekBack()
@@ -2536,7 +2555,7 @@ void VideoCtl::OnSeekBack()
 	pos += incr;
 	if (m_CurStream->ic->start_time != AV_NOPTS_VALUE && pos < m_CurStream->ic->start_time / (double)AV_TIME_BASE)
 		pos = m_CurStream->ic->start_time / (double)AV_TIME_BASE;
-	stream_seek(m_CurStream, (int64_t)(pos * AV_TIME_BASE), (int64_t)(incr * AV_TIME_BASE));
+	stream_seek((int64_t)(pos * AV_TIME_BASE), (int64_t)(incr * AV_TIME_BASE));
 }
 
 void VideoCtl::UpdateVolume(int sign, double step)
@@ -2554,10 +2573,14 @@ void VideoCtl::UpdateVolume(int sign, double step)
 }
 
 /* display the current picture, if any */
-void VideoCtl::video_display(VideoState* is)
+void VideoCtl::video_display()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream) return;
+	VideoState* is = m_CurStream;
+
 	if (!m_sdlWindow)
-		video_open(is);
+		video_open();
 	if (m_sdlRenderer)
 	{
 		//恰好显示控件大小在变化，则不刷新显示
@@ -2569,15 +2592,18 @@ void VideoCtl::video_display(VideoState* is)
 				return;
 			SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
 			SDL_RenderClear(m_sdlRenderer);
-			video_image_display(is);
+			video_image_display();
 			SDL_RenderPresent(m_sdlRenderer);
 		}
 	}
 
 }
 
-int VideoCtl::video_open(VideoState* is)
+int VideoCtl::video_open()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream) return -1;
+	VideoState* is = m_CurStream;
 	int w, h;
 
 	w = screen_width;
@@ -2611,7 +2637,7 @@ int VideoCtl::video_open(VideoState* is)
 
 	if (!m_sdlWindow || !m_sdlRenderer) {
 		av_log(NULL, AV_LOG_FATAL, "SDL: could not set video mode - exiting\n");
-		do_exit(is);
+		do_exit();
 	}
 
 	is->width = w;
@@ -2620,8 +2646,11 @@ int VideoCtl::video_open(VideoState* is)
 	return 0;
 }
 
-void VideoCtl::do_exit(VideoState* is)
+void VideoCtl::do_exit()
 {
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream) return;
+	VideoState* is = m_CurStream;
 	if (is)
 	{
 		stream_close(is);
@@ -2685,7 +2714,7 @@ void VideoCtl::OnPause()
 
 		return;
 	}
-	toggle_pause(m_CurStream);
+	toggle_pause();
 	SigPauseStat(m_CurStream->paused != 0);
 }
 
