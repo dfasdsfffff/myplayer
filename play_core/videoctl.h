@@ -52,7 +52,7 @@ public:
 	bool StartPlay(const std::string& strFileName, void* widPlayWid);
 
 
-	int audio_decode_frame(VideoState* is);
+	static int audio_decode_frame(VideoState* is);  // 设为static，可从静态回调调用
 	void update_sample_display(VideoState* is, short* samples, int samples_size);
 	void set_play_speed(double dSpeed);
 	void set_play_loop_policy(VideoLoopPolicy loopPolicy);
@@ -116,7 +116,7 @@ private:
 	 * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
 	 * @note 返回具体的音频采样数
 	 */
-	int synchronize_audio(VideoState* is, int nb_samples);
+	static int synchronize_audio(VideoState* is, int nb_samples);  // 设为static，可从static函数调用
 
 	int audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, int wanted_sample_rate, struct AudioParams* audio_hw_params);
 	int stream_component_open(VideoState* is, int stream_index);

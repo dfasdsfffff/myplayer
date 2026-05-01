@@ -111,13 +111,11 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 	VideoState* is = (VideoState*)opaque;
 	int audio_size, len1;
 
-	VideoCtl* pVideoCtl = is->videoCtl;
-
 	audio_callback_time = av_gettime_relative();
 
 	while (len > 0) {
 		if (is->audio_buf_index >= is->audio_buf_size) {
-			audio_size = pVideoCtl->audio_decode_frame(is);
+			audio_size = VideoCtl::audio_decode_frame(is);  // 直接调用static函数
 			if (audio_size < 0) {
 				/* if error, just output silence */
 				is->audio_buf = NULL;
@@ -1496,7 +1494,7 @@ reload:
 		af->frame->nb_samples,
 		(AVSampleFormat)af->frame->format, 1);
 
-	wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples);
+	wanted_nb_samples = VideoCtl::synchronize_audio(is, af->frame->nb_samples);
 
 	if (af->frame->format != is->audio_src.fmt ||
 		av_channel_layout_compare(&af->frame->ch_layout, &is->audio_src.ch_layout) ||

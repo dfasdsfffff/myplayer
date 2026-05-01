@@ -9,8 +9,6 @@
 #include "av_types.h"
 #include "decoder.h"
 
-class VideoCtl;
-
 //视频状态，管理所有的视频信息及数据
 typedef struct VideoState {
     void* soundTouchHandle;
@@ -119,5 +117,4 @@ typedef struct VideoState {
     SDL_mutex* read_wait_mutex = nullptr;
     SDL_cond *continue_read_thread = nullptr;
 
-    VideoCtl* videoCtl = nullptr;  // 指向所属的 VideoCtl 实例，供回调使用
 } VideoState;
