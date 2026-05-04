@@ -257,7 +257,6 @@ int VideoCtl::upload_texture(SDL_Texture* tex, AVFrame* frame, struct SwsContext
 //显示视频画面
 void VideoCtl::video_image_display()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream) return;
 	VideoState* is = m_CurStream;
 
@@ -538,35 +537,28 @@ void VideoCtl::check_external_clock_speed(VideoState* is) {
 /* seek in the stream */
 void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-	if (!m_CurStream) return;
-	VideoState* is = m_CurStream;
 
-	if (!is->seek_req) {
-		is->seek_pos = pos;
-		is->seek_rel = rel;
-		is->seek_flags &= ~AVSEEK_FLAG_BYTE;
-		is->seek_req = 1;
-		SDL_CondSignal(is->continue_read_thread);
+	if (!m_CurStream->seek_req) {
+		m_CurStream->seek_pos = pos;
+		m_CurStream->seek_rel = rel;
+		m_CurStream->seek_flags &= ~AVSEEK_FLAG_BYTE;
+		m_CurStream->seek_req = 1;
+		SDL_CondSignal(m_CurStream->continue_read_thread);
 	}
 }
 
 /* pause or resume the video */
 void VideoCtl::stream_toggle_pause()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-	if (!m_CurStream) return;
-	VideoState* is = m_CurStream;
-
-	if (is->paused) {
-		is->frame_timer += av_gettime_relative() / 1000000.0 - is->vidclk.last_updated;
-		if (is->read_pause_return != AVERROR(ENOSYS)) {
-			is->vidclk.paused = 0;
+	if (m_CurStream->paused) {
+		m_CurStream->frame_timer += av_gettime_relative() / 1000000.0 - m_CurStream->vidclk.last_updated;
+		if (m_CurStream->read_pause_return != AVERROR(ENOSYS)) {
+			m_CurStream->vidclk.paused = 0;
 		}
-		is->vidclk.set(is->vidclk.get(), is->vidclk.serial);
+		m_CurStream->vidclk.set(m_CurStream->vidclk.get(), m_CurStream->vidclk.serial);
 	}
-	is->extclk.set(is->extclk.get(), is->extclk.serial);
-	is->paused = is->audclk.paused = is->vidclk.paused = is->extclk.paused = !is->paused;
+	m_CurStream->extclk.set(m_CurStream->extclk.get(), m_CurStream->extclk.serial);
+	m_CurStream->paused = m_CurStream->audclk.paused = m_CurStream->vidclk.paused = m_CurStream->extclk.paused = !m_CurStream->paused;
 }
 
 void VideoCtl::toggle_pause()
@@ -579,17 +571,15 @@ void VideoCtl::toggle_pause()
 	is->step = 0;
 }
 
-
 void VideoCtl::step_to_next_frame()
 {
 	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream) return;
-	VideoState* is = m_CurStream;
-
 	/* if the stream is paused unpause it, then step */
-	if (is->paused)
+	if (m_CurStream->paused) {
 		stream_toggle_pause();
-	is->step = 1;
+	}
+	m_CurStream->step = 1;
 }
 
 double VideoCtl::compute_target_delay(double delay, VideoState* is)
@@ -2599,7 +2589,6 @@ void VideoCtl::video_display()
 
 int VideoCtl::video_open()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream) return -1;
 	VideoState* is = m_CurStream;
 	int w, h;
@@ -2646,17 +2635,17 @@ int VideoCtl::video_open()
 
 void VideoCtl::do_exit()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-	if (!m_CurStream) return;
-	VideoState* is = m_CurStream;
-	if (is)
-	{
-		stream_close(is);
-	}
+	VideoState* is = nullptr;
 	{
 		std::unique_lock<std::shared_mutex> lock(m_streamMutex);
+		is = m_CurStream;
 		m_CurStream = nullptr;
 	}
+
+	if (!is) return;
+
+	stream_close(is);
+
 	if (m_sdlRenderer)
 	{
 		// 先在锁保护下置空，防止 video_display 使用已销毁的 renderer
