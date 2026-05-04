@@ -136,8 +136,12 @@ void Decoder::destroy()
 
 void Decoder::abort(FrameQueue* fq)
 {
-    queue->abort();
-    fq->signal();
-    decode_thread.join();
-    queue->flush();
+    if (queue)
+        queue->abort();
+    if (fq)
+        fq->signal();
+    if (decode_thread.joinable())
+        decode_thread.join();
+    if (queue)
+        queue->flush();
 }
