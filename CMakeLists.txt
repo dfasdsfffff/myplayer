@@ -18,7 +18,7 @@ endif()
 
 # 针对 MSVC 添加编译选项
 if(MSVC)
-    add_compile_options(/Zc:__cplusplus /MP)
+    add_compile_options(/Zc:__cplusplus /MP /utf-8)
     # Qt6 官方预编译库使用动态 CRT (/MD)，因此本项目也使用动态 CRT
     # SoundTouch_x64.lib 是 /MT 编译的静态库，需要忽略其默认库以避免冲突
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
@@ -131,11 +131,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     OUTPUT_NAME_DEBUG "${PROJECT_NAME}_debug"
     OUTPUT_NAME_RELEASE "${PROJECT_NAME}"
 )
-# MSVC: 启用 UTF-8 源文件编码（解决 C4819 警告）
-if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /utf-8)
-    add_compile_options("/utf-8")
-endif()
 # Windows 特定设置
 if(WIN32)
     file(GLOB PLAYERDEMO_RUNTIME_DLLS CONFIGURE_DEPENDS
