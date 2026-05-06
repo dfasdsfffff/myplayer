@@ -13,7 +13,8 @@ FrameQueue::~FrameQueue()
 
 void FrameQueue::unref_item(Frame* vp)
 {
-	av_frame_unref(vp->frame);
+	if (vp->frame)
+		av_frame_unref(vp->frame);
 	avsubtitle_free(&vp->sub);
 }
 
@@ -52,6 +53,7 @@ void FrameQueue::destroy()
 		unref_item(vp);
 		av_frame_free(&vp->frame);
 	}
+	max_size = 0;
 	if (mutex) {
 		SDL_DestroyMutex(mutex);
 		mutex = nullptr;
