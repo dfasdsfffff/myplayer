@@ -1010,9 +1010,10 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 				is->frame_timer = time;
 
 			{
-				std::lock_guard<std::mutex> lock(is->pictq.mutex);
+				SDL_LockMutex(is->pictq.mutex);
 				if (!std::isnan(vp->pts))
 					update_video_pts(is, vp->pts, vp->pos, vp->serial);
+				SDL_UnlockMutex(is->pictq.mutex);
 			}
 
 			if (is->pictq.nb_remaining() > 1) {

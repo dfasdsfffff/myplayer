@@ -116,6 +116,19 @@ Frame* FrameQueue::peek_readable()
 	return &queue[(rindex + rindex_shown) % max_size];
 }
 
+int FrameQueue::wait_readable_for(Uint32 timeout_ms)
+{
+	SDL_LockMutex(mutex);
+	int ret = 0;
+	while (size - rindex_shown <= 0 && !pktq->abort_request && ret == 0) {
+		ret = SDL_CondWaitTimeout(cond, mutex, timeout_ms);
+	}
+	const int readable = size - rindex_shown > 0;
+	SDL_UnlockMutex(mutex);
+
+	return readable ? 1 : 0;
+}
+
 void FrameQueue::push()
 {
 	if (++windex == max_size)

@@ -37,6 +37,7 @@ public:
 	Frame* peek_last();
 	Frame* peek_writable();
 	Frame* peek_readable();
+	int wait_readable_for(Uint32 timeout_ms);
 	void push();
 	void next();
 	int nb_remaining();
