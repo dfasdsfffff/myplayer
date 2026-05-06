@@ -17,6 +17,11 @@ typedef struct MyAVPacketList {
 //数据包队列
 class PacketQueue {
 public:
+	PacketQueue() = default;
+	~PacketQueue();
+	PacketQueue(const PacketQueue&) = delete;
+	PacketQueue& operator=(const PacketQueue&) = delete;
+
 	int init();
 	void destroy();
 	void start();

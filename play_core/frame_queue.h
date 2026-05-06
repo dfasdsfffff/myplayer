@@ -12,23 +12,28 @@
 
 //解码后的帧
 typedef struct Frame {
-	AVFrame* frame;
-	AVSubtitle sub;
-	int serial;
-	double pts;           /* presentation timestamp for the frame */
-	double duration;      /* estimated duration of the frame */
-	int64_t pos;          /* byte position of the frame in the input file */
-	int width;
-	int height;
-	int format;
-	AVRational sar;
-	int uploaded;
-	int flip_v;
+	AVFrame* frame = nullptr;
+	AVSubtitle sub = {};
+	int serial = 0;
+	double pts = 0.0;           /* presentation timestamp for the frame */
+	double duration = 0.0;      /* estimated duration of the frame */
+	int64_t pos = 0;            /* byte position of the frame in the input file */
+	int width = 0;
+	int height = 0;
+	int format = 0;
+	AVRational sar = {0, 0};
+	int uploaded = 0;
+	int flip_v = 0;
 } Frame;
 
 //帧队列
 class FrameQueue {
 public:
+	FrameQueue() = default;
+	~FrameQueue();
+	FrameQueue(const FrameQueue&) = delete;
+	FrameQueue& operator=(const FrameQueue&) = delete;
+
 	int init(PacketQueue* pktq, int max_size, int keep_last);
 	void destroy();
 	void signal();

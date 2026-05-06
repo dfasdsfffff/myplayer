@@ -455,28 +455,27 @@ void VideoCtl::stream_close(VideoState* is)
 	}
 	sws_freeContext(is->img_convert_ctx);
 	sws_freeContext(is->sub_convert_ctx);
-	av_free(is->filename);
+	is->img_convert_ctx = nullptr;
+	is->sub_convert_ctx = nullptr;
+	av_freep(&is->filename);
 	if (is->soundTouchHandle) {
 		soundtouch_destroy(is->soundTouchHandle);
 		is->soundTouchHandle = nullptr;
 	}
 	av_freep(&is->audio_new_buf);
 	av_freep(&is->audio_buf1);
-	is->filename = nullptr;
 
-	if (is->vid_texture)
+	if (is->vid_texture) {
 		SDL_DestroyTexture(is->vid_texture);
-	if (is->sub_texture)
-		SDL_DestroyTexture(is->sub_texture);
-	if (is->soundTouchHandle)
-	{
-		soundtouch_destroy(is->soundTouchHandle);
-		is->soundTouchHandle = nullptr;
+		is->vid_texture = nullptr;
 	}
-	if (is->audio_new_buf)
-	{
-		av_freep(&is->audio_new_buf);
-		is->audio_new_buf = NULL;
+	if (is->sub_texture) {
+		SDL_DestroyTexture(is->sub_texture);
+		is->sub_texture = nullptr;
+	}
+	if (is->vis_texture) {
+		SDL_DestroyTexture(is->vis_texture);
+		is->vis_texture = nullptr;
 	}
 	// 关闭音频（尽管在stream_component_close已经调用了）
 	if (m_sdlAudio_dev) {

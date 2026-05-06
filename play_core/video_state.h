@@ -8,9 +8,12 @@
 
 #include "av_types.h"
 #include "decoder.h"
+#include "soundtouch_wrap.h"
 
 //视频状态，管理所有的视频信息及数据
 typedef struct VideoState {
+    ~VideoState();
+
     void* soundTouchHandle;
     short* audio_new_buf;  /* soundtouch buf */
     unsigned int audio_new_buf_size;
@@ -118,3 +121,55 @@ typedef struct VideoState {
     SDL_cond *continue_read_thread = nullptr;
 
 } VideoState;
+
+inline VideoState::~VideoState()
+{
+    if (read_tid.joinable()) {
+        abort_request = 1;
+        if (continue_read_thread)
+            SDL_CondSignal(continue_read_thread);
+        read_tid.join();
+    }
+
+    if (soundTouchHandle) {
+        soundtouch_destroy(soundTouchHandle);
+        soundTouchHandle = nullptr;
+    }
+    av_freep(&audio_new_buf);
+    av_freep(&audio_buf1);
+    av_freep(&rdft_data);
+    av_freep(&filename);
+
+    swr_free(&swr_ctx);
+    sws_freeContext(img_convert_ctx);
+    sws_freeContext(sub_convert_ctx);
+    img_convert_ctx = nullptr;
+    sub_convert_ctx = nullptr;
+
+    if (rdft) {
+        av_rdft_end(rdft);
+        rdft = nullptr;
+    }
+    if (vis_texture) {
+        SDL_DestroyTexture(vis_texture);
+        vis_texture = nullptr;
+    }
+    if (sub_texture) {
+        SDL_DestroyTexture(sub_texture);
+        sub_texture = nullptr;
+    }
+    if (vid_texture) {
+        SDL_DestroyTexture(vid_texture);
+        vid_texture = nullptr;
+    }
+    if (continue_read_thread) {
+        SDL_DestroyCond(continue_read_thread);
+        continue_read_thread = nullptr;
+    }
+    if (read_wait_mutex) {
+        SDL_DestroyMutex(read_wait_mutex);
+        read_wait_mutex = nullptr;
+    }
+
+    avformat_close_input(&ic);
+}

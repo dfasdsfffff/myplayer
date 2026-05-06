@@ -17,6 +17,11 @@ extern int decoder_reorder_pts;
 //解码器，管理数据队列
 class Decoder {
 public:
+	Decoder() = default;
+	~Decoder();
+	Decoder(const Decoder&) = delete;
+	Decoder& operator=(const Decoder&) = delete;
+
 	int init(AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond);
 	int decode_frame(AVFrame* frame, AVSubtitle* sub);
 	void destroy();

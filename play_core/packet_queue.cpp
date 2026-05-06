@@ -7,6 +7,11 @@
 #include "packet_queue.h"
 
 //数据包队列存放数据包(供队列内部使用)
+PacketQueue::~PacketQueue()
+{
+	destroy();
+}
+
 int PacketQueue::put_private(AVPacket* pkt)
 {
 	MyAVPacketList pkt1;

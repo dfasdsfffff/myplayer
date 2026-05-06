@@ -32,6 +32,11 @@ int Decoder::init(AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_que
 }
 
 //解码一帧数据
+Decoder::~Decoder()
+{
+    destroy();
+}
+
 int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
 {
     int ret = AVERROR(EAGAIN);
@@ -130,6 +135,10 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
 //解码器销毁
 void Decoder::destroy()
 {
+    if (decode_thread.joinable()) {
+        av_log(avctx, AV_LOG_WARNING, "Decoder destroyed while decode thread is still running; joining as a safety fallback.\n");
+        decode_thread.join();
+    }
     av_packet_free(&pkt);
     avcodec_free_context(&avctx);
     queue = nullptr;

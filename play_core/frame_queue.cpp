@@ -6,6 +6,11 @@
 
 #include "frame_queue.h"
 
+FrameQueue::~FrameQueue()
+{
+	destroy();
+}
+
 void FrameQueue::unref_item(Frame* vp)
 {
 	av_frame_unref(vp->frame);
