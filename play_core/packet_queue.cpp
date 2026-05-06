@@ -95,6 +95,9 @@ void PacketQueue::flush()
 {
 	MyAVPacketList pkt1;
 
+	if (!pkt_list || !mutex)
+		return;
+
 	SDL_LockMutex(mutex);
 	while (av_fifo_read(pkt_list, &pkt1, 1) >= 0)
 		av_packet_free(&pkt1.pkt);
@@ -109,23 +112,37 @@ void PacketQueue::flush()
 void PacketQueue::destroy()
 {
 	flush();
-	av_fifo_freep2(&pkt_list);
-	SDL_DestroyMutex(mutex);
-	SDL_DestroyCond(cond);
+	if (pkt_list)
+		av_fifo_freep2(&pkt_list);
+	if (mutex) {
+		SDL_DestroyMutex(mutex);
+		mutex = nullptr;
+	}
+	if (cond) {
+		SDL_DestroyCond(cond);
+		cond = nullptr;
+	}
 }
 
 //数据包队列停用
 void PacketQueue::abort()
 {
+	if (!mutex)
+		return;
+
 	SDL_LockMutex(mutex);
 	abort_request = 1;
-	SDL_CondSignal(cond);
+	if (cond)
+		SDL_CondSignal(cond);
 	SDL_UnlockMutex(mutex);
 }
 
 //数据包队列开始使用
 void PacketQueue::start()
 {
+	if (!mutex)
+		return;
+
 	SDL_LockMutex(mutex);
 	abort_request = 0;
 	serial++;

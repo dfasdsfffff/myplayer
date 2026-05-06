@@ -12,6 +12,7 @@
 
 #include <thread>
 #include <mutex>
+#include <new>
 #include "videoctl.h"
 
 #include "soundtouch_wrap.h"
@@ -341,6 +342,9 @@ void VideoCtl::video_image_display()
 //关闭流对应的解码器等
 void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 {
+	if (!is || !is->ic)
+		return;
+
 	AVFormatContext* ic = is->ic;
 	AVCodecParameters* codecpar;
 
@@ -351,7 +355,10 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 	switch (codecpar->codec_type) {
 	case AVMEDIA_TYPE_AUDIO:
 		is->aud_decoder.abort(&is->sampq);
-		SDL_CloseAudioDevice(m_sdlAudio_dev);
+		if (m_sdlAudio_dev) {
+			SDL_CloseAudioDevice(m_sdlAudio_dev);
+			m_sdlAudio_dev = 0;
+		}
 		is->aud_decoder.destroy();
 		swr_free(&is->swr_ctx);
 		av_freep(&is->audio_buf1);
@@ -411,7 +418,10 @@ void VideoCtl::stream_close(VideoState* is)
 	if (!is) return;
 	/* XXX: 使用特殊的url_shutdown调用来彻底中止解析 */
 	is->abort_request = 1;
-	is->read_tid.join();
+	if (is->continue_read_thread)
+		SDL_CondSignal(is->continue_read_thread);
+	if (is->read_tid.joinable())
+		is->read_tid.join();
 
 	/* close each stream */
 	if (is->audio_stream >= 0)
@@ -431,18 +441,39 @@ void VideoCtl::stream_close(VideoState* is)
 	is->pictq.destroy();
 	is->sampq.destroy();
 	is->subpq.destroy();
-	SDL_DestroyCond(is->continue_read_thread);
+	if (is->continue_read_thread) {
+		SDL_DestroyCond(is->continue_read_thread);
+		is->continue_read_thread = nullptr;
+	}
+	if (is->read_wait_mutex) {
+		SDL_DestroyMutex(is->read_wait_mutex);
+		is->read_wait_mutex = nullptr;
+	}
 	sws_freeContext(is->img_convert_ctx);
 	sws_freeContext(is->sub_convert_ctx);
 	av_free(is->filename);
+	is->filename = nullptr;
 
 	if (is->vid_texture)
 		SDL_DestroyTexture(is->vid_texture);
 	if (is->sub_texture)
 		SDL_DestroyTexture(is->sub_texture);
+	if (is->soundTouchHandle)
+	{
+		soundtouch_destroy(is->soundTouchHandle);
+		is->soundTouchHandle = nullptr;
+	}
+	if (is->audio_new_buf)
+	{
+		av_freep(&is->audio_new_buf);
+		is->audio_new_buf = NULL;
+	}
 	// 关闭音频（尽管在stream_component_close已经调用了）
-	SDL_CloseAudioDevice(m_sdlAudio_dev);
-	av_free(is);
+	if (m_sdlAudio_dev) {
+		SDL_CloseAudioDevice(m_sdlAudio_dev);
+		m_sdlAudio_dev = 0;
+	}
+	delete is;
 }
 
 void VideoCtl::set_play_speed(double dSpeed)
@@ -1638,6 +1669,8 @@ int VideoCtl::audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, i
 	if (spec.format != AUDIO_S16SYS) {
 		av_log(NULL, AV_LOG_ERROR,
 			"SDL advised audio format %d is not supported!\n", spec.format);
+		SDL_CloseAudioDevice(m_sdlAudio_dev);
+		m_sdlAudio_dev = 0;
 		return -1;
 	}
 	if (spec.channels != wanted_spec.channels) {
@@ -1646,18 +1679,25 @@ int VideoCtl::audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, i
 		if (wanted_channel_layout->order != AV_CHANNEL_ORDER_NATIVE) {
 			av_log(NULL, AV_LOG_ERROR,
 				"SDL advised channel count %d is not supported!\n", spec.channels);
+			SDL_CloseAudioDevice(m_sdlAudio_dev);
+			m_sdlAudio_dev = 0;
 			return -1;
 		}
 	}
 
 	audio_hw_params->fmt = AV_SAMPLE_FMT_S16;
 	audio_hw_params->freq = spec.freq;
-	if (av_channel_layout_copy(&audio_hw_params->ch_layout, wanted_channel_layout) < 0)
+	if (av_channel_layout_copy(&audio_hw_params->ch_layout, wanted_channel_layout) < 0) {
+		SDL_CloseAudioDevice(m_sdlAudio_dev);
+		m_sdlAudio_dev = 0;
 		return -1;
+	}
 	audio_hw_params->frame_size = av_samples_get_buffer_size(NULL, audio_hw_params->ch_layout.nb_channels, 1, audio_hw_params->fmt, 1);
 	audio_hw_params->bytes_per_sec = av_samples_get_buffer_size(NULL, audio_hw_params->ch_layout.nb_channels, audio_hw_params->freq, audio_hw_params->fmt, 1);
 	if (audio_hw_params->bytes_per_sec <= 0 || audio_hw_params->frame_size <= 0) {
 		av_log(NULL, AV_LOG_ERROR, "av_samples_get_buffer_size failed\n");
+		SDL_CloseAudioDevice(m_sdlAudio_dev);
+		m_sdlAudio_dev = 0;
 		return -1;
 	}
 	return spec.size;
@@ -2182,7 +2222,7 @@ VideoState* VideoCtl::stream_open(const char* filename)
 {
 	VideoState* is;
 	//构造视频状态类
-	is = (VideoState*)av_mallocz(sizeof(VideoState));
+	is = new (std::nothrow) VideoState();
 	if (!is)
 		return NULL;
 	is->soundTouchHandle = soundtouch_create();
@@ -2726,6 +2766,7 @@ VideoCtl::VideoCtl() :
 	startup_volume(30),
 	m_sdlRenderer(nullptr),
 	m_sdlWindow(nullptr),
+	m_sdlAudio_dev(0),
 	m_nFrameW(0),
 	m_nFrameH(0)
 {

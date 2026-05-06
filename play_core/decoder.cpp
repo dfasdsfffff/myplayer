@@ -132,12 +132,19 @@ void Decoder::destroy()
 {
     av_packet_free(&pkt);
     avcodec_free_context(&avctx);
+    queue = nullptr;
+    empty_queue_cond = nullptr;
 }
 
 void Decoder::abort(FrameQueue* fq)
 {
+    if (!queue)
+        return;
+
     queue->abort();
-    fq->signal();
-    decode_thread.join();
+    if (fq)
+        fq->signal();
+    if (decode_thread.joinable())
+        decode_thread.join();
     queue->flush();
 }

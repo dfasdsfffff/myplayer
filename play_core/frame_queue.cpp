@@ -47,15 +47,25 @@ void FrameQueue::destroy()
 		unref_item(vp);
 		av_frame_free(&vp->frame);
 	}
-	SDL_DestroyMutex(mutex);
-	SDL_DestroyCond(cond);
+	if (mutex) {
+		SDL_DestroyMutex(mutex);
+		mutex = nullptr;
+	}
+	if (cond) {
+		SDL_DestroyCond(cond);
+		cond = nullptr;
+	}
 }
 
 //帧队列信号
 void FrameQueue::signal()
 {
+	if (!mutex)
+		return;
+
 	SDL_LockMutex(mutex);
-	SDL_CondSignal(cond);
+	if (cond)
+		SDL_CondSignal(cond);
 	SDL_UnlockMutex(mutex);
 }
 
