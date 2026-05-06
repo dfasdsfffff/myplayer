@@ -67,11 +67,15 @@ int PacketQueue::init()
 	mutex = SDL_CreateMutex();
 	if (!mutex) {
 		av_log(NULL, AV_LOG_FATAL, "SDL_CreateMutex(): %s\n", SDL_GetError());
+		av_fifo_freep2(&pkt_list);
 		return AVERROR(ENOMEM);
 	}
 	cond = SDL_CreateCond();
 	if (!cond) {
 		av_log(NULL, AV_LOG_FATAL, "SDL_CreateCond(): %s\n", SDL_GetError());
+		SDL_DestroyMutex(mutex);
+		mutex = nullptr;
+		av_fifo_freep2(&pkt_list);
 		return AVERROR(ENOMEM);
 	}
 	abort_request = 1;

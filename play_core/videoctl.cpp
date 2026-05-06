@@ -348,6 +348,8 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 	AVFormatContext* ic = is->ic;
 	AVCodecParameters* codecpar;
 
+	if (!ic)
+		return;
 	if (stream_index < 0 || stream_index >= ic->nb_streams)
 		return;
 	codecpar = ic->streams[stream_index]->codecpar;
@@ -424,14 +426,16 @@ void VideoCtl::stream_close(VideoState* is)
 		is->read_tid.join();
 
 	/* close each stream */
-	if (is->audio_stream >= 0)
-		stream_component_close(is, is->audio_stream);
-	if (is->video_stream >= 0)
-		stream_component_close(is, is->video_stream);
-	if (is->subtitle_stream >= 0)
-		stream_component_close(is, is->subtitle_stream);
+	if (is->ic) {
+		if (is->audio_stream >= 0)
+			stream_component_close(is, is->audio_stream);
+		if (is->video_stream >= 0)
+			stream_component_close(is, is->video_stream);
+		if (is->subtitle_stream >= 0)
+			stream_component_close(is, is->subtitle_stream);
 
-	avformat_close_input(&is->ic);
+		avformat_close_input(&is->ic);
+	}
 
 	packet_queue_destroy(&is->videoq);
 	packet_queue_destroy(&is->audioq);
@@ -452,6 +456,12 @@ void VideoCtl::stream_close(VideoState* is)
 	sws_freeContext(is->img_convert_ctx);
 	sws_freeContext(is->sub_convert_ctx);
 	av_free(is->filename);
+	if (is->soundTouchHandle) {
+		soundtouch_destroy(is->soundTouchHandle);
+		is->soundTouchHandle = nullptr;
+	}
+	av_freep(&is->audio_new_buf);
+	av_freep(&is->audio_buf1);
 	is->filename = nullptr;
 
 	if (is->vid_texture)
@@ -999,10 +1009,11 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			if (delay > 0 && time - is->frame_timer > AV_SYNC_THRESHOLD_MAX)
 				is->frame_timer = time;
 
-			SDL_LockMutex(is->pictq.mutex);
-			if (!std::isnan(vp->pts))
-				update_video_pts(is, vp->pts, vp->pos, vp->serial);
-			SDL_UnlockMutex(is->pictq.mutex);
+			{
+				std::lock_guard<std::mutex> lock(is->pictq.mutex);
+				if (!std::isnan(vp->pts))
+					update_video_pts(is, vp->pts, vp->pos, vp->serial);
+			}
 
 			if (is->pictq.nb_remaining() > 1) {
 				Frame* nextvp = is->pictq.peek_next();
@@ -1488,18 +1499,15 @@ reload:
 	do {
 #if defined(_WIN32)
 		// 使用条件变量等待，替代忙等待
-		SDL_LockMutex(is->sampq.mutex);
 		while (is->sampq.nb_remaining() == 0 && !is->audioq.abort_request) {
 			// 设置超时，避免永久阻塞
 			audio_callback_time = av_gettime_relative();
-			SDL_CondWaitTimeout(is->sampq.cond, is->sampq.mutex, 100); // 100ms超时
+			is->sampq.wait_readable_for(100); // 100ms超时
 			// 检查是否超时过长
 			if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio_hw_buf_size / is->audio_tgt.bytes_per_sec / 2) {
-				SDL_UnlockMutex(is->sampq.mutex);
 				return -1;
 			}
 		}
-		SDL_UnlockMutex(is->sampq.mutex);
 		
 		// 检查是否因中止请求而退出
 		if (is->audioq.abort_request) {
@@ -2213,8 +2221,10 @@ fail:
 		event.user.data1 = is;
 		SDL_PushEvent(&event);
 	}
-	SDL_DestroyMutex(is->read_wait_mutex);
-	is->read_wait_mutex = nullptr;
+	if (is->read_wait_mutex) {
+		SDL_DestroyMutex(is->read_wait_mutex);
+		is->read_wait_mutex = nullptr;
+	}
 	return;
 }
 
@@ -2222,9 +2232,13 @@ VideoState* VideoCtl::stream_open(const char* filename)
 {
 	VideoState* is;
 	//构造视频状态类
-	is = new (std::nothrow) VideoState();
+	is = new (std::nothrow) VideoState{};
 	if (!is)
 		return NULL;
+	is->last_video_stream = is->video_stream = -1;
+	is->last_audio_stream = is->audio_stream = -1;
+	is->last_subtitle_stream = is->subtitle_stream = -1;
+
 	is->soundTouchHandle = soundtouch_create();
 	is->audio_new_buf = NULL;
 	is->audio_new_buf_size = 0;
@@ -2233,9 +2247,6 @@ VideoState* VideoCtl::stream_open(const char* filename)
 		is->play_rate = m_fPlaybackSpeed;
 	}
 	//视频文件名
-	is->last_video_stream = is->video_stream = -1;
-	is->last_audio_stream = is->audio_stream = -1;
-	is->last_subtitle_stream = is->subtitle_stream = -1;
 	is->filename = av_strdup(filename);
 	if (!is->filename)
 		goto fail;
@@ -2767,6 +2778,7 @@ VideoCtl::VideoCtl() :
 	m_sdlRenderer(nullptr),
 	m_sdlWindow(nullptr),
 	m_sdlAudio_dev(0),
+	m_playWid(nullptr),
 	m_nFrameW(0),
 	m_nFrameH(0)
 {
