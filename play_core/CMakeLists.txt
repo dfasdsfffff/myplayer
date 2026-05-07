@@ -1,6 +1,3 @@
-# play_core — 播放器核心模块（无 Qt 依赖）
-# 编译为静态库，供 UI 层链接
-
 add_library(play_core STATIC
     clock.cpp
     decoder.cpp
@@ -11,45 +8,72 @@ add_library(play_core STATIC
     xlogger.cpp
 )
 
-set(PLAYERDEMO_FFMPEG_ROOT "${CMAKE_SOURCE_DIR}/lib/ffmpeg" CACHE PATH "FFmpeg root directory")
-set(PLAYERDEMO_SDL2_ROOT "${CMAKE_SOURCE_DIR}/lib/SDL2" CACHE PATH "SDL2 root directory")
-set(PLAYERDEMO_SOUNDTOUCH_ROOT "${CMAKE_SOURCE_DIR}/lib/soundtouch-2.3.3" CACHE PATH "SoundTouch root directory")
-set(PLAYERDEMO_SIGSLOT_ROOT "${CMAKE_SOURCE_DIR}/lib/sigslot-1.2.3" CACHE PATH "sigslot root directory")
+function(playerdemo_import_library target_name library_name)
+    if(TARGET ${target_name})
+        return()
+    endif()
+
+    find_library(${target_name}_LIBRARY
+        NAMES ${library_name}
+        HINTS
+            "${PLAYERDEMO_FFMPEG_ROOT}/bin"
+            "${PLAYERDEMO_FFMPEG_ROOT}/lib"
+            "${PLAYERDEMO_SOUNDTOUCH_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
+
+    if(NOT ${target_name}_LIBRARY)
+        find_library(${target_name}_LIBRARY NAMES ${library_name})
+    endif()
+
+    if(NOT ${target_name}_LIBRARY)
+        message(FATAL_ERROR "Could not find ${library_name}. Set PLAYERDEMO_DEPS_ROOT or the matching dependency root cache variable.")
+    endif()
+
+    add_library(${target_name} UNKNOWN IMPORTED)
+    set_target_properties(${target_name} PROPERTIES
+        IMPORTED_LOCATION "${${target_name}_LIBRARY}"
+    )
+endfunction()
+
+playerdemo_import_library(FFmpeg::avcodec avcodec)
+playerdemo_import_library(FFmpeg::avdevice avdevice)
+playerdemo_import_library(FFmpeg::avfilter avfilter)
+playerdemo_import_library(FFmpeg::avformat avformat)
+playerdemo_import_library(FFmpeg::avutil avutil)
+playerdemo_import_library(FFmpeg::swresample swresample)
+playerdemo_import_library(FFmpeg::swscale swscale)
+playerdemo_import_library(SoundTouch::SoundTouch SoundTouchDLL_x64)
 
 target_include_directories(play_core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}                              # play_core/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${PLAYERDEMO_FFMPEG_ROOT}/include
     ${PLAYERDEMO_SDL2_ROOT}/include
     ${PLAYERDEMO_SOUNDTOUCH_ROOT}/lib
     ${PLAYERDEMO_SIGSLOT_ROOT}/include
 )
 
-# 链接目录（FFmpeg 和 SoundTouch 使用预编译库）
-target_link_directories(play_core PUBLIC
-    ${PLAYERDEMO_FFMPEG_ROOT}/bin
-    ${PLAYERDEMO_SDL2_ROOT}/lib/x64
-    ${PLAYERDEMO_SOUNDTOUCH_ROOT}/lib
-)
-
 target_link_libraries(play_core PUBLIC
     SDL2::SDL2
-    avcodec
-    avdevice
-    avfilter
-    avformat
-    avutil
-    swresample
-    swscale
-    SoundTouchDLL_x64
+    FFmpeg::avcodec
+    FFmpeg::avdevice
+    FFmpeg::avfilter
+    FFmpeg::avformat
+    FFmpeg::avutil
+    FFmpeg::swresample
+    FFmpeg::swscale
+    SoundTouch::SoundTouch
 )
 
 target_compile_definitions(play_core PRIVATE
-    _WINDOWS
     UNICODE
     _UNICODE
 )
 
-# MSVC: 启用 UTF-8 源文件编码（解决 C4819 警告）
+if(WIN32)
+    target_compile_definitions(play_core PRIVATE _WINDOWS)
+endif()
+
 if(MSVC)
     target_compile_options(play_core PRIVATE /utf-8)
 endif()
