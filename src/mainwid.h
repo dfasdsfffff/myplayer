@@ -82,6 +82,9 @@ private:
     void OnShowMenu();
     void OnShowAbout();
     void OpenFile();
+    void OnPlayFile(QString strFileName);
+    void OnOpenRecentFile();
+    void OnClearRecentFiles();
 
     void OnShowSettingWid();
 
@@ -91,6 +94,8 @@ private:
     void MenuJsonParser(QJsonObject& json_obj, QMenu* menu);
     QMenu* AddMenuFun(QString menu_title, QMenu* menu);
     void AddActionFun(QString action_title, QMenu* menu, void(MainWid::* slot_addr)());
+    void AddRecentFile(const QString& strFileName);
+    void RefreshRecentFilesMenu();
 
 signals:
     //最大化信号
@@ -127,6 +132,7 @@ private:
     SettingWid m_stSettingWid;
 
     QMenu m_stMenu;
+    QMenu* m_pRecentFilesMenu = nullptr;
     QAction m_stActFullscreen;
 
     VideoCtlBridge* m_pVideoCtlBridge = nullptr;

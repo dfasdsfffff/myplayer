@@ -26,6 +26,7 @@
 #include <QJsonParseError>
 #include <QApplication>
 #include <QStatusBar>
+#include <QFileInfo>
 
 
 #include "mainwid.h"
@@ -36,6 +37,7 @@
 
 const int FULLSCREEN_CTRLBAR_HIDE_DELAY = 2000; // 控制面板隐藏延迟（毫秒）
 const int CTRLBAR_ANIMATION_DURATION = 1000;    // 动画持续时间（毫秒）
+const int MAX_RECENT_FILES = 10;
 
 MainWid::MainWid(QMainWindow* parent) :
 	QMainWindow(parent),
@@ -166,7 +168,7 @@ bool MainWid::ConnectSignalSlots()
 	connect(&m_stTitle, &Title::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
 	connect(&m_stTitle, &Title::SigShowMenu, this, &MainWid::OnShowMenu);
 
-	connect(&m_stPlaylist, &Playlist::SigPlay, ui->ShowWid, &Show::SigPlay);
+	connect(&m_stPlaylist, &Playlist::SigPlay, this, &MainWid::OnPlayFile);
 
 	connect(ui->ShowWid, &Show::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
 	connect(ui->ShowWid, &Show::SigFullScreen, this, &MainWid::OnFullScreenPlay);
@@ -438,6 +440,7 @@ void MainWid::OnCtrlBarHideTimeOut()
 
 void MainWid::OnShowMenu()
 {
+	RefreshRecentFilesMenu();
 	m_stMenu.exec(cursor().pos());
 }
 
@@ -452,7 +455,34 @@ void MainWid::OpenFile()
 	QString strFileName = QFileDialog::getOpenFileName(this, "打开文件", QDir::homePath(),
 		"视频文件(*.mkv *.rmvb *.mp4 *.avi *.flv *.wmv *.3gp)");
 
-	emit SigOpenFile(strFileName);
+	if (!strFileName.isEmpty())
+		emit SigOpenFile(strFileName);
+}
+
+void MainWid::OnPlayFile(QString strFileName)
+{
+	AddRecentFile(strFileName);
+	ui->ShowWid->OnPlay(strFileName);
+}
+
+void MainWid::OnOpenRecentFile()
+{
+	QAction* action = qobject_cast<QAction*>(sender());
+	if (!action)
+		return;
+
+	const QString strFileName = action->data().toString();
+	if (strFileName.isEmpty())
+		return;
+
+	m_stPlaylist.OnAddFileAndPlay(strFileName);
+}
+
+void MainWid::OnClearRecentFiles()
+{
+	QStringList emptyList;
+	GlobalHelper::SaveRecentFiles(emptyList);
+	RefreshRecentFilesMenu();
 }
 
 void MainWid::OnShowSettingWid()
@@ -479,6 +509,8 @@ void MainWid::InitMenu()
 		MenuJsonParser(json_obj, &m_stMenu);
 	}
 
+	m_pRecentFilesMenu = m_stMenu.addMenu("最近打开");
+	RefreshRecentFilesMenu();
 }
 
 void MainWid::MenuJsonParser(QJsonObject& json_obj, QMenu* menu)
@@ -533,6 +565,59 @@ void MainWid::AddActionFun(QString action_title, QMenu* menu, void(MainWid::* sl
 	action->setText(action_title);
 	menu->addAction(action);
 	connect(action, &QAction::triggered, this, slot_addr);
+}
+
+void MainWid::AddRecentFile(const QString& strFileName)
+{
+	QFileInfo fileInfo(strFileName);
+	if (strFileName.isEmpty() || !fileInfo.exists() || !fileInfo.isFile())
+		return;
+
+	const QString canonicalPath = fileInfo.canonicalFilePath();
+	QStringList recentFiles;
+	GlobalHelper::GetRecentFiles(recentFiles);
+
+	recentFiles.removeAll(canonicalPath);
+	recentFiles.prepend(canonicalPath);
+
+	while (recentFiles.size() > MAX_RECENT_FILES)
+		recentFiles.removeLast();
+
+	GlobalHelper::SaveRecentFiles(recentFiles);
+	RefreshRecentFilesMenu();
+}
+
+void MainWid::RefreshRecentFilesMenu()
+{
+	if (!m_pRecentFilesMenu)
+		return;
+
+	m_pRecentFilesMenu->clear();
+
+	QStringList recentFiles;
+	GlobalHelper::GetRecentFiles(recentFiles);
+
+	QStringList validRecentFiles;
+	for (const QString& filePath : recentFiles)
+	{
+		QFileInfo fileInfo(filePath);
+		if (!fileInfo.exists() || !fileInfo.isFile())
+			continue;
+
+		validRecentFiles.append(fileInfo.canonicalFilePath());
+		QAction* action = m_pRecentFilesMenu->addAction(fileInfo.fileName(), this, &MainWid::OnOpenRecentFile);
+		action->setData(fileInfo.canonicalFilePath());
+		action->setToolTip(fileInfo.canonicalFilePath());
+	}
+
+	if (validRecentFiles != recentFiles)
+		GlobalHelper::SaveRecentFiles(validRecentFiles);
+
+	if (!validRecentFiles.isEmpty())
+		m_pRecentFilesMenu->addSeparator();
+
+	QAction* clearAction = m_pRecentFilesMenu->addAction("清空最近打开", this, &MainWid::OnClearRecentFiles);
+	clearAction->setEnabled(!validRecentFiles.isEmpty());
 }
 
 void MainWid::OnCloseBtnClicked()
