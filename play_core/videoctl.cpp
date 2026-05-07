@@ -2552,6 +2552,19 @@ void VideoCtl::OnPlaySeek(double dPercent)
 	stream_seek(ts, 0);
 }
 
+void VideoCtl::OnPlaySeekSeconds(int seconds)
+{
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (m_CurStream == nullptr)
+	{
+		return;
+	}
+	int64_t ts = static_cast<int64_t>(seconds) * AV_TIME_BASE;
+	if (m_CurStream->ic->start_time != AV_NOPTS_VALUE)
+		ts += m_CurStream->ic->start_time;
+	stream_seek(ts, 0);
+}
+
 void VideoCtl::OnPlayVolume(double dPercent)
 {
 	startup_volume = dPercent * SDL_MIX_MAXVOLUME;
@@ -2767,6 +2780,22 @@ void VideoCtl::OnStopAndWait(){
 	m_bPlayLoop = false;
 	if (m_tPlayLoopThread.joinable())
 		m_tPlayLoopThread.join();
+}
+
+void VideoCtl::OnCycleAudioTrack()
+{
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream)
+		return;
+	stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_AUDIO);
+}
+
+void VideoCtl::OnCycleSubtitleTrack()
+{
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream)
+		return;
+	stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_SUBTITLE);
 }
 
 VideoCtl::VideoCtl() :

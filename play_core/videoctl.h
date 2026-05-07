@@ -72,6 +72,7 @@ public:
 
 public:
 	void OnPlaySeek(double dPercent);
+	void OnPlaySeekSeconds(int seconds);
 	void OnPlayVolume(double dPercent);
 	void OnSeekForward();
 	void OnSeekBack();
@@ -80,6 +81,8 @@ public:
 	void OnPause();
 	void OnStop();
 	void OnStopAndWait();
+	void OnCycleAudioTrack();
+	void OnCycleSubtitleTrack();
 
 private:
 	/**
