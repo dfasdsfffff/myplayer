@@ -14,7 +14,9 @@ const QString APP_VERSION = "0.1.0";
 
 QString GlobalHelper::GetConfigFilePath()
 {
-	static const QString path = QApplication::applicationDirPath() + QDir::separator() +"config"+QDir::separator()+ PLAYER_CONFIG;
+    const QString configDir = QApplication::applicationDirPath() + QDir::separator() + "config";
+    QDir().mkpath(configDir);
+	static const QString path = configDir + QDir::separator() + PLAYER_CONFIG;
 	return path;
 }
 
@@ -34,7 +36,7 @@ QString GlobalHelper::GetQssStr(QString strQssPath)
     }
     else
     {
-        qDebug() << "读取样式表失败" << strQssPath;
+        qWarning() << "读取样式表失败" << strQssPath;
     }
     return strQss;
 }
@@ -203,4 +205,3 @@ QString GlobalHelper::FormatTime(int seconds)
         .arg(mm, 2, 10, QChar('0'))
         .arg(ss, 2, 10, QChar('0'));
 }
-

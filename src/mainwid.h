@@ -94,6 +94,7 @@ private:
     void MenuJsonParser(QJsonObject& json_obj, QMenu* menu);
     QMenu* AddMenuFun(QString menu_title, QMenu* menu);
     void AddActionFun(QString action_title, QMenu* menu, void(MainWid::* slot_addr)());
+    void ConnectMenuAction(QAction* action, const QString& actionText, const QString& functionName, const QString& hotKey);
     void AddRecentFile(const QString& strFileName);
     void RefreshRecentFilesMenu();
 

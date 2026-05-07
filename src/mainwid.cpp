@@ -27,6 +27,7 @@
 #include <QApplication>
 #include <QStatusBar>
 #include <QFileInfo>
+#include <QKeySequence>
 
 
 #include "mainwid.h"
@@ -234,7 +235,6 @@ void MainWid::keyReleaseEvent(QKeyEvent* event)
 	//         if(event->key() == Qt::Key_M)
 	//             ···
 	//     }
-	qDebug() << "MainWid::keyPressEvent:" << event->key();
 	switch (event->key())
 	{
 	case Qt::Key_Return://全屏
@@ -244,7 +244,6 @@ void MainWid::keyReleaseEvent(QKeyEvent* event)
 		emit SigSeekBack();
 		break;
 	case Qt::Key_Right://前进5s
-		qDebug() << "前进5s";
 		emit SigSeekForward();
 		break;
 	case Qt::Key_Up://增加10音量
@@ -539,16 +538,41 @@ void MainWid::MenuJsonParser(QJsonObject& json_obj, QMenu* menu)
 					key = key + "\t" + hot_key;
 				}
 				QAction* action = menu->addAction(key);
-
-				//TODO: 字符串与函数指针对应，连接信号
 				QString fun_str = value_info[0];
-
-
+				ConnectMenuAction(action, it.key(), fun_str, hot_key);
 			}
 		}
 
 		it++;
 	}
+}
+
+void MainWid::ConnectMenuAction(QAction* action, const QString& actionText, const QString& functionName, const QString& hotKey)
+{
+	Q_UNUSED(actionText);
+
+	if (!action)
+		return;
+
+	if (!hotKey.isEmpty())
+		action->setShortcut(QKeySequence(hotKey));
+
+	if (functionName == "OpenFile")
+		connect(action, &QAction::triggered, this, &MainWid::OpenFile);
+	else if (functionName == "OnCloseBtnClicked")
+		connect(action, &QAction::triggered, this, &MainWid::OnCloseBtnClicked);
+	else if (hotKey == "F1")
+		connect(action, &QAction::triggered, this, &MainWid::OnShowAbout);
+	else if (hotKey == "F5")
+		connect(action, &QAction::triggered, this, &MainWid::OnShowSettingWid);
+	else if (hotKey == "F6")
+		connect(action, &QAction::triggered, this, &MainWid::OnShowOrHidePlaylist);
+	else if (hotKey == "Enter" || hotKey == "Ctrl+Enter")
+		connect(action, &QAction::triggered, this, &MainWid::OnFullScreenPlay);
+	else if (hotKey == "Alt+F4")
+		connect(action, &QAction::triggered, this, &MainWid::OnCloseBtnClicked);
+	else
+		action->setEnabled(false);
 }
 
 QMenu* MainWid::AddMenuFun(QString menu_title, QMenu* menu)

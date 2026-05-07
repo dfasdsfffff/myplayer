@@ -147,7 +147,6 @@ void CtrlBar::OnVideopVolume(double dPercent)
 
 void CtrlBar::OnPauseStat(bool bPaused)
 {
-	qDebug() << "CtrlBar::OnPauseStat" << bPaused;
 	if (bPaused)
 	{
 		GlobalHelper::SetIcon(ui->PlayOrPauseBtn, 12, QChar(0xf04b));
@@ -175,7 +174,6 @@ void CtrlBar::OnPlaySliderValueChanged()
 	// 计算当前播放进度百分比，并发出信号通知播放器调整播放位置
 	double dPercent = ui->PlaySlider->value() * 1.0 / ui->PlaySlider->maximum();
 	emit SigPlaySeek(dPercent);
-	qDebug() << dPercent;
 }
 
 void CtrlBar::OnVolumeSliderValueChanged()

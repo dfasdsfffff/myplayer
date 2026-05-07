@@ -68,7 +68,6 @@ bool Show::Init()
 
 void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
 {
-    qDebug() << "Show::OnFrameDimensionsChanged" << nFrameWidth << nFrameHeight;
     m_nLastFrameWidth = nFrameWidth;
     m_nLastFrameHeight = nFrameHeight;
 
@@ -124,7 +123,6 @@ void Show::resizeEvent(QResizeEvent *event)
 
 void Show::keyReleaseEvent(QKeyEvent *event)
 {
-    qDebug() << "Show::keyPressEvent:" << event->key();
     switch (event->key())
     {
     case Qt::Key_Return: // 全屏
@@ -134,7 +132,6 @@ void Show::keyReleaseEvent(QKeyEvent *event)
         emit SigSeekBack();
         break;
     case Qt::Key_Right: // 前进5s
-        qDebug() << "前进5s";
         emit SigSeekForward();
         break;
     case Qt::Key_Up: // 增加10音量
@@ -170,23 +167,22 @@ void Show::mousePressEvent(QMouseEvent *event)
 
 void Show::OnDisplayMsg(QString strMsg)
 {
-    qDebug() << "Show::OnDisplayMsg " << strMsg;
+    Q_UNUSED(strMsg);
 }
 
 void Show::OnPlay(QString strFile)
 {
     if (strFile.isEmpty()) {
-        qDebug() << "Warning: strFile is empty, not starting playback.";
+        qWarning() << "Warning: strFile is empty, not starting playback.";
         return;
     }
     
     // 使用UTF-8编码转换，更适合Windows下的中文路径
     std::string s = strFile.toUtf8().constData();
-    qDebug() << "Playing file:" << QString::fromStdString(s);  // 添加调试信息
     
     // 再次检查转换后的字符串是否为空
     if (s.empty()) {
-        qDebug() << "Warning: Converted std::string is empty, not starting playback.";
+        qWarning() << "Warning: Converted std::string is empty, not starting playback.";
         return;
     }
     
@@ -258,7 +254,6 @@ void Show::dropEvent(QDropEvent *event)
     for (QUrl url : urls)
     {
         QString strFileName = url.toLocalFile();
-        qDebug() << strFileName;
         emit SigOpenFile(strFileName);
         break;
     }

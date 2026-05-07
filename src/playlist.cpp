@@ -11,7 +11,8 @@
 
 Playlist::Playlist(QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::Playlist)
+    ui(new Ui::Playlist),
+    m_nCurrentPlayListIndex(0)
 {
     ui->setupUi(this);
 	
@@ -65,15 +66,7 @@ bool Playlist::InitUi()
 
     for (QString strVideoFile : strListPlaylist)
     {
-        QFileInfo fileInfo(strVideoFile);
-        if (fileInfo.exists())
-        {
-            QListWidgetItem *pItem = new QListWidgetItem(ui->List);
-            pItem->setData(Qt::UserRole, QVariant(fileInfo.filePath()));  // 用户数据
-            pItem->setText(QString("%1").arg(fileInfo.fileName()));  // 显示文本
-            pItem->setToolTip(fileInfo.filePath());
-            ui->List->addItem(pItem);
-        }
+        AddFileItem(strVideoFile);
     }
     if (strListPlaylist.length() > 0)
     {
@@ -134,66 +127,64 @@ void Playlist::GetPlaylist(QStringList& playList)
 
 void Playlist::OnAddFile(QString strFileName)
 {
-    bool bSupportMovie = strFileName.endsWith(".mkv", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".rmvb", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".mp4", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".avi", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".flv", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".wmv", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".3gp", Qt::CaseInsensitive);
-    if (!bSupportMovie)
-    {
-        return;
-    }
-
-
-    QFileInfo fileInfo(strFileName);
-	QList<QListWidgetItem *> listItem = ui->List->findItems(fileInfo.fileName(), Qt::MatchExactly);
-    QListWidgetItem *pItem = nullptr;
-	if (listItem.isEmpty())
-	{
-        pItem = new QListWidgetItem(ui->List);
-        pItem->setData(Qt::UserRole, QVariant(fileInfo.filePath()));  // 用户数据
-        pItem->setText(fileInfo.fileName());  // 显示文本
-        pItem->setToolTip(fileInfo.filePath());
-        ui->List->addItem(pItem);
-	}
-    else
-    {
-        pItem = listItem.at(0);
-    }
+    AddFileItem(strFileName);
 }
 
 void Playlist::OnAddFileAndPlay(QString strFileName)
 {
-    bool bSupportMovie = strFileName.endsWith(".mkv", Qt::CaseInsensitive) ||
+    QListWidgetItem* pItem = AddFileItem(strFileName);
+    if (!pItem)
+        return;
+
+    on_List_itemDoubleClicked(pItem);
+}
+
+bool Playlist::IsSupportedMovie(const QString& strFileName) const
+{
+    return strFileName.endsWith(".mkv", Qt::CaseInsensitive) ||
         strFileName.endsWith(".rmvb", Qt::CaseInsensitive) ||
         strFileName.endsWith(".mp4", Qt::CaseInsensitive) ||
         strFileName.endsWith(".avi", Qt::CaseInsensitive) ||
         strFileName.endsWith(".flv", Qt::CaseInsensitive) ||
         strFileName.endsWith(".wmv", Qt::CaseInsensitive) ||
         strFileName.endsWith(".3gp", Qt::CaseInsensitive);
-    if (!bSupportMovie)
+}
+
+QListWidgetItem* Playlist::FindItemByPath(const QString& filePath) const
+{
+    const QString cleanPath = QFileInfo(filePath).canonicalFilePath();
+    if (cleanPath.isEmpty())
+        return nullptr;
+
+    for (int i = 0; i < ui->List->count(); ++i)
     {
-        return;
+        QListWidgetItem* item = ui->List->item(i);
+        const QString itemPath = QFileInfo(item->data(Qt::UserRole).toString()).canonicalFilePath();
+        if (itemPath == cleanPath)
+            return item;
     }
 
+    return nullptr;
+}
+
+QListWidgetItem* Playlist::AddFileItem(const QString& strFileName)
+{
+    if (!IsSupportedMovie(strFileName))
+        return nullptr;
+
     QFileInfo fileInfo(strFileName);
-    QList<QListWidgetItem *> listItem = ui->List->findItems(fileInfo.fileName(), Qt::MatchExactly);
-    QListWidgetItem *pItem = nullptr;
-    if (listItem.isEmpty())
-    {
-        pItem = new QListWidgetItem(ui->List);
-        pItem->setData(Qt::UserRole, QVariant(fileInfo.filePath()));  // 用户数据
-        pItem->setText(fileInfo.fileName());  // 显示文本
-        pItem->setToolTip(fileInfo.filePath());
-        ui->List->addItem(pItem);
-    }
-    else
-    {
-        pItem = listItem.at(0);
-    }
-    on_List_itemDoubleClicked(pItem);
+    if (!fileInfo.exists() || !fileInfo.isFile())
+        return nullptr;
+
+    if (QListWidgetItem* existingItem = FindItemByPath(fileInfo.filePath()))
+        return existingItem;
+
+    QListWidgetItem* pItem = new QListWidgetItem(ui->List);
+    pItem->setData(Qt::UserRole, QVariant(fileInfo.canonicalFilePath()));
+    pItem->setText(fileInfo.fileName());
+    pItem->setToolTip(fileInfo.canonicalFilePath());
+    ui->List->addItem(pItem);
+    return pItem;
 }
 
 void Playlist::OnBackwardPlay()
