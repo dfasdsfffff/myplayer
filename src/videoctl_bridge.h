@@ -9,7 +9,11 @@
 #pragma once
 
 #include <QObject>
+#include <QPointer>
 #include <QString>
+#include <vector>
+
+#include "signal.h"
 
 class VideoCtl;
 
@@ -20,7 +24,7 @@ class VideoCtlBridge : public QObject
 public:
 	// 必须在 Qt 主线程上创建
 	explicit VideoCtlBridge(QObject* parent = nullptr);
-	~VideoCtlBridge() = default;
+	~VideoCtlBridge() override;
 
 	// 连接 VideoCtl 的所有 Signal，仅调用一次
 	void attach(VideoCtl* ctl);
@@ -43,5 +47,8 @@ signals:
 	void SigRandomPlayOne();
 
 private:
+	void detach();
+
 	VideoCtl* m_ctl = nullptr;
+	std::vector<sigslot::scoped_connection> m_connections;
 };

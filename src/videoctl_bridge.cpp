@@ -11,77 +11,123 @@ VideoCtlBridge::VideoCtlBridge(QObject* parent)
 {
 }
 
+VideoCtlBridge::~VideoCtlBridge()
+{
+	detach();
+}
+
+void VideoCtlBridge::detach()
+{
+	m_connections.clear();
+	m_ctl = nullptr;
+}
+
 void VideoCtlBridge::attach(VideoCtl* ctl)
 {
+	detach();
+
+	if (!ctl)
+		return;
+
 	m_ctl = ctl;
+	QPointer<VideoCtlBridge> self(this);
 
-	// 对每个 VideoCtl Signal 注册 lambda 回调，
-	// 通过 QMetaObject::invokeMethod(Qt::QueuedConnection) 编组到 Qt 主线程，
-	// 然后 emit 对应的 Qt signal
-
-	ctl->SigPlayMsg.connect([this](const std::string& msg) {
-		QMetaObject::invokeMethod(this, [this, msg]() {
-			emit SigPlayMsg(QString::fromStdString(msg));
+	m_connections.emplace_back(ctl->SigPlayMsg.connect([self](const std::string& msg) {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self, msg]() {
+			if (auto bridge = self.data())
+				emit bridge->SigPlayMsg(QString::fromStdString(msg));
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigFrameDimensionsChanged.connect([this](int w, int h) {
-		QMetaObject::invokeMethod(this, [this, w, h]() {
-			emit SigFrameDimensionsChanged(w, h);
+	m_connections.emplace_back(ctl->SigFrameDimensionsChanged.connect([self](int w, int h) {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self, w, h]() {
+			if (auto bridge = self.data())
+				emit bridge->SigFrameDimensionsChanged(w, h);
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigVideoTotalSeconds.connect([this](int s) {
-		QMetaObject::invokeMethod(this, [this, s]() {
-			emit SigVideoTotalSeconds(s);
+	m_connections.emplace_back(ctl->SigVideoTotalSeconds.connect([self](int s) {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self, s]() {
+			if (auto bridge = self.data())
+				emit bridge->SigVideoTotalSeconds(s);
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigVideoPlaySeconds.connect([this](int s) {
-		QMetaObject::invokeMethod(this, [this, s]() {
-			emit SigVideoPlaySeconds(s);
+	m_connections.emplace_back(ctl->SigVideoPlaySeconds.connect([self](int s) {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self, s]() {
+			if (auto bridge = self.data())
+				emit bridge->SigVideoPlaySeconds(s);
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigVideoVolume.connect([this](double v) {
-		QMetaObject::invokeMethod(this, [this, v]() {
-			emit SigVideoVolume(v);
+	m_connections.emplace_back(ctl->SigVideoVolume.connect([self](double v) {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self, v]() {
+			if (auto bridge = self.data())
+				emit bridge->SigVideoVolume(v);
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigPauseStat.connect([this](bool b) {
-		QMetaObject::invokeMethod(this, [this, b]() {
-			emit SigPauseStat(b);
+	m_connections.emplace_back(ctl->SigPauseStat.connect([self](bool b) {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self, b]() {
+			if (auto bridge = self.data())
+				emit bridge->SigPauseStat(b);
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigStop.connect([this]() {
-		QMetaObject::invokeMethod(this, [this]() {
-			emit SigStop();
+	m_connections.emplace_back(ctl->SigStop.connect([self]() {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self]() {
+			if (auto bridge = self.data())
+				emit bridge->SigStop();
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigStopFinished.connect([this]() {
-		QMetaObject::invokeMethod(this, [this]() {
-			emit SigStopFinished();
+	m_connections.emplace_back(ctl->SigStopFinished.connect([self]() {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self]() {
+			if (auto bridge = self.data())
+				emit bridge->SigStopFinished();
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigStartPlay.connect([this](const std::string& f) {
-		QMetaObject::invokeMethod(this, [this, f]() {
-			emit SigStartPlay(QString::fromStdString(f));
+	m_connections.emplace_back(ctl->SigStartPlay.connect([self](const std::string& f) {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self, f]() {
+			if (auto bridge = self.data())
+				emit bridge->SigStartPlay(QString::fromStdString(f));
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigPlayNextOne.connect([this]() {
-		QMetaObject::invokeMethod(this, [this]() {
-			emit SigPlayNextOne();
+	m_connections.emplace_back(ctl->SigPlayNextOne.connect([self]() {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self]() {
+			if (auto bridge = self.data())
+				emit bridge->SigPlayNextOne();
 		}, Qt::QueuedConnection);
-	});
+	}));
 
-	ctl->SigRandomPlayOne.connect([this]() {
-		QMetaObject::invokeMethod(this, [this]() {
-			emit SigRandomPlayOne();
+	m_connections.emplace_back(ctl->SigRandomPlayOne.connect([self]() {
+		if (!self)
+			return;
+		QMetaObject::invokeMethod(self.data(), [self]() {
+			if (auto bridge = self.data())
+				emit bridge->SigRandomPlayOne();
 		}, Qt::QueuedConnection);
-	});
+	}));
 }
