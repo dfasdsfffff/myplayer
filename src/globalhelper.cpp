@@ -3,11 +3,10 @@
 #include <QSettings>
 #include <QCoreApplication>
 #include <QDir>
+#include <QApplication>
 
 #include "globalhelper.h"
 #include "av_constants.h"
-
-const QString PLAYER_CONFIG_BASEDIR = QDir::tempPath();
 
 const QString PLAYER_CONFIG = "player_config.ini";
 
@@ -15,7 +14,7 @@ const QString APP_VERSION = "0.1.0";
 
 QString GlobalHelper::GetConfigFilePath()
 {
-	static const QString path = PLAYER_CONFIG_BASEDIR + QDir::separator() + PLAYER_CONFIG;
+	static const QString path = QApplication::applicationDirPath() + QDir::separator() +"config"+QDir::separator()+ PLAYER_CONFIG;
 	return path;
 }
 
