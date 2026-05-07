@@ -40,6 +40,7 @@ add_subdirectory(play_core)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)
+    message(STATUS "Mapping Qt debug config to release")
     set_target_properties(Qt6::Core Qt6::Gui Qt6::Widgets PROPERTIES
         MAP_IMPORTED_CONFIG_DEBUG "Release"
     )
