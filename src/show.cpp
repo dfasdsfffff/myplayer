@@ -196,7 +196,7 @@ void Show::OnPlay(QString strFile)
         return;
     }
     
-    VideoCtl::GetInstance()->StartPlay(s, nullptr);
+    VideoCtl::GetInstance()->StartPlay(s);
 }
 
 void Show::OnStopFinished()

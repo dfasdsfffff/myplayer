@@ -59,7 +59,7 @@ public:
 	* @return	true 成功 false 失败
 	* @note
 	*/
-	bool StartPlay(const std::string& strFileName, void* widPlayWid);
+	bool StartPlay(const std::string& strFileName);
 
 
 	static int audio_decode_frame(VideoState* is);  // 设为static，可从静态回调调用
@@ -191,8 +191,6 @@ private:
 	SDL_RendererInfo m_sdlRendererInfo = { 0 };
 	SDL_AudioDeviceID m_sdlAudio_dev;
 	Uint32 m_sdlWindowID = 0;  // 本实例窗口ID，用于事件过滤
-	void* m_playWid;//播放窗口原生句柄
-
 	//
 	VideoLoopPolicy m_loopPolicy = LOOP_ALL; //循环策略
 

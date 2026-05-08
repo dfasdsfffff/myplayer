@@ -2708,7 +2708,7 @@ int VideoCtl::video_open()
 		int flags = SDL_WINDOW_SHOWN;
 		flags |= SDL_WINDOW_RESIZABLE;
 
-		m_sdlWindow = SDL_CreateWindowFrom(m_playWid);
+		m_sdlWindow = nullptr;
 		SDL_GetWindowSize(m_sdlWindow, &w, &h);//初始宽高设置为显示控件宽高
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 		if (m_sdlWindow) {
@@ -2852,7 +2852,6 @@ VideoCtl::VideoCtl() :
 	m_sdlRenderer(nullptr),
 	m_sdlWindow(nullptr),
 	m_sdlAudio_dev(0),
-	m_playWid(nullptr),
 	m_nFrameW(0),
 	m_nFrameH(0)
 {
@@ -2937,7 +2936,7 @@ VideoCtl::~VideoCtl() {
   }
 }
 
-bool VideoCtl::StartPlay(const std::string& strFileName, void* widPlayWid)
+bool VideoCtl::StartPlay(const std::string& strFileName)
 {
 	std::lock_guard<std::mutex> lock(m_playbackMutex);
 
@@ -2953,8 +2952,6 @@ bool VideoCtl::StartPlay(const std::string& strFileName, void* widPlayWid)
         m_tPlayLoopThread.join();
     }
     SigStartPlay(strFileName);//正式播放，发送给标题栏
-
-    m_playWid = widPlayWid;
 
     VideoState* is;
 
