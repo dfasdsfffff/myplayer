@@ -85,10 +85,6 @@ typedef struct VideoState {
     int xpos;
     double last_vis_time;
 
-    SDL_Texture* vis_texture;
-    SDL_Texture* sub_texture;
-    SDL_Texture* vid_texture;
-
     int subtitle_stream;
     AVStream *subtitle_st;
     PacketQueue subtitleq;
@@ -149,18 +145,6 @@ inline VideoState::~VideoState()
     if (rdft) {
         av_rdft_end(rdft);
         rdft = nullptr;
-    }
-    if (vis_texture) {
-        SDL_DestroyTexture(vis_texture);
-        vis_texture = nullptr;
-    }
-    if (sub_texture) {
-        SDL_DestroyTexture(sub_texture);
-        sub_texture = nullptr;
-    }
-    if (vid_texture) {
-        SDL_DestroyTexture(vid_texture);
-        vid_texture = nullptr;
     }
     if (continue_read_thread) {
         SDL_DestroyCond(continue_read_thread);

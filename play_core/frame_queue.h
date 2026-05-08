@@ -22,8 +22,6 @@ typedef struct Frame {
 	int height = 0;
 	int format = 0;
 	AVRational sar = {0, 0};
-	int uploaded = 0;
-	int flip_v = 0;
 } Frame;
 
 //帧队列

@@ -39,31 +39,10 @@ static void print_error(const char* s, int err) {
 	av_log(NULL, AV_LOG_ERROR, "%s: %s\n", s, buf);
 }
 
-static const struct TextureFormatEntry
-{
-	enum AVPixelFormat format;
-	int texture_fmt;
-} sdl_texture_format_map[] = {
-	{AV_PIX_FMT_RGB8, SDL_PIXELFORMAT_RGB332},
-	{AV_PIX_FMT_RGB444, SDL_PIXELFORMAT_RGB444},
-	{AV_PIX_FMT_RGB555, SDL_PIXELFORMAT_RGB555},
-	{AV_PIX_FMT_BGR555, SDL_PIXELFORMAT_BGR555},
-	{AV_PIX_FMT_RGB565, SDL_PIXELFORMAT_RGB565},
-	{AV_PIX_FMT_BGR565, SDL_PIXELFORMAT_BGR565},
-	{AV_PIX_FMT_RGB24, SDL_PIXELFORMAT_RGB24},
-	{AV_PIX_FMT_BGR24, SDL_PIXELFORMAT_BGR24},
-	{AV_PIX_FMT_0RGB32, SDL_PIXELFORMAT_RGB888},
-	{AV_PIX_FMT_0BGR32, SDL_PIXELFORMAT_BGR888},
-	{AV_PIX_FMT_NE(RGB0, 0BGR), SDL_PIXELFORMAT_RGBX8888},
-	{AV_PIX_FMT_NE(BGR0, 0RGB), SDL_PIXELFORMAT_BGRX8888},
-	{AV_PIX_FMT_RGB32, SDL_PIXELFORMAT_ARGB8888},
-	{AV_PIX_FMT_RGB32_1, SDL_PIXELFORMAT_RGBA8888},
-	{AV_PIX_FMT_BGR32, SDL_PIXELFORMAT_ABGR8888},
-	{AV_PIX_FMT_BGR32_1, SDL_PIXELFORMAT_BGRA8888},
-	{AV_PIX_FMT_YUV420P, SDL_PIXELFORMAT_IYUV},
-	{AV_PIX_FMT_YUYV422, SDL_PIXELFORMAT_YUY2},
-	{AV_PIX_FMT_UYVY422, SDL_PIXELFORMAT_UYVY},
-	{AV_PIX_FMT_NONE, SDL_PIXELFORMAT_UNKNOWN},
+static enum AVPixelFormat video_filter_pix_fmts[] = {
+	AV_PIX_FMT_BGRA,
+	AV_PIX_FMT_YUV420P,
+	AV_PIX_FMT_NONE,
 };
 
 static enum AVColorSpace sdl_supported_color_spaces[] = {
@@ -159,187 +138,6 @@ static int decode_interrupt_cb(void* ctx)
 }
 
 
-int VideoCtl::realloc_texture(SDL_Texture** texture, Uint32 new_format, int new_width, int new_height, SDL_BlendMode blendmode, int init_texture)
-{
-	Uint32 format;
-	int access, w, h;
-	if (SDL_QueryTexture(*texture, &format, &access, &w, &h) < 0 || new_width != w || new_height != h || new_format != format) {
-		void* pixels;
-		int pitch;
-		SDL_DestroyTexture(*texture);
-		if (!(*texture = SDL_CreateTexture(m_sdlRenderer, new_format, SDL_TEXTUREACCESS_STREAMING, new_width, new_height)))
-			return -1;
-		if (SDL_SetTextureBlendMode(*texture, blendmode) < 0)
-			return -1;
-		if (init_texture) {
-			if (SDL_LockTexture(*texture, NULL, &pixels, &pitch) < 0)
-				return -1;
-			memset(pixels, 0, pitch * new_height);
-			SDL_UnlockTexture(*texture);
-		}
-	}
-	return 0;
-}
-
-void VideoCtl::calculate_display_rect(SDL_Rect* rect,
-	int scr_xleft, int scr_ytop, int scr_width, int scr_height,
-	int pic_width, int pic_height, AVRational pic_sar)
-{
-	float aspect_ratio;
-	int width, height, x, y;
-
-	if (pic_sar.num == 0)
-		aspect_ratio = 0;
-	else
-		aspect_ratio = av_q2d(pic_sar);
-
-	if (aspect_ratio <= 0.0)
-		aspect_ratio = 1.0;
-	aspect_ratio *= (float)pic_width / (float)pic_height;
-
-	/* XXX: we suppose the screen has a 1.0 pixel ratio */
-	height = scr_height;
-	width = lrint(height * aspect_ratio) & ~1;
-	if (width > scr_width) {
-		width = scr_width;
-		height = lrint(width / aspect_ratio) & ~1;
-	}
-	x = (scr_width - width) / 2;
-	y = (scr_height - height) / 2;
-	rect->x = scr_xleft + x;
-	rect->y = scr_ytop + y;
-	rect->w = FFMAX(width, 1);
-	rect->h = FFMAX(height, 1);
-}
-
-int VideoCtl::upload_texture(SDL_Texture* tex, AVFrame* frame, struct SwsContext** img_convert_ctx) {
-	int ret = 0;
-	switch (frame->format) {
-	case AV_PIX_FMT_YUV420P:
-		if (frame->linesize[0] < 0 || frame->linesize[1] < 0 || frame->linesize[2] < 0) {
-			av_log(NULL, AV_LOG_ERROR, "Negative linesize is not supported for YUV.\n");
-			return -1;
-		}
-		ret = SDL_UpdateYUVTexture(tex, NULL, frame->data[0], frame->linesize[0],
-			frame->data[1], frame->linesize[1],
-			frame->data[2], frame->linesize[2]);
-		break;
-	case AV_PIX_FMT_BGRA:
-		if (frame->linesize[0] < 0) {
-			ret = SDL_UpdateTexture(tex, NULL, frame->data[0] + frame->linesize[0] * (frame->height - 1), -frame->linesize[0]);
-		}
-		else {
-			ret = SDL_UpdateTexture(tex, NULL, frame->data[0], frame->linesize[0]);
-		}
-		break;
-	default:
-		/* This should only happen if we are not using avfilter... */
-		*img_convert_ctx = sws_getCachedContext(*img_convert_ctx,
-			frame->width, frame->height, (AVPixelFormat)frame->format, frame->width, frame->height,
-			AV_PIX_FMT_BGRA, SWS_BICUBIC, NULL, NULL, NULL);
-		if (*img_convert_ctx != NULL) {
-			uint8_t* pixels[4];
-			int pitch[4];
-			if (!SDL_LockTexture(tex, NULL, (void**)pixels, pitch)) {
-				sws_scale(*img_convert_ctx, (const uint8_t* const*)frame->data, frame->linesize,
-					0, frame->height, pixels, pitch);
-				SDL_UnlockTexture(tex);
-			}
-		}
-		else {
-			av_log(NULL, AV_LOG_FATAL, "Cannot initialize the conversion context\n");
-			ret = -1;
-		}
-		break;
-	}
-	return ret;
-}
-
-//显示视频画面
-void VideoCtl::video_image_display()
-{
-	if (!m_CurStream) return;
-	VideoState* is = m_CurStream;
-
-	Frame* vp;
-	Frame* sp = NULL;
-	SDL_Rect rect;
-
-	vp = is->pictq.peek_last();
-	if (is->subtitle_st) {
-		if (is->subpq.nb_remaining() > 0) {
-			sp = is->subpq.peek();
-
-			if (vp->pts >= sp->pts + ((float)sp->sub.start_display_time / 1000)) {
-				if (!sp->uploaded) {
-					uint8_t* pixels[4];
-					int pitch[4];
-					int i;
-					if (!sp->width || !sp->height) {
-						sp->width = vp->width;
-						sp->height = vp->height;
-					}
-					if (realloc_texture(&is->sub_texture, SDL_PIXELFORMAT_ARGB8888, sp->width, sp->height, SDL_BLENDMODE_BLEND, 1) < 0)
-						return;
-
-					for (i = 0; i < sp->sub.num_rects; i++) {
-						AVSubtitleRect* sub_rect = sp->sub.rects[i];
-
-						sub_rect->x = av_clip(sub_rect->x, 0, sp->width);
-						sub_rect->y = av_clip(sub_rect->y, 0, sp->height);
-						sub_rect->w = av_clip(sub_rect->w, 0, sp->width - sub_rect->x);
-						sub_rect->h = av_clip(sub_rect->h, 0, sp->height - sub_rect->y);
-
-						is->sub_convert_ctx = sws_getCachedContext(is->sub_convert_ctx,
-							sub_rect->w, sub_rect->h, AV_PIX_FMT_PAL8,
-							sub_rect->w, sub_rect->h, AV_PIX_FMT_BGRA,
-							0, NULL, NULL, NULL);
-						if (!is->sub_convert_ctx) {
-							av_log(NULL, AV_LOG_FATAL, "Cannot initialize the conversion context\n");
-							return;
-						}
-						if (!SDL_LockTexture(is->sub_texture, (SDL_Rect*)sub_rect, (void**)pixels, pitch)) {
-							sws_scale(is->sub_convert_ctx, (const uint8_t* const*)sub_rect->data, sub_rect->linesize,
-								0, sub_rect->h, pixels, pitch);
-							SDL_UnlockTexture(is->sub_texture);
-						}
-					}
-					sp->uploaded = 1;
-				}
-			}
-			else
-				sp = NULL;
-		}
-	}
-
-	calculate_display_rect(&rect, is->xleft, is->ytop, is->width, is->height, vp->width, vp->height, vp->sar);
-
-	if (!vp->uploaded) {
-		int sdl_pix_fmt = vp->frame->format == AV_PIX_FMT_YUV420P ? SDL_PIXELFORMAT_YV12 : SDL_PIXELFORMAT_ARGB8888;
-		if (realloc_texture(&is->vid_texture, sdl_pix_fmt, vp->frame->width, vp->frame->height, SDL_BLENDMODE_NONE, 0) < 0)
-			return;
-		if (upload_texture(is->vid_texture, vp->frame, &is->img_convert_ctx) < 0)
-			return;
-		vp->uploaded = 1;
-		vp->flip_v = vp->frame->linesize[0] < 0;
-
-		//通知宽高变化
-		if (m_nFrameW != vp->frame->width || m_nFrameH != vp->frame->height)
-		{
-			m_nFrameW = vp->frame->width;
-			m_nFrameH = vp->frame->height;
-			SigFrameDimensionsChanged(m_nFrameW, m_nFrameH);
-		}
-	}
-
-	SDL_RenderCopyEx(m_sdlRenderer, is->vid_texture, NULL, &rect, 0, NULL, (SDL_RendererFlip)(vp->flip_v ? SDL_FLIP_VERTICAL : 0));
-	if (sp) {
-		SDL_RenderCopy(m_sdlRenderer, is->sub_texture, NULL, &rect);
-	}
-}
-
-
-//关闭流对应的解码器等
 void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 {
 	if (!is || !is->ic)
@@ -464,19 +262,6 @@ void VideoCtl::stream_close(VideoState* is)
 	}
 	av_freep(&is->audio_new_buf);
 	av_freep(&is->audio_buf1);
-
-	if (is->vid_texture) {
-		SDL_DestroyTexture(is->vid_texture);
-		is->vid_texture = nullptr;
-	}
-	if (is->sub_texture) {
-		SDL_DestroyTexture(is->sub_texture);
-		is->sub_texture = nullptr;
-	}
-	if (is->vis_texture) {
-		SDL_DestroyTexture(is->vis_texture);
-		is->vis_texture = nullptr;
-	}
 	// 关闭音频（尽管在stream_component_close已经调用了）
 	if (m_sdlAudio_dev) {
 		SDL_CloseAudioDevice(m_sdlAudio_dev);
@@ -719,7 +504,6 @@ fail:
 
 int VideoCtl::configure_video_filters(AVFilterGraph* graph, VideoState* is, const char* vfilters, AVFrame* frame)
 {
-	enum AVPixelFormat pix_fmts[FF_ARRAY_ELEMS(sdl_texture_format_map)];
 	// char sws_flags_str[512] = "";
 	char buffersrc_args[256];
 	int ret;
@@ -727,27 +511,11 @@ int VideoCtl::configure_video_filters(AVFilterGraph* graph, VideoState* is, cons
 	AVCodecParameters* codecpar = is->video_st->codecpar;
 	AVRational fr = av_guess_frame_rate(is->ic, is->video_st, NULL);
 	const AVDictionaryEntry* e = NULL;
-	int nb_pix_fmts = 0;
-	int i, j;
 	AVBufferSrcParameters* par = av_buffersrc_parameters_alloc();
 
 	if (!par)
 		return AVERROR(ENOMEM);
-
-	for (i = 0; i < m_sdlRendererInfo.num_texture_formats; i++)
-	{
-		for (j = 0; j < FF_ARRAY_ELEMS(sdl_texture_format_map) - 1; j++)
-		{
-			if (m_sdlRendererInfo.texture_formats[i] == sdl_texture_format_map[j].texture_fmt)
-			{
-				pix_fmts[nb_pix_fmts++] = sdl_texture_format_map[j].format;
-				break;
-			}
-		}
-	}
-	pix_fmts[nb_pix_fmts] = AV_PIX_FMT_NONE;
-
-	//while ((e = av_dict_iterate(sws_dict, e)))
+//while ((e = av_dict_iterate(sws_dict, e)))
 	//{
 	//	if (!strcmp(e->key, "sws_flags"))
 	//	{
@@ -787,7 +555,7 @@ int VideoCtl::configure_video_filters(AVFilterGraph* graph, VideoState* is, cons
 	if (ret < 0)
 		goto fail;
 
-	if ((ret = av_opt_set_int_list(filt_out, "pix_fmts", pix_fmts, AV_PIX_FMT_NONE, AV_OPT_SEARCH_CHILDREN)) < 0)
+	if ((ret = av_opt_set_int_list(filt_out, "pix_fmts", video_filter_pix_fmts, AV_PIX_FMT_NONE, AV_OPT_SEARCH_CHILDREN)) < 0)
 		goto fail;
 	if ((ret = av_opt_set_int_list(filt_out, "color_spaces", sdl_supported_color_spaces, AVCOL_SPC_UNSPECIFIED, AV_OPT_SEARCH_CHILDREN)) < 0)
 		goto fail;
@@ -1038,20 +806,6 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 						|| (is->vidclk.pts > (sp->pts + ((float)sp->sub.end_display_time / 1000)))
 						|| (sp2 && is->vidclk.pts > (sp2->pts + ((float)sp2->sub.start_display_time / 1000))))
 					{
-						if (sp->uploaded) {
-							int i;
-							for (i = 0; i < sp->sub.num_rects; i++) {
-								AVSubtitleRect* sub_rect = sp->sub.rects[i];
-								uint8_t* pixels;
-								int pitch, j;
-
-								if (!SDL_LockTexture(is->sub_texture, (SDL_Rect*)sub_rect, (void**)&pixels, &pitch)) {
-									for (j = 0; j < sub_rect->h; j++, pixels += pitch)
-										memset(pixels, 0, sub_rect->w << 2);
-									SDL_UnlockTexture(is->sub_texture);
-								}
-							}
-						}
 						is->subpq.next();
 					}
 					else {
@@ -1084,8 +838,6 @@ int VideoCtl::queue_picture(VideoState* is, AVFrame* src_frame, double pts, doub
 		return -1;
 
 	vp->sar = src_frame->sample_aspect_ratio;
-	vp->uploaded = 0;
-
 	vp->width = src_frame->width;
 	vp->height = src_frame->height;
 	vp->format = src_frame->format;
@@ -1315,10 +1067,7 @@ int VideoCtl::video_thread(void* arg)
 			std::string mvfilters = std::format("setpts={:.2f}*PTS", 1 / currentSpeed);
 			if ((ret = configure_video_filters(graph, is, mvfilters.c_str(), frame)) < 0)
 			{
-				SDL_Event event{};
-				event.type = FF_QUIT_EVENT;
-				event.user.data1 = is;
-				SDL_PushEvent(&event);
+				m_bPlayLoop.store(false, std::memory_order_release);
 				goto the_end;
 			}
 			filt_in = is->in_video_filter;
@@ -1405,8 +1154,6 @@ int VideoCtl::subtitle_thread(void* arg)
 			sp->serial = is->sub_decoder.pkt_serial;
 			sp->width = is->sub_decoder.avctx->width;
 			sp->height = is->sub_decoder.avctx->height;
-			sp->uploaded = 0;
-
 			/* now we can update the picture count */
 			is->subpq.push();
 		}
@@ -2214,13 +1961,8 @@ fail:
 	if (ic && !is->ic)
 		avformat_close_input(&ic);
 	// 通知 LoopThread 线程读取结束
-	if (ret != 0) {
-		SDL_Event event;
-
-		event.type = FF_QUIT_EVENT;
-		event.user.data1 = is;
-		SDL_PushEvent(&event);
-	}
+	if (ret != 0)
+		m_bPlayLoop.store(false, std::memory_order_release);
 	if (is->read_wait_mutex) {
 		SDL_DestroyMutex(is->read_wait_mutex);
 		is->read_wait_mutex = nullptr;
@@ -2383,18 +2125,12 @@ the_end:
 }
 
 
-void VideoCtl::refresh_loop_wait_event(VideoState* is, SDL_Event* event) {
-	double remaining_time = 0.0;
-	SDL_PumpEvents();
-	while (!SDL_PeepEvents(event, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) && m_bPlayLoop.load(std::memory_order_acquire))
-	{
-		if (remaining_time > 0.0)
-			av_usleep((int64_t)(remaining_time * 1000000.0));
-		remaining_time = REFRESH_RATE;
-		if (is && (!is->paused || is->force_refresh))
-			video_refresh(is, &remaining_time);
-		SDL_PumpEvents();
-	}
+void VideoCtl::refresh_loop_wait_event(VideoState* is) {
+	double remaining_time = REFRESH_RATE;
+	if (is && (!is->paused || is->force_refresh))
+		video_refresh(is, &remaining_time);
+	if (remaining_time > 0.0)
+		av_usleep(static_cast<int64_t>(remaining_time * 1000000.0));
 }
 
 void VideoCtl::seek_chapter(VideoState* is, int incr)
@@ -2427,115 +2163,25 @@ void VideoCtl::seek_chapter(VideoState* is, int incr)
 //播放控制循环
 void VideoCtl::LoopThread()
 {
-	SDL_Event event;
-	double incr = 0., pos, frac;
-
 	m_bPlayLoop.store(true, std::memory_order_release);
 
 	while (m_bPlayLoop.load(std::memory_order_acquire))
 	{
-		double x;
 		VideoState* is;
 		{
 			std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 			is = m_CurStream;
 		}
-		refresh_loop_wait_event(is, &event);
-
-		// 事件处理后重新读取，可能已被其他线程修改
-		{
-			std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-			is = m_CurStream;
-		}
-		if (!is)
-			continue;
-
-		// 多实例安全：只处理属于本实例窗口的事件
-		// SDL_QUIT / FF_QUIT_EVENT 是全局事件，所有实例都需要处理
-		{
-			bool belongsToUs = true;
-			switch (event.type) {
-			case SDL_WINDOWEVENT:
-				belongsToUs = (m_sdlWindowID == 0 || event.window.windowID == m_sdlWindowID);
-				break;
-			case SDL_KEYDOWN:
-			case SDL_KEYUP:
-				belongsToUs = (m_sdlWindowID == 0 || event.key.windowID == m_sdlWindowID);
-				break;
-			case SDL_MOUSEMOTION:
-				belongsToUs = (m_sdlWindowID == 0 || event.motion.windowID == m_sdlWindowID);
-				break;
-			case SDL_MOUSEBUTTONDOWN:
-			case SDL_MOUSEBUTTONUP:
-				belongsToUs = (m_sdlWindowID == 0 || event.button.windowID == m_sdlWindowID);
-				break;
-			case SDL_MOUSEWHEEL:
-				belongsToUs = (m_sdlWindowID == 0 || event.wheel.windowID == m_sdlWindowID);
-				break;
-			default:
-				break; // SDL_QUIT 等全局事件默认属于本实例
-			}
-			if (!belongsToUs) {
-				SDL_PushEvent(&event); // 放回队列，让其他实例处理
-				av_usleep(1000);       // 避免忙循环
-				continue;
-			}
-		}
-
-		switch (event.type) {
-		case SDL_KEYDOWN:
-			switch (event.key.keysym.sym) {
-			case SDLK_s: // S: Step to next frame
-				step_to_next_frame();
-				break;
-			case SDLK_a:
-				stream_cycle_channel(is, AVMEDIA_TYPE_AUDIO);
-				break;
-			case SDLK_v:
-				stream_cycle_channel(is, AVMEDIA_TYPE_VIDEO);
-				break;
-			case SDLK_c:
-				stream_cycle_channel(is, AVMEDIA_TYPE_VIDEO);
-				stream_cycle_channel(is, AVMEDIA_TYPE_AUDIO);
-				stream_cycle_channel(is, AVMEDIA_TYPE_SUBTITLE);
-				break;
-			case SDLK_t:
-				stream_cycle_channel(is, AVMEDIA_TYPE_SUBTITLE);
-				break;
-
-			default:
-				break;
-			}
-			break;
-		case SDL_WINDOWEVENT:
-			//窗口大小改变事件
-			switch (event.window.event) {
-			case SDL_WINDOWEVENT_RESIZED:
-				screen_width = is->width = event.window.data1;
-				screen_height = is->height = event.window.data2;
-			case SDL_WINDOWEVENT_EXPOSED:
-				is->force_refresh = 1;
-			}
-			break;
-		case SDL_QUIT:
-		case FF_QUIT_EVENT:
-			do_exit();
-			break;
-		default:
-			break;
-		}
+		refresh_loop_wait_event(is);
 	}
 
+	VideoState* exitStream = nullptr;
 	{
-		VideoState* exitStream = nullptr;
-		{
-			std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-			exitStream = m_CurStream;
-		}
-		if (exitStream)
-			do_exit();
+		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+		exitStream = m_CurStream;
 	}
-
+	if (exitStream)
+		do_exit();
 }
 
 
@@ -2629,29 +2275,7 @@ void VideoCtl::video_display()
 {
 	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream) return;
-	VideoState* is = m_CurStream;
-
-	emit_video_frame(is);
-	return;
-
-	if (!m_sdlWindow)
-		video_open();
-	if (m_sdlRenderer)
-	{
-		//恰好显示控件大小在变化，则不刷新显示
-		if (g_show_rect_mutex.try_lock())
-		{
-			std::unique_lock<std::mutex> lock(g_show_rect_mutex, std::adopt_lock);
-			// 二次检查：获锁后 renderer 可能已被 do_exit 销毁
-			if (!m_sdlRenderer)
-				return;
-			SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
-			SDL_RenderClear(m_sdlRenderer);
-			video_image_display();
-			SDL_RenderPresent(m_sdlRenderer);
-		}
-	}
-
+	emit_video_frame(m_CurStream);
 }
 
 void VideoCtl::emit_video_frame(VideoState* is)
@@ -2695,52 +2319,6 @@ void VideoCtl::emit_video_frame(VideoState* is)
 	SigVideoFrame(frame);
 }
 
-int VideoCtl::video_open()
-{
-	if (!m_CurStream) return -1;
-	VideoState* is = m_CurStream;
-	int w, h;
-
-	w = screen_width;
-	h = screen_height;
-
-	if (!m_sdlWindow) {
-		int flags = SDL_WINDOW_SHOWN;
-		flags |= SDL_WINDOW_RESIZABLE;
-
-		m_sdlWindow = nullptr;
-		SDL_GetWindowSize(m_sdlWindow, &w, &h);//初始宽高设置为显示控件宽高
-		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-		if (m_sdlWindow) {
-			m_sdlWindowID = SDL_GetWindowID(m_sdlWindow);
-			SDL_RendererInfo info;
-			if (!m_sdlRenderer)
-				m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-			if (!m_sdlRenderer) {
-				av_log(NULL, AV_LOG_WARNING, "Failed to initialize a hardware accelerated renderer: %s\n", SDL_GetError());
-				m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, 0);
-			}
-			if (m_sdlRenderer) {
-				if (!SDL_GetRendererInfo(m_sdlRenderer, &info))
-					av_log(NULL, AV_LOG_VERBOSE, "Initialized %s renderer.\n", info.name);
-			}
-		}
-	}
-	else {
-		SDL_SetWindowSize(m_sdlWindow, w, h);
-	}
-
-	if (!m_sdlWindow || !m_sdlRenderer) {
-		av_log(NULL, AV_LOG_FATAL, "SDL: could not set video mode - exiting\n");
-		do_exit();
-	}
-
-	is->width = w;
-	is->height = h;
-
-	return 0;
-}
-
 void VideoCtl::do_exit()
 {
 	VideoState* is = nullptr;
@@ -2753,25 +2331,6 @@ void VideoCtl::do_exit()
 	if (!is) return;
 
 	stream_close(is);
-
-	if (m_sdlRenderer)
-	{
-		// 先在锁保护下置空，防止 video_display 使用已销毁的 renderer
-		SDL_Renderer* renderer_to_destroy = nullptr;
-		{
-			std::lock_guard<std::mutex> lock(g_show_rect_mutex);
-			renderer_to_destroy = m_sdlRenderer;
-			m_sdlRenderer = nullptr;
-		}
-		SDL_DestroyRenderer(renderer_to_destroy);
-	}
-
-	if (m_sdlWindow)
-	{
-		//SDL_DestroyWindow(window);
-		m_sdlWindow = nullptr;
-	}
-
 	SigStopFinished();
 }
 
@@ -2846,11 +2405,7 @@ void VideoCtl::OnCycleSubtitleTrack()
 VideoCtl::VideoCtl() :
 	m_CurStream(nullptr),
 	m_bPlayLoop(false),
-	screen_width(0),
-	screen_height(0),
 	startup_volume(30),
-	m_sdlRenderer(nullptr),
-	m_sdlWindow(nullptr),
 	m_sdlAudio_dev(0),
 	m_nFrameW(0),
 	m_nFrameH(0)
@@ -2873,15 +2428,13 @@ bool VideoCtl::Init()
 	// 引用计数：仅第一个实例初始化 SDL
 	if (g_sdl_init_count.fetch_add(1) == 0)
 	{
-		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER))
+		if (SDL_Init(SDL_INIT_AUDIO))
 		{
 			g_sdl_init_count.fetch_sub(1);
 			av_log(NULL, AV_LOG_FATAL, "Could not initialize SDL - %s\n", SDL_GetError());
 			av_log(NULL, AV_LOG_FATAL, "(Did you set the DISPLAY variable?)\n");
 			return false;
 		}
-		SDL_EventState(SDL_SYSWMEVENT, SDL_IGNORE);
-		SDL_EventState(SDL_USEREVENT, SDL_IGNORE);
 	}
 
 	return true;

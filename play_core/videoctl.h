@@ -141,7 +141,7 @@ private:
 	VideoState* stream_open(const char* filename);
 
 	void stream_cycle_channel(VideoState* is, int codec_type);
-	void refresh_loop_wait_event(VideoState* is, SDL_Event* event);
+	void refresh_loop_wait_event(VideoState* is);
 	void seek_chapter(VideoState* is, int incr);
 	void video_refresh(void* opaque, double* remaining_time);
 	int queue_picture(VideoState* is, AVFrame* src_frame, double pts, double duration, int64_t pos, int serial);
@@ -150,13 +150,7 @@ private:
 
 	void video_display();  // 移除参数，使用m_CurStream
 	void emit_video_frame(VideoState* is);
-	int video_open();  // 移除参数，使用m_CurStream
 	void do_exit();  // 移除参数，使用m_CurStream
-
-	int realloc_texture(SDL_Texture** texture, Uint32 new_format, int new_width, int new_height, SDL_BlendMode blendmode, int init_texture);
-	void calculate_display_rect(SDL_Rect* rect, int scr_xleft, int scr_ytop, int scr_width, int scr_height, int pic_width, int pic_height, AVRational pic_sar);
-	int upload_texture(SDL_Texture* tex, AVFrame* frame, struct SwsContext** img_convert_ctx);
-	void video_image_display();  // 移除参数，使用m_CurStream
 	void stream_component_close(VideoState* is, int stream_index);  // 保留参数，内部使用
 	void stream_close(VideoState* is);  // 保留参数，清理函数
 
@@ -185,18 +179,11 @@ private:
 
 	VideoState* m_CurStream;
 	std::shared_mutex m_streamMutex;  // 保护 m_CurStream 的读写
-
-	SDL_Window* m_sdlWindow;
-	SDL_Renderer* m_sdlRenderer;
-	SDL_RendererInfo m_sdlRendererInfo = { 0 };
 	SDL_AudioDeviceID m_sdlAudio_dev;
-	Uint32 m_sdlWindowID = 0;  // 本实例窗口ID，用于事件过滤
 	//
 	VideoLoopPolicy m_loopPolicy = LOOP_ALL; //循环策略
 
 	/* options specified by the user */
-	int screen_width;
-	int screen_height;
 	int startup_volume;
 
 	//播放刷新循环线程

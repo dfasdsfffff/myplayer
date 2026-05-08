@@ -140,6 +140,7 @@ private:
     SDL_Window* m_sdlWindow = nullptr;
     SDL_Renderer* m_sdlRenderer = nullptr;
     SDL_Texture* m_sdlTexture = nullptr;
+    bool m_sdlVideoInitialized = false;
     QSize m_sdlTextureSize;
 
     QTimer timerShowCursor;

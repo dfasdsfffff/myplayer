@@ -121,6 +121,16 @@ bool Show::EnsureSdlRenderer()
     if (m_sdlRenderer)
         return true;
 
+    if (!(SDL_WasInit(SDL_INIT_VIDEO) & SDL_INIT_VIDEO))
+    {
+        if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0)
+        {
+            qWarning() << "SDL_InitSubSystem(SDL_INIT_VIDEO) failed:" << SDL_GetError();
+            return false;
+        }
+        m_sdlVideoInitialized = true;
+    }
+
     m_sdlWindow = SDL_CreateWindowFrom(reinterpret_cast<void*>(ui->label->winId()));
     if (!m_sdlWindow)
     {
@@ -159,6 +169,11 @@ void Show::DestroySdlRenderer()
     {
         SDL_DestroyWindow(m_sdlWindow);
         m_sdlWindow = nullptr;
+    }
+    if (m_sdlVideoInitialized)
+    {
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        m_sdlVideoInitialized = false;
     }
     m_sdlTextureSize = QSize();
 }
