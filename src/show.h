@@ -20,6 +20,7 @@
 #include <QMenu>
 #include <QActionGroup>
 #include <QAction>
+#include <QImage>
 
 namespace Ui {
 class Show;
@@ -91,6 +92,7 @@ public:
      * @note
      */
     void OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight);
+    void OnVideoFrame(const QImage& image);
 private:
 	/**
 	 * @brief	显示信息

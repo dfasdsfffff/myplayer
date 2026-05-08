@@ -9,6 +9,7 @@
 #pragma once
 
 #include <QObject>
+#include <QImage>
 #include <QPointer>
 #include <QString>
 #include <vector>
@@ -36,6 +37,7 @@ signals:
 	// Qt signals，镜像 VideoCtl 的信号，使用 Qt 类型
 	void SigPlayMsg(const QString& strMsg);
 	void SigFrameDimensionsChanged(int nFrameWidth, int nFrameHeight);
+	void SigVideoFrame(const QImage& image);
 	void SigVideoTotalSeconds(int nSeconds);
 	void SigVideoPlaySeconds(int nSeconds);
 	void SigVideoVolume(double dPercent);

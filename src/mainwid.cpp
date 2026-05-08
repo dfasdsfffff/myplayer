@@ -233,6 +233,7 @@ bool MainWid::ConnectSignalSlots()
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, ui->CtrlBarWid, &CtrlBar::OnStopFinished);
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, ui->ShowWid, &Show::OnStopFinished);
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigFrameDimensionsChanged, ui->ShowWid, &Show::OnFrameDimensionsChanged);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoFrame, ui->ShowWid, &Show::OnVideoFrame);
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, &m_stTitle, &Title::OnStopFinished);
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStartPlay, &m_stTitle, &Title::OnPlay);
 	// 播放完成，自动播放下一首

@@ -2631,6 +2631,9 @@ void VideoCtl::video_display()
 	if (!m_CurStream) return;
 	VideoState* is = m_CurStream;
 
+	emit_video_frame(is);
+	return;
+
 	if (!m_sdlWindow)
 		video_open();
 	if (m_sdlRenderer)
@@ -2649,6 +2652,47 @@ void VideoCtl::video_display()
 		}
 	}
 
+}
+
+void VideoCtl::emit_video_frame(VideoState* is)
+{
+	if (!is)
+		return;
+
+	Frame* vp = is->pictq.peek_last();
+	if (!vp || !vp->frame || vp->frame->width <= 0 || vp->frame->height <= 0)
+		return;
+
+	auto frame = std::make_shared<VideoFrame>();
+	frame->width = vp->frame->width;
+	frame->height = vp->frame->height;
+	frame->bytesPerLine = frame->width * 4;
+	frame->bgra.resize(static_cast<size_t>(frame->bytesPerLine) * frame->height);
+
+	is->img_convert_ctx = sws_getCachedContext(is->img_convert_ctx,
+		vp->frame->width, vp->frame->height, static_cast<AVPixelFormat>(vp->frame->format),
+		vp->frame->width, vp->frame->height, AV_PIX_FMT_BGRA,
+		SWS_BICUBIC, NULL, NULL, NULL);
+	if (!is->img_convert_ctx)
+	{
+		av_log(NULL, AV_LOG_FATAL, "Cannot initialize the conversion context\n");
+		return;
+	}
+
+	uint8_t* dstData[4] = { frame->bgra.data(), nullptr, nullptr, nullptr };
+	int dstLinesize[4] = { frame->bytesPerLine, 0, 0, 0 };
+	sws_scale(is->img_convert_ctx,
+		reinterpret_cast<const uint8_t* const*>(vp->frame->data), vp->frame->linesize,
+		0, vp->frame->height, dstData, dstLinesize);
+
+	if (m_nFrameW != frame->width || m_nFrameH != frame->height)
+	{
+		m_nFrameW = frame->width;
+		m_nFrameH = frame->height;
+		SigFrameDimensionsChanged(m_nFrameW, m_nFrameH);
+	}
+
+	SigVideoFrame(frame);
 }
 
 int VideoCtl::video_open()

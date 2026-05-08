@@ -50,6 +50,17 @@ void VideoCtlBridge::attach(VideoCtl* ctl)
 		}, Qt::QueuedConnection);
 	}));
 
+	m_connections.emplace_back(ctl->SigVideoFrame.connect([self](std::shared_ptr<VideoCtl::VideoFrame> frame) {
+		if (!self || !frame || frame->bgra.empty())
+			return;
+		QImage image(frame->bgra.data(), frame->width, frame->height, frame->bytesPerLine, QImage::Format_BGRA8888);
+		QImage imageCopy = image.copy();
+		QMetaObject::invokeMethod(self.data(), [self, imageCopy]() {
+			if (auto bridge = self.data())
+				emit bridge->SigVideoFrame(imageCopy);
+		}, Qt::QueuedConnection);
+	}));
+
 	m_connections.emplace_back(ctl->SigVideoTotalSeconds.connect([self](int s) {
 		if (!self)
 			return;

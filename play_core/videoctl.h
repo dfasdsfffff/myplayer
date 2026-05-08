@@ -16,6 +16,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "datactl.h"
 #include "enums.h"
@@ -32,6 +33,14 @@ private:
 	/// @brief 构造函数
 	VideoCtl();
 public:
+	struct VideoFrame
+	{
+		int width = 0;
+		int height = 0;
+		int bytesPerLine = 0;
+		std::vector<uint8_t> bgra;
+	};
+
 	/// @brief 获取一个d静态实例的指针
 	static VideoCtl* GetInstance();
 
@@ -61,6 +70,7 @@ public:
 	// Signal 成员，替代 Qt signals
 	Signal<const std::string&>  SigPlayMsg;
 	Signal<int, int>     SigFrameDimensionsChanged;
+	Signal<std::shared_ptr<VideoFrame>> SigVideoFrame;
 	Signal<int>          SigVideoTotalSeconds;
 	Signal<int>          SigVideoPlaySeconds;
 	Signal<double>       SigVideoVolume;
@@ -139,6 +149,7 @@ private:
 	void UpdateVolume(int sign, double step);
 
 	void video_display();  // 移除参数，使用m_CurStream
+	void emit_video_frame(VideoState* is);
 	int video_open();  // 移除参数，使用m_CurStream
 	void do_exit();  // 移除参数，使用m_CurStream
 

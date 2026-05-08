@@ -10,6 +10,7 @@
  */
 
 #include <QDebug>
+#include <QPixmap>
 #include <mutex>
 
 #include "show.h"
@@ -35,7 +36,7 @@ Show::Show(QWidget *parent) : QWidget(parent),
     this->setAttribute(Qt::WA_OpaquePaintEvent);
     // ui->label->setAttribute(Qt::WA_OpaquePaintEvent);
 
-    ui->label->setUpdatesEnabled(false);
+    ui->label->setUpdatesEnabled(true);
 
     this->setMouseTracking(true);
 
@@ -72,6 +73,15 @@ void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
     m_nLastFrameHeight = nFrameHeight;
 
     ChangeShow();
+}
+
+void Show::OnVideoFrame(const QImage& image)
+{
+    if (image.isNull())
+        return;
+
+    ui->label->setPixmap(QPixmap::fromImage(image).scaled(
+        ui->label->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
 void Show::ChangeShow()
@@ -186,8 +196,7 @@ void Show::OnPlay(QString strFile)
         return;
     }
     
-    VideoCtl::GetInstance()->StartPlay(s, 
-        reinterpret_cast<void *>(ui->label->winId()));
+    VideoCtl::GetInstance()->StartPlay(s, nullptr);
 }
 
 void Show::OnStopFinished()
