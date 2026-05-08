@@ -200,7 +200,6 @@ void GlobalHelper::SavePlaybackPosition(const QString& filePath, int seconds)
     const QByteArray key = QCryptographicHash::hash(canonicalPath.toUtf8(), QCryptographicHash::Sha1).toHex();
     QSettings settings(GetConfigFilePath(), QSettings::IniFormat);
     settings.setValue(QString("playback_position/%1").arg(QString::fromLatin1(key)), seconds);
-    settings.sync();
 }
 
 int GlobalHelper::GetPlaybackPosition(const QString& filePath)

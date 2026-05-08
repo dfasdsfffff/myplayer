@@ -514,6 +514,9 @@ void MainWid::OnCycleSubtitleTrack()
 
 void MainWid::OnVideoPlaySeconds(int seconds)
 {
+	if (seconds == m_currentPlaySeconds)
+		return;
+
 	m_currentPlaySeconds = seconds;
 	if (!m_currentPlayFile.isEmpty() && seconds > 0 && seconds % 5 == 0)
 		GlobalHelper::SavePlaybackPosition(m_currentPlayFile, seconds);
