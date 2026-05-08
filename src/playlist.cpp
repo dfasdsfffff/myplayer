@@ -1,16 +1,12 @@
 ﻿#include <QDebug>
 #include <QDir>
-#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QRandomGenerator>
-#include <QRegularExpression>
-#include <QSaveFile>
-#include <QTextStream>
-#include <QUrl>
 
 #include "playlist.h"
+#include "playlistfile.h"
 #include "ui_playlist.h"
 
 #include "globalhelper.h"
@@ -153,13 +149,7 @@ void Playlist::OnAddFileAndPlay(QString strFileName)
 
 bool Playlist::IsSupportedMovie(const QString& strFileName) const
 {
-    return strFileName.endsWith(".mkv", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".rmvb", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".mp4", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".avi", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".flv", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".wmv", Qt::CaseInsensitive) ||
-        strFileName.endsWith(".3gp", Qt::CaseInsensitive);
+    return PlaylistFile::IsSupportedMovie(strFileName);
 }
 
 QListWidgetItem* Playlist::FindItemByPath(const QString& filePath) const
@@ -249,138 +239,6 @@ void Playlist::OnRandomPlay()
     ui->List->setCurrentRow(m_nCurrentPlayListIndex);
 }
 
-QStringList Playlist::ReadM3uPlaylist(const QString& playlistFileName) const
-{
-    QStringList files;
-    QFile file(playlistFileName);
-    if (!file.open(QIODevice::ReadOnly))
-        return files;
-
-    const QByteArray data = file.readAll();
-    QString content = QString::fromUtf8(data);
-    if (content.contains(QChar::ReplacementCharacter))
-        content = QString::fromLocal8Bit(data);
-
-    const QDir playlistDir = QFileInfo(playlistFileName).dir();
-    auto cleanCandidate = [](QString candidate) {
-        candidate = candidate.trimmed();
-        if ((candidate.startsWith('"') && candidate.endsWith('"')) ||
-            (candidate.startsWith('\'') && candidate.endsWith('\'')))
-            candidate = candidate.mid(1, candidate.length() - 2);
-        return candidate.trimmed();
-    };
-    auto addResolvedFile = [this, &files](const QFileInfo& fileInfo) {
-        if (fileInfo.exists() && fileInfo.isFile() && IsSupportedMovie(fileInfo.filePath()))
-        {
-            const QString canonicalPath = fileInfo.canonicalFilePath();
-            if (!files.contains(canonicalPath))
-                files.append(canonicalPath);
-            return true;
-        }
-
-        return false;
-    };
-    auto addCandidate = [this, &files, &playlistDir, cleanCandidate, addResolvedFile](const QString& rawCandidate) {
-        const QString candidate = cleanCandidate(rawCandidate);
-        if (candidate.isEmpty())
-            return false;
-
-        QStringList variants;
-        variants.append(candidate);
-
-        const QString percentDecoded = QUrl::fromPercentEncoding(candidate.toUtf8());
-        if (!percentDecoded.isEmpty() && percentDecoded != candidate)
-            variants.append(percentDecoded);
-
-        const QUrl url(candidate);
-        if (url.isLocalFile())
-            variants.append(url.toLocalFile());
-
-        for (const QString& variant : variants)
-        {
-            QFileInfo fileInfo(variant);
-            if (fileInfo.isRelative())
-                fileInfo.setFile(playlistDir, variant);
-
-            if (addResolvedFile(fileInfo))
-                return true;
-        }
-
-        QStringList fallbackNames;
-        for (const QString& variant : variants)
-        {
-            const QString fileName = QFileInfo(variant).fileName();
-            if (fileName.isEmpty())
-                continue;
-
-            fallbackNames.append(fileName);
-
-            QRegularExpression repeatedNumberPattern("(\\d{2,4}[.-]\\s*)");
-            QRegularExpressionMatchIterator it = repeatedNumberPattern.globalMatch(fileName);
-            QList<int> numberStarts;
-            while (it.hasNext())
-                numberStarts.append(it.next().capturedStart());
-            if (numberStarts.size() >= 2)
-                fallbackNames.append(fileName.mid(numberStarts.at(1)));
-
-            fallbackNames.append(fileName.mid(fileName.indexOf(QRegularExpression("\\s+")) + 1));
-        }
-
-        const QFileInfoList mediaFiles = playlistDir.entryInfoList(QDir::Files);
-        for (const QString& fallbackName : fallbackNames)
-        {
-            const QString cleanName = cleanCandidate(fallbackName);
-            if (cleanName.isEmpty() || !IsSupportedMovie(cleanName))
-                continue;
-
-            for (const QFileInfo& mediaFile : mediaFiles)
-            {
-                if (!IsSupportedMovie(mediaFile.fileName()))
-                    continue;
-                if (mediaFile.fileName().compare(cleanName, Qt::CaseInsensitive) == 0 ||
-                    cleanName.endsWith(mediaFile.fileName(), Qt::CaseInsensitive) ||
-                    mediaFile.fileName().endsWith(cleanName, Qt::CaseInsensitive))
-                {
-                    if (addResolvedFile(mediaFile))
-                        return true;
-                }
-            }
-        }
-
-        return false;
-    };
-
-    QString pendingExtInfTitle;
-    const QStringList lines = content.split(QRegularExpression("[\r\n]+"), Qt::SkipEmptyParts);
-    for (QString line : lines)
-    {
-        line = line.trimmed();
-        if (line.isEmpty())
-            continue;
-
-        if (line.startsWith("#EXTINF:", Qt::CaseInsensitive))
-        {
-            if (!pendingExtInfTitle.isEmpty())
-                addCandidate(pendingExtInfTitle);
-
-            const int commaIndex = line.indexOf(',');
-            pendingExtInfTitle = commaIndex >= 0 ? line.mid(commaIndex + 1).trimmed() : QString();
-            continue;
-        }
-
-        if (line.startsWith('#'))
-            continue;
-
-        pendingExtInfTitle.clear();
-        addCandidate(line);
-    }
-
-    if (!pendingExtInfTitle.isEmpty())
-        addCandidate(pendingExtInfTitle);
-
-    return files;
-}
-
 void Playlist::OnOpenPlaylist()
 {
     const QString playlistFileName = QFileDialog::getOpenFileName(this, "Open playlist", QDir::homePath(),
@@ -388,7 +246,7 @@ void Playlist::OnOpenPlaylist()
     if (playlistFileName.isEmpty())
         return;
 
-    const QStringList files = ReadM3uPlaylist(playlistFileName);
+    const QStringList files = PlaylistFile::ReadM3u(playlistFileName);
     for (const QString& fileName : files)
         AddFileItem(fileName);
 
@@ -415,25 +273,9 @@ void Playlist::OnExportPlaylist()
         !playlistFileName.endsWith(".m3u8", Qt::CaseInsensitive))
         playlistFileName.append(".m3u8");
 
-    QSaveFile file(playlistFileName);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-    {
-        QMessageBox::warning(this, "Export playlist", "Failed to open playlist file for writing.");
-        return;
-    }
-
-    QTextStream out(&file);
-    out.setEncoding(QStringConverter::Utf8);
-    out << "#EXTM3U\n";
-    for (const QString& fileName : playList)
-    {
-        const QString canonicalPath = QFileInfo(fileName).canonicalFilePath();
-        if (!canonicalPath.isEmpty())
-            out << QDir::toNativeSeparators(canonicalPath) << '\n';
-    }
-
-    if (!file.commit())
-        QMessageBox::warning(this, "Export playlist", "Failed to save playlist file.");
+    QString errorMessage;
+    if (!PlaylistFile::WriteM3u8(playlistFileName, playList, &errorMessage))
+        QMessageBox::warning(this, "Export playlist", QString("Failed to save playlist file.\n%1").arg(errorMessage));
 }
 
 void Playlist::dropEvent(QDropEvent *event)

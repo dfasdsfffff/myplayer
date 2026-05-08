@@ -59,6 +59,7 @@ set(HEADER_FILES
     src/mainwid.h
     src/medialist.h
     src/playlist.h
+    src/playlistfile.h
     src/resource.h
     src/settingwid.h
     src/show.h
@@ -75,6 +76,7 @@ set(SOURCE_FILES
     src/mainwid.cpp
     src/medialist.cpp
     src/playlist.cpp
+    src/playlistfile.cpp
     src/settingwid.cpp
     src/show.cpp
     src/title.cpp
@@ -152,3 +154,29 @@ endif()
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
 )
+
+enable_testing()
+
+add_executable(playlistfile_tests
+    tests/playlistfile_tests.cpp
+    src/playlistfile.cpp
+)
+
+target_include_directories(playlistfile_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+)
+
+target_link_libraries(playlistfile_tests PRIVATE
+    Qt6::Core
+)
+
+if(WIN32)
+    add_custom_command(TARGET playlistfile_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:playlistfile_tests>
+            $<TARGET_FILE_DIR:playlistfile_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
+add_test(NAME playlistfile_tests COMMAND playlistfile_tests)
