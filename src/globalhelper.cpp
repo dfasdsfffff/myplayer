@@ -4,6 +4,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QApplication>
+#include <QFileInfo>
+#include <QCryptographicHash>
 
 #include "globalhelper.h"
 #include "av_constants.h"
@@ -187,6 +189,29 @@ void GlobalHelper::GetRecentFiles(QStringList& recentFiles)
         recentFiles.append(settings.value("file").toString());
     }
     settings.endArray();
+}
+
+void GlobalHelper::SavePlaybackPosition(const QString& filePath, int seconds)
+{
+    const QString canonicalPath = QFileInfo(filePath).canonicalFilePath();
+    if (canonicalPath.isEmpty())
+        return;
+
+    const QByteArray key = QCryptographicHash::hash(canonicalPath.toUtf8(), QCryptographicHash::Sha1).toHex();
+    QSettings settings(GetConfigFilePath(), QSettings::IniFormat);
+    settings.setValue(QString("playback_position/%1").arg(QString::fromLatin1(key)), seconds);
+    settings.sync();
+}
+
+int GlobalHelper::GetPlaybackPosition(const QString& filePath)
+{
+    const QString canonicalPath = QFileInfo(filePath).canonicalFilePath();
+    if (canonicalPath.isEmpty())
+        return 0;
+
+    const QByteArray key = QCryptographicHash::hash(canonicalPath.toUtf8(), QCryptographicHash::Sha1).toHex();
+    QSettings settings(GetConfigFilePath(), QSettings::IniFormat);
+    return settings.value(QString("playback_position/%1").arg(QString::fromLatin1(key)), 0).toInt();
 }
 
 QString GlobalHelper::GetAppVersion()

@@ -65,6 +65,8 @@ public:
 	// 新增：最近打开的文件
 	static void SaveRecentFiles(const QStringList& recentFiles);
 	static void GetRecentFiles(QStringList& recentFiles);
+	static void SavePlaybackPosition(const QString& filePath, int seconds);
+	static int GetPlaybackPosition(const QString& filePath);
 
 	static QString GetAppVersion();
 

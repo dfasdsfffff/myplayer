@@ -85,6 +85,9 @@ private:
     void OnPlayFile(QString strFileName);
     void OnOpenRecentFile();
     void OnClearRecentFiles();
+    void OnCycleAudioTrack();
+    void OnCycleSubtitleTrack();
+    void OnVideoPlaySeconds(int seconds);
 
     void OnShowSettingWid();
 
@@ -135,6 +138,8 @@ private:
     QMenu m_stMenu;
     QMenu* m_pRecentFilesMenu = nullptr;
     QAction m_stActFullscreen;
+    QString m_currentPlayFile;
+    int m_currentPlaySeconds = 0;
 
     VideoCtlBridge* m_pVideoCtlBridge = nullptr;
 };

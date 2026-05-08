@@ -204,6 +204,7 @@ bool MainWid::ConnectSignalSlots()
 	// VideoCtl→UI 方向：通过 bridge 转发（bridge 已保证主线程投递，无需 Qt::QueuedConnection）
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoTotalSeconds, ui->CtrlBarWid, &CtrlBar::OnVideoTotalSeconds);
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoPlaySeconds, ui->CtrlBarWid, &CtrlBar::OnVideoPlaySeconds);
+	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoPlaySeconds, this, &MainWid::OnVideoPlaySeconds);
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoVolume, ui->CtrlBarWid, &CtrlBar::OnVideopVolume);
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigPauseStat, ui->CtrlBarWid, &CtrlBar::OnPauseStat);
 	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, ui->CtrlBarWid, &CtrlBar::OnStopFinished);
@@ -295,7 +296,9 @@ void MainWid::mouseMoveEvent(QMouseEvent* event)
 
 void MainWid::contextMenuEvent(QContextMenuEvent* event)
 {
-	m_stMenu.exec(event->globalPos());
+	RefreshRecentFilesMenu();
+	m_stMenu.popup(event->globalPos());
+	event->accept();
 }
 
 void MainWid::OnFullScreenPlay()
@@ -440,7 +443,7 @@ void MainWid::OnCtrlBarHideTimeOut()
 void MainWid::OnShowMenu()
 {
 	RefreshRecentFilesMenu();
-	m_stMenu.exec(cursor().pos());
+	m_stMenu.popup(cursor().pos());
 }
 
 void MainWid::OnShowAbout()
@@ -460,8 +463,23 @@ void MainWid::OpenFile()
 
 void MainWid::OnPlayFile(QString strFileName)
 {
+	if (!m_currentPlayFile.isEmpty() && m_currentPlaySeconds > 0)
+		GlobalHelper::SavePlaybackPosition(m_currentPlayFile, m_currentPlaySeconds);
+
 	AddRecentFile(strFileName);
+	m_currentPlayFile = QFileInfo(strFileName).canonicalFilePath();
+	m_currentPlaySeconds = 0;
 	ui->ShowWid->OnPlay(strFileName);
+
+	const int resumeSeconds = GlobalHelper::GetPlaybackPosition(m_currentPlayFile);
+	if (resumeSeconds > 5)
+	{
+		const QString resumeFile = m_currentPlayFile;
+		QTimer::singleShot(500, this, [this, resumeFile, resumeSeconds]() {
+			if (m_currentPlayFile == resumeFile)
+				VideoCtl::GetInstance()->OnPlaySeekSeconds(resumeSeconds);
+		});
+	}
 }
 
 void MainWid::OnOpenRecentFile()
@@ -482,6 +500,23 @@ void MainWid::OnClearRecentFiles()
 	QStringList emptyList;
 	GlobalHelper::SaveRecentFiles(emptyList);
 	RefreshRecentFilesMenu();
+}
+
+void MainWid::OnCycleAudioTrack()
+{
+	VideoCtl::GetInstance()->OnCycleAudioTrack();
+}
+
+void MainWid::OnCycleSubtitleTrack()
+{
+	VideoCtl::GetInstance()->OnCycleSubtitleTrack();
+}
+
+void MainWid::OnVideoPlaySeconds(int seconds)
+{
+	m_currentPlaySeconds = seconds;
+	if (!m_currentPlayFile.isEmpty() && seconds > 0 && seconds % 5 == 0)
+		GlobalHelper::SavePlaybackPosition(m_currentPlayFile, seconds);
 }
 
 void MainWid::OnShowSettingWid()
@@ -510,6 +545,12 @@ void MainWid::InitMenu()
 
 	m_pRecentFilesMenu = m_stMenu.addMenu("最近打开");
 	RefreshRecentFilesMenu();
+
+	QMenu* audioMenu = m_stMenu.addMenu("音轨");
+	audioMenu->addAction("切换音轨", this, &MainWid::OnCycleAudioTrack);
+
+	QMenu* subtitleMenu = m_stMenu.addMenu("字幕");
+	subtitleMenu->addAction("切换/关闭字幕", this, &MainWid::OnCycleSubtitleTrack);
 }
 
 void MainWid::MenuJsonParser(QJsonObject& json_obj, QMenu* menu)
@@ -646,6 +687,9 @@ void MainWid::RefreshRecentFilesMenu()
 
 void MainWid::OnCloseBtnClicked()
 {
+	if (!m_currentPlayFile.isEmpty() && m_currentPlaySeconds > 0)
+		GlobalHelper::SavePlaybackPosition(m_currentPlayFile, m_currentPlaySeconds);
+
 	// 保存窗口状态
 	GlobalHelper::SaveWindowState(saveGeometry(), saveState());
 

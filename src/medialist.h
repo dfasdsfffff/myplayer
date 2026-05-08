@@ -1,8 +1,8 @@
 #pragma once
 
+#include <QAction>
 #include <QListWidget>
 #include <QMenu>
-#include <QAction>
 
 class MediaList : public QListWidget
 {
@@ -12,19 +12,26 @@ public:
     MediaList(QWidget *parent = 0);
     ~MediaList();
     bool Init();
+
 protected:
     void contextMenuEvent(QContextMenuEvent* event);
-private:
-    void AddFile(); //添加文件
-    void RemoveFile();
-signals:
-    void SigAddFile(QString strFileName);   //添加文件信号
 
+private:
+    void AddFile();
+    void AddFolder();
+    void RemoveFile();
+    void RemoveMissingFiles();
+    void ClearListWithConfirm();
+
+signals:
+    void SigAddFile(QString strFileName);
 
 private:
     QMenu m_stMenu;
 
-    QAction m_stActAdd;     //添加文件
-    QAction m_stActRemove;  //移除文件
-    QAction m_stActClearList;//清空列表
+    QAction m_stActAdd;
+    QAction m_stActAddFolder;
+    QAction m_stActRemove;
+    QAction m_stActRemoveMissing;
+    QAction m_stActClearList;
 };
