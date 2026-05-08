@@ -84,6 +84,9 @@ MainWid::MainWid(QMainWindow* parent) :
 	m_bFullScreenPlay = false;
 
 	m_stCtrlBarAnimationTimer.setInterval(FULLSCREEN_CTRLBAR_HIDE_DELAY);
+	m_playbackPositionSaveTimer.setInterval(30000);
+	m_playbackPositionSaveTimer.setSingleShot(false);
+	connect(&m_playbackPositionSaveTimer, &QTimer::timeout, this, &MainWid::FlushPlaybackPosition);
 
 
 }
@@ -649,8 +652,7 @@ void MainWid::OpenFile()
 
 void MainWid::OnPlayFile(QString strFileName)
 {
-	if (!m_currentPlayFile.isEmpty() && m_currentPlaySeconds > 0)
-		GlobalHelper::SavePlaybackPosition(m_currentPlayFile, m_currentPlaySeconds);
+	FlushPlaybackPosition();
 
 	AddRecentFile(strFileName);
 	m_currentPlayFile = QFileInfo(strFileName).canonicalFilePath();
@@ -707,7 +709,29 @@ void MainWid::OnVideoPlaySeconds(int seconds)
 
 	m_currentPlaySeconds = seconds;
 	if (!m_currentPlayFile.isEmpty() && seconds > 0 && seconds % 5 == 0)
-		GlobalHelper::SavePlaybackPosition(m_currentPlayFile, seconds);
+		MarkPlaybackPositionDirty();
+}
+
+void MainWid::MarkPlaybackPositionDirty()
+{
+	if (m_currentPlayFile.isEmpty() || m_currentPlaySeconds <= 0)
+		return;
+
+	m_pendingPlaybackFile = m_currentPlayFile;
+	m_pendingPlaybackSeconds = m_currentPlaySeconds;
+	m_playbackPositionDirty = true;
+
+	if (!m_playbackPositionSaveTimer.isActive())
+		m_playbackPositionSaveTimer.start();
+}
+
+void MainWid::FlushPlaybackPosition()
+{
+	if (!m_playbackPositionDirty || m_pendingPlaybackFile.isEmpty() || m_pendingPlaybackSeconds <= 0)
+		return;
+
+	GlobalHelper::SavePlaybackPosition(m_pendingPlaybackFile, m_pendingPlaybackSeconds);
+	m_playbackPositionDirty = false;
 }
 
 void MainWid::OnShowSettingWid()
@@ -879,7 +903,12 @@ void MainWid::RefreshRecentFilesMenu()
 void MainWid::OnCloseBtnClicked()
 {
 	if (!m_currentPlayFile.isEmpty() && m_currentPlaySeconds > 0)
-		GlobalHelper::SavePlaybackPosition(m_currentPlayFile, m_currentPlaySeconds);
+	{
+		m_pendingPlaybackFile = m_currentPlayFile;
+		m_pendingPlaybackSeconds = m_currentPlaySeconds;
+		m_playbackPositionDirty = true;
+	}
+	FlushPlaybackPosition();
 
 	// 保存窗口状态
 	GlobalHelper::SaveWindowState(saveGeometry(), saveState());

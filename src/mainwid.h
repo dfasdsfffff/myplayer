@@ -102,6 +102,8 @@ private:
     void ConnectMenuAction(QAction* action, const QString& actionText, const QString& functionName, const QString& hotKey);
     void AddRecentFile(const QString& strFileName);
     void RefreshRecentFilesMenu();
+    void MarkPlaybackPositionDirty();
+    void FlushPlaybackPosition();
 
 signals:
     //最大化信号
@@ -142,6 +144,10 @@ private:
     QAction m_stActFullscreen;
     QString m_currentPlayFile;
     int m_currentPlaySeconds = 0;
+    QString m_pendingPlaybackFile;
+    int m_pendingPlaybackSeconds = 0;
+    bool m_playbackPositionDirty = false;
+    QTimer m_playbackPositionSaveTimer;
     bool m_bResizeDrag = false;
     bool m_bResizeCursorOverridden = false;
     int m_resizeEdges = 0;
