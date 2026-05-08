@@ -2142,7 +2142,7 @@ void VideoCtl::ReadThread(VideoState* is)
 			(!is->video_st || (is->vid_decoder.finished == is->videoq.serial && is->pictq.nb_remaining() == 0))) {
 			if (m_loopPolicy == VideoLoopPolicy::LOOP_ALL) {
 				//播放结束
-				m_bPlayLoop = false;
+				m_bPlayLoop.store(false, std::memory_order_release);
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				SigPlayNextOne();
 				continue;
@@ -2152,7 +2152,7 @@ void VideoCtl::ReadThread(VideoState* is)
 				stream_seek(0, 0);
 			}
 			else if (m_loopPolicy == VideoLoopPolicy::LOOP_RANDOM) {
-				m_bPlayLoop = false;
+				m_bPlayLoop.store(false, std::memory_order_release);
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				SigRandomPlayOne();
 				continue;
@@ -2386,7 +2386,7 @@ the_end:
 void VideoCtl::refresh_loop_wait_event(VideoState* is, SDL_Event* event) {
 	double remaining_time = 0.0;
 	SDL_PumpEvents();
-	while (!SDL_PeepEvents(event, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) && m_bPlayLoop)
+	while (!SDL_PeepEvents(event, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) && m_bPlayLoop.load(std::memory_order_acquire))
 	{
 		if (remaining_time > 0.0)
 			av_usleep((int64_t)(remaining_time * 1000000.0));
@@ -2430,9 +2430,9 @@ void VideoCtl::LoopThread()
 	SDL_Event event;
 	double incr = 0., pos, frac;
 
-	m_bPlayLoop = true;
+	m_bPlayLoop.store(true, std::memory_order_release);
 
-	while (m_bPlayLoop)
+	while (m_bPlayLoop.load(std::memory_order_acquire))
 	{
 		double x;
 		VideoState* is;
@@ -2772,12 +2772,13 @@ void VideoCtl::OnPause()
 void VideoCtl::OnStop()
 {
 	// 先暂停播放循环，再退出
-	m_bPlayLoop = false;
+	m_bPlayLoop.store(false, std::memory_order_release);
 }
 
 void VideoCtl::OnStopAndWait(){
+	std::lock_guard<std::mutex> lock(m_playbackMutex);
 	// 先暂停播放循环，再退出
-	m_bPlayLoop = false;
+	m_bPlayLoop.store(false, std::memory_order_release);
 	if (m_tPlayLoopThread.joinable())
 		m_tPlayLoopThread.join();
 }
@@ -2875,8 +2876,9 @@ std::shared_ptr<VideoCtl> VideoCtl::MakeInstance() {
 }
 
 VideoCtl::~VideoCtl() {
+  std::lock_guard<std::mutex> lock(m_playbackMutex);
   // 确保播放循环线程在析构前完全退出
-  m_bPlayLoop = false;
+  m_bPlayLoop.store(false, std::memory_order_release);
   if (m_tPlayLoopThread.joinable())
     m_tPlayLoopThread.join();
 
@@ -2893,13 +2895,15 @@ VideoCtl::~VideoCtl() {
 
 bool VideoCtl::StartPlay(const std::string& strFileName, void* widPlayWid)
 {
+	std::lock_guard<std::mutex> lock(m_playbackMutex);
+
     // 检查输入参数
     if (strFileName.empty()) {
         av_log(NULL, AV_LOG_ERROR, "File name is empty, cannot start playback!\n");
         return false;
     }
 
-    m_bPlayLoop = false;
+    m_bPlayLoop.store(false, std::memory_order_release);
     if (m_tPlayLoopThread.joinable())
     {
         m_tPlayLoopThread.join();

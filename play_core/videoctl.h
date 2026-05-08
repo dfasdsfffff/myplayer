@@ -15,6 +15,7 @@
 #include <shared_mutex>
 #include <atomic>
 #include <memory>
+#include <mutex>
 
 #include "datactl.h"
 #include "enums.h"
@@ -166,7 +167,8 @@ public:
 
 private:
 
-	bool m_bPlayLoop; //刷新循环标志
+	std::atomic_bool m_bPlayLoop{ false }; //刷新循环标志
+	std::mutex m_playbackMutex;
 
 	bool m_bAutorotate = true;
 

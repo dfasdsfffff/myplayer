@@ -186,12 +186,12 @@ bool MainWid::ConnectSignalSlots()
 	connect(&m_stTitle, &Title::SigMinBtnClicked, this, &MainWid::OnMinBtnClicked);
 	connect(&m_stTitle, &Title::SigDoubleClicked, this, &MainWid::OnMaxBtnClicked);
 	connect(&m_stTitle, &Title::SigFullScreenBtnClicked, this, &MainWid::OnFullScreenPlay);
-	connect(&m_stTitle, &Title::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
+	connect(&m_stTitle, &Title::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 	connect(&m_stTitle, &Title::SigShowMenu, this, &MainWid::OnShowMenu);
 
-	connect(&m_stPlaylist, &Playlist::SigPlay, this, &MainWid::OnPlayFile);
+	connect(&m_stPlaylist, &Playlist::SigPlay, this, &MainWid::OnPlayFile, Qt::QueuedConnection);
 
-	connect(ui->ShowWid, &Show::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
+	connect(ui->ShowWid, &Show::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 	connect(ui->ShowWid, &Show::SigFullScreen, this, &MainWid::OnFullScreenPlay);
 	connect(ui->ShowWid, &Show::SigPlayOrPause, this, []() { VideoCtl::GetInstance()->OnPause(); });
 	connect(ui->ShowWid, &Show::SigStop, this, []() { VideoCtl::GetInstance()->OnStop(); });
@@ -218,7 +218,7 @@ bool MainWid::ConnectSignalSlots()
 	connect(this, &MainWid::SigSeekBack, this, []() { VideoCtl::GetInstance()->OnSeekBack(); });
 	connect(this, &MainWid::SigAddVolume, this, []() { VideoCtl::GetInstance()->OnAddVolume(); });
 	connect(this, &MainWid::SigSubVolume, this, []() { VideoCtl::GetInstance()->OnSubVolume(); });
-	connect(this, &MainWid::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay);
+	connect(this, &MainWid::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 
 
 	// VideoCtl→UI 方向：通过 bridge 转发（bridge 已保证主线程投递，无需 Qt::QueuedConnection）
@@ -678,7 +678,9 @@ void MainWid::OnOpenRecentFile()
 	if (strFileName.isEmpty())
 		return;
 
-	m_stPlaylist.OnAddFileAndPlay(strFileName);
+	QTimer::singleShot(0, this, [this, strFileName]() {
+		emit SigOpenFile(strFileName);
+	});
 }
 
 void MainWid::OnClearRecentFiles()
