@@ -26,6 +26,8 @@ MediaList::MediaList(QWidget *parent)
       m_stMenu(this),
       m_stActAdd(this),
       m_stActAddFolder(this),
+      m_stActOpenPlaylist(this),
+      m_stActExportPlaylist(this),
       m_stActRemove(this),
       m_stActRemoveMissing(this),
       m_stActClearList(this)
@@ -48,6 +50,12 @@ bool MediaList::Init()
     m_stActAddFolder.setText("添加文件夹");
     m_stMenu.addAction(&m_stActAddFolder);
 
+    m_stActOpenPlaylist.setText("Open playlist...");
+    m_stMenu.addAction(&m_stActOpenPlaylist);
+
+    m_stActExportPlaylist.setText("Export playlist...");
+    m_stMenu.addAction(&m_stActExportPlaylist);
+
     QMenu* stRemoveMenu = m_stMenu.addMenu("移除");
     m_stActRemove.setText("移除选择项");
     stRemoveMenu->addAction(&m_stActRemove);
@@ -59,6 +67,8 @@ bool MediaList::Init()
 
     connect(&m_stActAdd, &QAction::triggered, this, &MediaList::AddFile);
     connect(&m_stActAddFolder, &QAction::triggered, this, &MediaList::AddFolder);
+    connect(&m_stActOpenPlaylist, &QAction::triggered, this, &MediaList::OpenPlaylist);
+    connect(&m_stActExportPlaylist, &QAction::triggered, this, &MediaList::ExportPlaylist);
     connect(&m_stActRemove, &QAction::triggered, this, &MediaList::RemoveFile);
     connect(&m_stActRemoveMissing, &QAction::triggered, this, &MediaList::RemoveMissingFiles);
     connect(&m_stActClearList, &QAction::triggered, this, &MediaList::ClearListWithConfirm);
@@ -94,6 +104,16 @@ void MediaList::AddFolder()
         if (IsSupportedMovieFile(filePath))
             emit SigAddFile(filePath);
     }
+}
+
+void MediaList::OpenPlaylist()
+{
+    emit SigOpenPlaylist();
+}
+
+void MediaList::ExportPlaylist()
+{
+    emit SigExportPlaylist();
 }
 
 void MediaList::RemoveFile()

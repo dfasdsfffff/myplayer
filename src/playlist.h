@@ -92,10 +92,13 @@ private:
     bool IsSupportedMovie(const QString& strFileName) const;
     QListWidgetItem* FindItemByPath(const QString& filePath) const;
     QListWidgetItem* AddFileItem(const QString& strFileName);
+    QStringList ReadM3uPlaylist(const QString& playlistFileName) const;
     
 private slots:
 
 	void on_List_itemDoubleClicked(QListWidgetItem *item);
+    void OnOpenPlaylist();
+    void OnExportPlaylist();
 
 private:
     Ui::Playlist *ui;
