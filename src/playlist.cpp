@@ -1,5 +1,6 @@
 ﻿#include <QDebug>
 #include <QDir>
+#include <QFileInfo>
 #include <QRandomGenerator>
 
 #include "playlist.h"
