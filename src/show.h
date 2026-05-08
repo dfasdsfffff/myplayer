@@ -21,6 +21,7 @@
 #include <QActionGroup>
 #include <QAction>
 #include <QImage>
+#include <SDL.h>
 
 namespace Ui {
 class Show;
@@ -114,6 +115,9 @@ private:
 
 
     void ChangeShow();
+    bool EnsureSdlRenderer();
+    void DestroySdlRenderer();
+    void RenderCurrentFrame();
 signals:
     void SigOpenFile(QString strFileName);///< 增加视频文件
 	void SigPlay(QString strFile); ///<播放
@@ -132,6 +136,11 @@ private:
 
     int m_nLastFrameWidth; ///< 记录视频宽高
     int m_nLastFrameHeight;
+    QImage m_currentFrame;
+    SDL_Window* m_sdlWindow = nullptr;
+    SDL_Renderer* m_sdlRenderer = nullptr;
+    SDL_Texture* m_sdlTexture = nullptr;
+    QSize m_sdlTextureSize;
 
     QTimer timerShowCursor;
 

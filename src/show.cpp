@@ -10,7 +10,6 @@
  */
 
 #include <QDebug>
-#include <QPixmap>
 #include <mutex>
 
 #include "show.h"
@@ -36,7 +35,8 @@ Show::Show(QWidget *parent) : QWidget(parent),
     this->setAttribute(Qt::WA_OpaquePaintEvent);
     // ui->label->setAttribute(Qt::WA_OpaquePaintEvent);
 
-    ui->label->setUpdatesEnabled(true);
+    ui->label->setAttribute(Qt::WA_NativeWindow);
+    ui->label->setUpdatesEnabled(false);
 
     this->setMouseTracking(true);
 
@@ -52,6 +52,7 @@ Show::Show(QWidget *parent) : QWidget(parent),
 
 Show::~Show()
 {
+    DestroySdlRenderer();
     delete ui;
 }
 
@@ -80,8 +81,8 @@ void Show::OnVideoFrame(const QImage& image)
     if (image.isNull())
         return;
 
-    ui->label->setPixmap(QPixmap::fromImage(image).scaled(
-        ui->label->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    m_currentFrame = image;
+    RenderCurrentFrame();
 }
 
 void Show::ChangeShow()
@@ -115,6 +116,87 @@ void Show::ChangeShow()
     }
 }
 
+bool Show::EnsureSdlRenderer()
+{
+    if (m_sdlRenderer)
+        return true;
+
+    m_sdlWindow = SDL_CreateWindowFrom(reinterpret_cast<void*>(ui->label->winId()));
+    if (!m_sdlWindow)
+    {
+        qWarning() << "SDL_CreateWindowFrom failed:" << SDL_GetError();
+        return false;
+    }
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, SDL_RENDERER_ACCELERATED);
+    if (!m_sdlRenderer)
+        m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, 0);
+    if (!m_sdlRenderer)
+    {
+        qWarning() << "SDL_CreateRenderer failed:" << SDL_GetError();
+        DestroySdlRenderer();
+        return false;
+    }
+
+    SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
+    return true;
+}
+
+void Show::DestroySdlRenderer()
+{
+    if (m_sdlTexture)
+    {
+        SDL_DestroyTexture(m_sdlTexture);
+        m_sdlTexture = nullptr;
+    }
+    if (m_sdlRenderer)
+    {
+        SDL_DestroyRenderer(m_sdlRenderer);
+        m_sdlRenderer = nullptr;
+    }
+    if (m_sdlWindow)
+    {
+        SDL_DestroyWindow(m_sdlWindow);
+        m_sdlWindow = nullptr;
+    }
+    m_sdlTextureSize = QSize();
+}
+
+void Show::RenderCurrentFrame()
+{
+    if (m_currentFrame.isNull() || ui->label->width() <= 0 || ui->label->height() <= 0)
+        return;
+    if (!EnsureSdlRenderer())
+        return;
+
+    const QSize frameSize = m_currentFrame.size();
+    if (!m_sdlTexture || m_sdlTextureSize != frameSize)
+    {
+        if (m_sdlTexture)
+            SDL_DestroyTexture(m_sdlTexture);
+        m_sdlTexture = SDL_CreateTexture(m_sdlRenderer, SDL_PIXELFORMAT_BGRA32,
+            SDL_TEXTUREACCESS_STREAMING, frameSize.width(), frameSize.height());
+        m_sdlTextureSize = frameSize;
+        if (!m_sdlTexture)
+        {
+            qWarning() << "SDL_CreateTexture failed:" << SDL_GetError();
+            return;
+        }
+    }
+
+    if (SDL_UpdateTexture(m_sdlTexture, nullptr, m_currentFrame.constBits(), m_currentFrame.bytesPerLine()) != 0)
+    {
+        qWarning() << "SDL_UpdateTexture failed:" << SDL_GetError();
+        return;
+    }
+
+    SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
+    SDL_RenderClear(m_sdlRenderer);
+    SDL_RenderCopy(m_sdlRenderer, m_sdlTexture, nullptr, nullptr);
+    SDL_RenderPresent(m_sdlRenderer);
+}
+
 void Show::dragEnterEvent(QDragEnterEvent *event)
 {
     //    if(event->mimeData()->hasFormat("text/uri-list"))
@@ -129,6 +211,8 @@ void Show::resizeEvent(QResizeEvent *event)
     Q_UNUSED(event);
 
     ChangeShow();
+    DestroySdlRenderer();
+    RenderCurrentFrame();
 }
 
 void Show::keyReleaseEvent(QKeyEvent *event)
@@ -201,6 +285,13 @@ void Show::OnPlay(QString strFile)
 
 void Show::OnStopFinished()
 {
+    m_currentFrame = QImage();
+    if (m_sdlRenderer)
+    {
+        SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
+        SDL_RenderClear(m_sdlRenderer);
+        SDL_RenderPresent(m_sdlRenderer);
+    }
     update();
 }
 
