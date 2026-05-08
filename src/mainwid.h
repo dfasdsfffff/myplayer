@@ -54,6 +54,8 @@ protected:
 
     void contextMenuEvent(QContextMenuEvent* event);
 
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
+
     // 全屏模式事件过滤器（替代定时器轮询）
     bool eventFilter(QObject* watched, QEvent* event) override;
 
@@ -140,6 +142,11 @@ private:
     QAction m_stActFullscreen;
     QString m_currentPlayFile;
     int m_currentPlaySeconds = 0;
+    bool m_bResizeDrag = false;
+    bool m_bResizeCursorOverridden = false;
+    int m_resizeEdges = 0;
+    QPoint m_resizeStartGlobalPos;
+    QRect m_resizeStartGeometry;
 
     VideoCtlBridge* m_pVideoCtlBridge = nullptr;
 };
