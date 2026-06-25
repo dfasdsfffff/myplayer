@@ -11,6 +11,7 @@
 
 #include <QDebug>
 #include <mutex>
+#include <utility>
 
 #include "show.h"
 #include "ui_show.h"
@@ -76,12 +77,12 @@ void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
     ChangeShow();
 }
 
-void Show::OnVideoFrame(const QImage& image)
+void Show::OnVideoFrame(std::shared_ptr<VideoCtl::VideoFrame> frame)
 {
-    if (image.isNull())
+    if (!frame || frame->bgra.empty() || frame->width <= 0 || frame->height <= 0)
         return;
 
-    m_currentFrame = image;
+    m_currentFrame = std::move(frame);
     RenderCurrentFrame();
 }
 
@@ -180,12 +181,12 @@ void Show::DestroySdlRenderer()
 
 void Show::RenderCurrentFrame()
 {
-    if (m_currentFrame.isNull() || ui->label->width() <= 0 || ui->label->height() <= 0)
+    if (!m_currentFrame || m_currentFrame->bgra.empty() || ui->label->width() <= 0 || ui->label->height() <= 0)
         return;
     if (!EnsureSdlRenderer())
         return;
 
-    const QSize frameSize = m_currentFrame.size();
+    const QSize frameSize(m_currentFrame->width, m_currentFrame->height);
     if (!m_sdlTexture || m_sdlTextureSize != frameSize)
     {
         if (m_sdlTexture)
@@ -200,7 +201,7 @@ void Show::RenderCurrentFrame()
         }
     }
 
-    if (SDL_UpdateTexture(m_sdlTexture, nullptr, m_currentFrame.constBits(), m_currentFrame.bytesPerLine()) != 0)
+    if (SDL_UpdateTexture(m_sdlTexture, nullptr, m_currentFrame->bgra.data(), m_currentFrame->bytesPerLine) != 0)
     {
         qWarning() << "SDL_UpdateTexture failed:" << SDL_GetError();
         return;
@@ -300,7 +301,7 @@ void Show::OnPlay(QString strFile)
 
 void Show::OnStopFinished()
 {
-    m_currentFrame = QImage();
+    m_currentFrame.reset();
     if (m_sdlRenderer)
     {
         SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);

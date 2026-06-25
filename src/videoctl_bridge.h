@@ -9,14 +9,13 @@
 #pragma once
 
 #include <QObject>
-#include <QImage>
 #include <QPointer>
 #include <QString>
+#include <memory>
 #include <vector>
 
 #include "signal.h"
-
-class VideoCtl;
+#include "videoctl.h"
 
 class VideoCtlBridge : public QObject
 {
@@ -37,7 +36,7 @@ signals:
 	// Qt signals，镜像 VideoCtl 的信号，使用 Qt 类型
 	void SigPlayMsg(const QString& strMsg);
 	void SigFrameDimensionsChanged(int nFrameWidth, int nFrameHeight);
-	void SigVideoFrame(const QImage& image);
+	void SigVideoFrame(std::shared_ptr<VideoCtl::VideoFrame> frame);
 	void SigVideoTotalSeconds(int nSeconds);
 	void SigVideoPlaySeconds(int nSeconds);
 	void SigVideoVolume(double dPercent);

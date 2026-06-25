@@ -53,11 +53,9 @@ void VideoCtlBridge::attach(VideoCtl* ctl)
 	m_connections.emplace_back(ctl->SigVideoFrame.connect([self](std::shared_ptr<VideoCtl::VideoFrame> frame) {
 		if (!self || !frame || frame->bgra.empty())
 			return;
-		QImage image(frame->bgra.data(), frame->width, frame->height, frame->bytesPerLine, QImage::Format_ARGB32);
-		QImage imageCopy = image.copy();
-		QMetaObject::invokeMethod(self.data(), [self, imageCopy]() {
+		QMetaObject::invokeMethod(self.data(), [self, frame]() {
 			if (auto bridge = self.data())
-				emit bridge->SigVideoFrame(imageCopy);
+				emit bridge->SigVideoFrame(frame);
 		}, Qt::QueuedConnection);
 	}));
 
