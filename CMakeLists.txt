@@ -15,7 +15,7 @@ set(PLAYERDEMO_SDL2_ROOT "${PLAYERDEMO_DEPS_ROOT}/SDL2" CACHE PATH "SDL2 root di
 set(PLAYERDEMO_SOUNDTOUCH_ROOT "${PLAYERDEMO_DEPS_ROOT}/soundtouch-2.3.3" CACHE PATH "SoundTouch root directory")
 set(PLAYERDEMO_SIGSLOT_ROOT "${PLAYERDEMO_DEPS_ROOT}/sigslot-1.2.3" CACHE PATH "sigslot root directory")
 set(PLAYERDEMO_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/bin" CACHE PATH "Runtime output directory")
-set(PLAYERDEMO_QT_ROOT "" CACHE PATH "Optional Qt installation prefix, for example C:/Qt/6.9.3/msvc2022_64")
+set(PLAYERDEMO_QT_ROOT "C:/Qt/6.9.3/msvc2022_64" CACHE PATH "Optional Qt installation prefix, for example C:/Qt/6.9.3/msvc2022_64")
 
 if(PLAYERDEMO_QT_ROOT)
     list(PREPEND CMAKE_PREFIX_PATH "${PLAYERDEMO_QT_ROOT}")
@@ -38,6 +38,7 @@ endif()
 add_subdirectory(play_core)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(imgui CONFIG REQUIRED)
 
 if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)
     message(STATUS "Mapping Qt debug config to release")
@@ -110,6 +111,27 @@ add_executable(${PROJECT_NAME} WIN32
     ${RC_FILES}
 )
 
+add_executable(playerdemo_imgui
+    app_imgui/main.cpp
+)
+
+target_include_directories(playerdemo_imgui PRIVATE
+    ${PROJECT_SOURCE_DIR}/app_imgui
+)
+
+target_link_libraries(playerdemo_imgui PRIVATE
+    play_core
+    imgui::imgui
+)
+
+if(WIN32)
+    target_link_libraries(playerdemo_imgui PRIVATE
+        d3d11
+        dxgi
+        comdlg32
+    )
+endif()
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${PROJECT_SOURCE_DIR}/src
 )
@@ -127,6 +149,14 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${PLAYERDEMO_OUTPUT_DIR}"
     OUTPUT_NAME_DEBUG "${PROJECT_NAME}_debug"
     OUTPUT_NAME_RELEASE "${PROJECT_NAME}"
+)
+
+set_target_properties(playerdemo_imgui PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PLAYERDEMO_OUTPUT_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${PLAYERDEMO_OUTPUT_DIR}"
+    OUTPUT_NAME_DEBUG "playerdemo_imgui_debug"
+    OUTPUT_NAME_RELEASE "playerdemo_imgui"
 )
 
 if(WIN32)
@@ -147,6 +177,11 @@ if(WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${PLAYERDEMO_RUNTIME_DLL}"
                 "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+        )
+        add_custom_command(TARGET playerdemo_imgui POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PLAYERDEMO_RUNTIME_DLL}"
+                "$<TARGET_FILE_DIR:playerdemo_imgui>"
         )
     endforeach()
 endif()

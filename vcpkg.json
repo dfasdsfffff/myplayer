@@ -1,0 +1,13 @@
+{
+  "name": "playerdemo",
+  "version-string": "1.0.0",
+  "dependencies": [
+    {
+      "name": "imgui",
+      "features": [
+        "win32-binding",
+        "dx11-binding"
+      ]
+    }
+  ]
+}
