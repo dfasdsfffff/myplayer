@@ -50,7 +50,7 @@ void VideoCtlBridge::attach(VideoCtl* ctl)
 		}, Qt::QueuedConnection);
 	}));
 
-	m_connections.emplace_back(ctl->SigVideoFrame.connect([self](std::shared_ptr<VideoCtl::VideoFrame> frame) {
+	m_connections.emplace_back(ctl->SigVideoFrame.connect([self](std::shared_ptr<VideoFrame> frame) {
 		if (!self || !frame || frame->bgra.empty())
 			return;
 		QMetaObject::invokeMethod(self.data(), [self, frame]() {

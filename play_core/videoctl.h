@@ -21,6 +21,7 @@
 #include "datactl.h"
 #include "enums.h"
 #include "signal.h"
+#include "video_frame.h"
 
 #ifndef CONFIG_AVFILTER
 #define CONFIG_AVFILTER 0
@@ -33,14 +34,6 @@ private:
 	/// @brief 构造函数
 	VideoCtl();
 public:
-	struct VideoFrame
-	{
-		int width = 0;
-		int height = 0;
-		int bytesPerLine = 0;
-		std::vector<uint8_t> bgra;
-	};
-
 	/// @brief 获取一个d静态实例的指针
 	static VideoCtl* GetInstance();
 

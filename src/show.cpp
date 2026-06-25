@@ -77,7 +77,7 @@ void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
     ChangeShow();
 }
 
-void Show::OnVideoFrame(std::shared_ptr<VideoCtl::VideoFrame> frame)
+void Show::OnVideoFrame(std::shared_ptr<VideoFrame> frame)
 {
     if (!frame || frame->bgra.empty() || frame->width <= 0 || frame->height <= 0)
         return;

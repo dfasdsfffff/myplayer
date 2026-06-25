@@ -23,7 +23,7 @@
 #include <SDL.h>
 #include <memory>
 
-#include "videoctl.h"
+#include "video_frame.h"
 
 namespace Ui {
 class Show;
@@ -95,7 +95,7 @@ public:
      * @note
      */
     void OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight);
-    void OnVideoFrame(std::shared_ptr<VideoCtl::VideoFrame> frame);
+    void OnVideoFrame(std::shared_ptr<VideoFrame> frame);
 private:
 	/**
 	 * @brief	显示信息
@@ -138,7 +138,7 @@ private:
 
     int m_nLastFrameWidth; ///< 记录视频宽高
     int m_nLastFrameHeight;
-    std::shared_ptr<VideoCtl::VideoFrame> m_currentFrame;
+    std::shared_ptr<VideoFrame> m_currentFrame;
     SDL_Window* m_sdlWindow = nullptr;
     SDL_Renderer* m_sdlRenderer = nullptr;
     SDL_Texture* m_sdlTexture = nullptr;
