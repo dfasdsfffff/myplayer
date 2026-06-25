@@ -16,6 +16,8 @@ set(PLAYERDEMO_SOUNDTOUCH_ROOT "${PLAYERDEMO_DEPS_ROOT}/soundtouch-2.3.3" CACHE 
 set(PLAYERDEMO_SIGSLOT_ROOT "${PLAYERDEMO_DEPS_ROOT}/sigslot-1.2.3" CACHE PATH "sigslot root directory")
 set(PLAYERDEMO_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/bin" CACHE PATH "Runtime output directory")
 set(PLAYERDEMO_QT_ROOT "C:/Qt/6.9.3/msvc2022_64" CACHE PATH "Optional Qt installation prefix, for example C:/Qt/6.9.3/msvc2022_64")
+set(PLAYERDEMO_QT_APP_DIR "${PROJECT_SOURCE_DIR}/apps/qt_player")
+set(PLAYERDEMO_IMGUI_APP_DIR "${PROJECT_SOURCE_DIR}/apps/imgui_player")
 
 if(PLAYERDEMO_QT_ROOT)
     list(PREPEND CMAKE_PREFIX_PATH "${PLAYERDEMO_QT_ROOT}")
@@ -53,54 +55,54 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(HEADER_FILES
-    src/about.h
-    src/ctrlbar.h
-    src/CustomSlider.h
-    src/globalhelper.h
-    src/mainwid.h
-    src/medialist.h
-    src/playlist.h
-    src/playlistfile.h
-    src/resource.h
-    src/settingwid.h
-    src/show.h
-    src/title.h
-    src/videoctl_bridge.h
+    ${PLAYERDEMO_QT_APP_DIR}/about.h
+    ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.h
+    ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.h
+    ${PLAYERDEMO_QT_APP_DIR}/globalhelper.h
+    ${PLAYERDEMO_QT_APP_DIR}/mainwid.h
+    ${PLAYERDEMO_QT_APP_DIR}/medialist.h
+    ${PLAYERDEMO_QT_APP_DIR}/playlist.h
+    ${PLAYERDEMO_QT_APP_DIR}/playlistfile.h
+    ${PLAYERDEMO_QT_APP_DIR}/resource.h
+    ${PLAYERDEMO_QT_APP_DIR}/settingwid.h
+    ${PLAYERDEMO_QT_APP_DIR}/show.h
+    ${PLAYERDEMO_QT_APP_DIR}/title.h
+    ${PLAYERDEMO_QT_APP_DIR}/videoctl_bridge.h
 )
 
 set(SOURCE_FILES
-    src/main.cpp
-    src/about.cpp
-    src/ctrlbar.cpp
-    src/CustomSlider.cpp
-    src/globalhelper.cpp
-    src/mainwid.cpp
-    src/medialist.cpp
-    src/playlist.cpp
-    src/playlistfile.cpp
-    src/settingwid.cpp
-    src/show.cpp
-    src/title.cpp
-    src/videoctl_bridge.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/main.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/about.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/mainwid.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/medialist.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playlist.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/settingwid.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/show.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/title.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/videoctl_bridge.cpp
 )
 
 set(UI_FILES
-    src/about.ui
-    src/ctrlbar.ui
-    src/form.ui
-    src/mainwid.ui
-    src/playlist.ui
-    src/settingwid.ui
-    src/show.ui
-    src/title.ui
+    ${PLAYERDEMO_QT_APP_DIR}/about.ui
+    ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.ui
+    ${PLAYERDEMO_QT_APP_DIR}/form.ui
+    ${PLAYERDEMO_QT_APP_DIR}/mainwid.ui
+    ${PLAYERDEMO_QT_APP_DIR}/playlist.ui
+    ${PLAYERDEMO_QT_APP_DIR}/settingwid.ui
+    ${PLAYERDEMO_QT_APP_DIR}/show.ui
+    ${PLAYERDEMO_QT_APP_DIR}/title.ui
 )
 
 set(QRC_FILES
-    src/mainwid.qrc
+    ${PLAYERDEMO_QT_APP_DIR}/mainwid.qrc
 )
 
 if(WIN32)
-    set(RC_FILES src/playerdemo.rc)
+    set(RC_FILES ${PLAYERDEMO_QT_APP_DIR}/playerdemo.rc)
 endif()
 
 add_executable(${PROJECT_NAME} WIN32
@@ -112,11 +114,11 @@ add_executable(${PROJECT_NAME} WIN32
 )
 
 add_executable(playerdemo_imgui
-    app_imgui/main.cpp
+    ${PLAYERDEMO_IMGUI_APP_DIR}/main.cpp
 )
 
 target_include_directories(playerdemo_imgui PRIVATE
-    ${PROJECT_SOURCE_DIR}/app_imgui
+    ${PLAYERDEMO_IMGUI_APP_DIR}
 )
 
 target_link_libraries(playerdemo_imgui PRIVATE
@@ -133,7 +135,7 @@ if(WIN32)
 endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
+    ${PLAYERDEMO_QT_APP_DIR}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -194,11 +196,11 @@ enable_testing()
 
 add_executable(playlistfile_tests
     tests/playlistfile_tests.cpp
-    src/playlistfile.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
 )
 
 target_include_directories(playlistfile_tests PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
+    ${PLAYERDEMO_QT_APP_DIR}
 )
 
 target_link_libraries(playlistfile_tests PRIVATE

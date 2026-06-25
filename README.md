@@ -31,7 +31,9 @@
 
 ```
 playerdemo/
-├── src/              # Qt UI 层 (Qt6 Widgets)
+├── apps/
+│   ├── qt_player/    # Qt UI 层 (Qt6 Widgets)
+│   └── imgui_player/ # Dear ImGui UI 层
 ├── play_core/        # 核心播放引擎 (Qt 无关，纯 C++)
 ├── lib/              # 第三方库 (FFmpeg, SDL2, SoundTouch, sigslot)
 ├── build/            # CMake 构建目录
@@ -40,7 +42,7 @@ playerdemo/
 
 ### 核心模块
 
-**UI 层 (`src/`)**
+**UI 层 (`apps/qt_player/`)**
 - `MainWid` - 主窗口，管理布局和事件分发
 - `Show` - 视频显示区域，处理拖放和全屏
 - `CtrlBar` - 控制栏（播放、进度条、音量、速度）
@@ -189,7 +191,9 @@ playerdemo/
 ├── README.md                   # 项目说明
 ├── LICENSE                     # MIT 许可证
 ├── .gitignore
-├── src/                        # Qt 界面层
+├── apps/                       # 应用入口
+│   ├── qt_player/              # Qt 界面层
+│   └── imgui_player/           # Dear ImGui 界面层
 │   ├── main.cpp                # 程序入口
 │   ├── mainwid.h/.cpp/.ui      # 主窗口
 │   ├── show.h/.cpp/.ui         # 视频显示控件
@@ -329,7 +333,7 @@ A: 支持。SDL2 会自动检测并使用硬件加速：
 - macOS: VideoToolbox
 
 **Q: 如何自定义样式？**
-A: 修改 `src/res/qss/` 目录下的 CSS 文件，或通过 `GlobalHelper::GetThemeStr()` 加载自定义样式。
+A: 修改 `apps/qt_player/res/qss/` 目录下的 CSS 文件，或通过 `GlobalHelper::GetThemeStr()` 加载自定义样式。
 
 **Q: 编译时出现 C4819 警告？**
 A: CMake 已配置 `/utf-8` 编译选项以解决此问题。如仍有问题，确保源文件保存为 UTF-8 编码。
