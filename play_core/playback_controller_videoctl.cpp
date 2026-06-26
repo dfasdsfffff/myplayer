@@ -46,6 +46,34 @@ PlaybackController* PlaybackController::GetInstance()
             if (VideoCtl* ctl = PlaybackEngine())
                 ctl->OnStopAndWait();
         },
+        [](double percent) {
+            if (VideoCtl* ctl = PlaybackEngine())
+                ctl->OnPlayVolume(percent);
+        },
+        [](double speed) {
+            if (VideoCtl* ctl = PlaybackEngine())
+                ctl->set_play_speed(speed);
+        },
+        [](VideoLoopPolicy policy) {
+            if (VideoCtl* ctl = PlaybackEngine())
+                ctl->set_play_loop_policy(policy);
+        },
+        []() {
+            if (VideoCtl* ctl = PlaybackEngine())
+                ctl->OnCycleAudioTrack();
+        },
+        []() {
+            if (VideoCtl* ctl = PlaybackEngine())
+                ctl->OnCycleSubtitleTrack();
+        },
+        []() {
+            if (VideoCtl* ctl = PlaybackEngine())
+                ctl->OnAddVolume();
+        },
+        []() {
+            if (VideoCtl* ctl = PlaybackEngine())
+                ctl->OnSubVolume();
+        },
     });
     return &instance;
 }

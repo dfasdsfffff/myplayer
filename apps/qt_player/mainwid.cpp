@@ -202,15 +202,15 @@ bool MainWid::ConnectSignalSlots()
 	connect(ui->ShowWid, &Show::SigShowMenu, this, &MainWid::OnShowMenu);
 	connect(ui->ShowWid, &Show::SigSeekForward, this, []() { PlaybackController::GetInstance()->seekForward(); });
 	connect(ui->ShowWid, &Show::SigSeekBack, this, []() { PlaybackController::GetInstance()->seekBack(); });
-	connect(ui->ShowWid, &Show::SigAddVolume, this, []() { VideoCtl::GetInstance()->OnAddVolume(); });
-	connect(ui->ShowWid, &Show::SigSubVolume, this, []() { VideoCtl::GetInstance()->OnSubVolume(); });
+	connect(ui->ShowWid, &Show::SigAddVolume, this, []() { PlaybackController::GetInstance()->addVolume(); });
+	connect(ui->ShowWid, &Show::SigSubVolume, this, []() { PlaybackController::GetInstance()->subVolume(); });
 
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowOrHidePlaylist, this, &MainWid::OnShowOrHidePlaylist);
 	connect(ui->CtrlBarWid, &CtrlBar::SigPlaySeek, this, [](double d) { PlaybackController::GetInstance()->seek(d); });
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayVolume, this, [](double d) { VideoCtl::GetInstance()->OnPlayVolume(d); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayVolume, this, [](double d) { PlaybackController::GetInstance()->setVolume(d); });
 	connect(ui->CtrlBarWid, &CtrlBar::SigPlayOrPause, this, []() { PlaybackController::GetInstance()->pause(); });
 	connect(ui->CtrlBarWid, &CtrlBar::SigStop, this, []() { PlaybackController::GetInstance()->stop(); });
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayLoopPolicyChanged, this, [](VideoLoopPolicy p) { VideoCtl::GetInstance()->set_play_loop_policy(p); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayLoopPolicyChanged, this, [](VideoLoopPolicy p) { PlaybackController::GetInstance()->setLoopPolicy(p); });
 	connect(ui->CtrlBarWid, &CtrlBar::SigBackwardPlay, &m_stPlaylist, &Playlist::OnBackwardPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigForwardPlay, &m_stPlaylist, &Playlist::OnForwardPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowMenu, this, &MainWid::OnShowMenu);
@@ -220,8 +220,8 @@ bool MainWid::ConnectSignalSlots()
 	connect(this, &MainWid::SigShowMax, &m_stTitle, &Title::OnChangeMaxBtnStyle);
 	connect(this, &MainWid::SigSeekForward, this, []() { PlaybackController::GetInstance()->seekForward(); });
 	connect(this, &MainWid::SigSeekBack, this, []() { PlaybackController::GetInstance()->seekBack(); });
-	connect(this, &MainWid::SigAddVolume, this, []() { VideoCtl::GetInstance()->OnAddVolume(); });
-	connect(this, &MainWid::SigSubVolume, this, []() { VideoCtl::GetInstance()->OnSubVolume(); });
+	connect(this, &MainWid::SigAddVolume, this, []() { PlaybackController::GetInstance()->addVolume(); });
+	connect(this, &MainWid::SigSubVolume, this, []() { PlaybackController::GetInstance()->subVolume(); });
 	connect(this, &MainWid::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 
 
@@ -696,12 +696,12 @@ void MainWid::OnClearRecentFiles()
 
 void MainWid::OnCycleAudioTrack()
 {
-	VideoCtl::GetInstance()->OnCycleAudioTrack();
+	PlaybackController::GetInstance()->cycleAudioTrack();
 }
 
 void MainWid::OnCycleSubtitleTrack()
 {
-	VideoCtl::GetInstance()->OnCycleSubtitleTrack();
+	PlaybackController::GetInstance()->cycleSubtitleTrack();
 }
 
 void MainWid::OnVideoPlaySeconds(int seconds)
@@ -967,5 +967,5 @@ void MainWid::OnShowOrHidePlaylist()
 void MainWid::OnSpeedChanged(double speed)
 {
 	if (speed < 0)return;
-	VideoCtl::GetInstance()->set_play_speed(speed);
+	PlaybackController::GetInstance()->setSpeed(speed);
 }

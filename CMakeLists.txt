@@ -15,7 +15,7 @@ set(PLAYERDEMO_SDL2_ROOT "${PLAYERDEMO_DEPS_ROOT}/SDL2" CACHE PATH "SDL2 root di
 set(PLAYERDEMO_SOUNDTOUCH_ROOT "${PLAYERDEMO_DEPS_ROOT}/soundtouch-2.3.3" CACHE PATH "SoundTouch root directory")
 set(PLAYERDEMO_SIGSLOT_ROOT "${PLAYERDEMO_DEPS_ROOT}/sigslot-1.2.3" CACHE PATH "sigslot root directory")
 set(PLAYERDEMO_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/bin" CACHE PATH "Runtime output directory")
-set(PLAYERDEMO_QT_ROOT "C:/Qt/6.9.3/msvc2022_64" CACHE PATH "Optional Qt installation prefix, for example C:/Qt/6.9.3/msvc2022_64")
+set(PLAYERDEMO_QT_ROOT "" CACHE PATH "Optional Qt installation prefix, for example C:/Qt/6.9.3/msvc2022_64")
 set(PLAYERDEMO_QT_APP_DIR "${PROJECT_SOURCE_DIR}/apps/qt_player")
 set(PLAYERDEMO_IMGUI_APP_DIR "${PROJECT_SOURCE_DIR}/apps/imgui_player")
 

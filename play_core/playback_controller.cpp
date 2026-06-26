@@ -53,3 +53,45 @@ void PlaybackController::stopAndWait()
     if (m_actions.stopAndWait)
         m_actions.stopAndWait();
 }
+
+void PlaybackController::setVolume(double percent)
+{
+    if (m_actions.setVolume)
+        m_actions.setVolume(percent);
+}
+
+void PlaybackController::setSpeed(double speed)
+{
+    if (m_actions.setSpeed)
+        m_actions.setSpeed(speed);
+}
+
+void PlaybackController::setLoopPolicy(VideoLoopPolicy policy)
+{
+    if (m_actions.setLoopPolicy)
+        m_actions.setLoopPolicy(policy);
+}
+
+void PlaybackController::cycleAudioTrack()
+{
+    if (m_actions.cycleAudioTrack)
+        m_actions.cycleAudioTrack();
+}
+
+void PlaybackController::cycleSubtitleTrack()
+{
+    if (m_actions.cycleSubtitleTrack)
+        m_actions.cycleSubtitleTrack();
+}
+
+void PlaybackController::addVolume()
+{
+    if (m_actions.addVolume)
+        m_actions.addVolume();
+}
+
+void PlaybackController::subVolume()
+{
+    if (m_actions.subVolume)
+        m_actions.subVolume();
+}

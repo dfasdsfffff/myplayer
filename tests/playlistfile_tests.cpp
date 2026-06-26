@@ -7,6 +7,7 @@
 #include <QTemporaryDir>
 #include <QTextStream>
 
+#include <fstream>
 #include <iostream>
 
 namespace {
@@ -24,8 +25,14 @@ bool WriteTextFile(const QString& fileName, const QString& content)
 
 bool TouchFile(const QString& fileName)
 {
-    QFile file(fileName);
-    return file.open(QIODevice::WriteOnly);
+    std::ofstream file(fileName.toStdString(), std::ios::binary);
+    if (file.is_open())
+        return true;
+
+    std::cerr << "FAILED: create file " << fileName.toStdString()
+              << " in temp dir " << QFileInfo(fileName).absolutePath().toStdString()
+              << " with std::ofstream\n";
+    return false;
 }
 
 bool Expect(bool condition, const char* message)
@@ -39,7 +46,7 @@ bool Expect(bool condition, const char* message)
 int main(int argc, char* argv[])
 {
     QCoreApplication app(argc, argv);
-    QTemporaryDir tempDir;
+    QTemporaryDir tempDir(QDir::current().filePath("playlistfile_tests-XXXXXX"));
     if (!Expect(tempDir.isValid(), "temporary directory should be valid"))
         return 1;
 

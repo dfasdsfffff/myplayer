@@ -1,4 +1,5 @@
 #include "media_session.h"
+#include "enums.h"
 #include "playback_controller.h"
 #include "renderer_dispatcher.h"
 
@@ -102,6 +103,13 @@ int main()
     int lastSeekSeconds = -1;
     int seekForwardCount = 0;
     int seekBackCount = 0;
+    double lastVolumePercent = -1.0;
+    double lastSpeed = -1.0;
+    VideoLoopPolicy lastLoopPolicy = LOOP_NONE;
+    int cycleAudioTrackCount = 0;
+    int cycleSubtitleTrackCount = 0;
+    int addVolumeCount = 0;
+    int subVolumeCount = 0;
 
     PlaybackController controller({
         [&](const std::string& fileName) {
@@ -115,6 +123,13 @@ int main()
         [&]() { ++seekBackCount; },
         [&]() { ++stopCount; },
         [&]() { ++stopAndWaitCount; },
+        [&](double percent) { lastVolumePercent = percent; },
+        [&](double speed) { lastSpeed = speed; },
+        [&](VideoLoopPolicy policy) { lastLoopPolicy = policy; },
+        [&]() { ++cycleAudioTrackCount; },
+        [&]() { ++cycleSubtitleTrackCount; },
+        [&]() { ++addVolumeCount; },
+        [&]() { ++subVolumeCount; },
     });
 
     if (!Expect(controller.play("movie.mp4"), "play should return engine play result"))
@@ -129,6 +144,13 @@ int main()
     controller.seekBack();
     controller.stop();
     controller.stopAndWait();
+    controller.setVolume(0.75);
+    controller.setSpeed(1.5);
+    controller.setLoopPolicy(LOOP_SINGLE);
+    controller.cycleAudioTrack();
+    controller.cycleSubtitleTrack();
+    controller.addVolume();
+    controller.subVolume();
 
     if (!Expect(pauseCount == 1, "pause should forward once"))
         return 1;
@@ -143,6 +165,20 @@ int main()
     if (!Expect(stopCount == 1, "stop should forward once"))
         return 1;
     if (!Expect(stopAndWaitCount == 1, "stopAndWait should forward once"))
+        return 1;
+    if (!Expect(lastVolumePercent == 0.75, "setVolume should forward percent"))
+        return 1;
+    if (!Expect(lastSpeed == 1.5, "setSpeed should forward speed"))
+        return 1;
+    if (!Expect(lastLoopPolicy == LOOP_SINGLE, "setLoopPolicy should forward policy"))
+        return 1;
+    if (!Expect(cycleAudioTrackCount == 1, "cycleAudioTrack should forward once"))
+        return 1;
+    if (!Expect(cycleSubtitleTrackCount == 1, "cycleSubtitleTrack should forward once"))
+        return 1;
+    if (!Expect(addVolumeCount == 1, "addVolume should forward once"))
+        return 1;
+    if (!Expect(subVolumeCount == 1, "subVolume should forward once"))
         return 1;
 
     return 0;

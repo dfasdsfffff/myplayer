@@ -1,5 +1,7 @@
 #pragma once
 
+#include "enums.h"
+
 #include <functional>
 #include <string>
 
@@ -14,6 +16,13 @@ public:
         std::function<void()> seekBack;
         std::function<void()> stop;
         std::function<void()> stopAndWait;
+        std::function<void(double)> setVolume;
+        std::function<void(double)> setSpeed;
+        std::function<void(VideoLoopPolicy)> setLoopPolicy;
+        std::function<void()> cycleAudioTrack;
+        std::function<void()> cycleSubtitleTrack;
+        std::function<void()> addVolume;
+        std::function<void()> subVolume;
     };
 
     explicit PlaybackController(Actions actions);
@@ -28,6 +37,13 @@ public:
     void seekBack();
     void stop();
     void stopAndWait();
+    void setVolume(double percent);
+    void setSpeed(double speed);
+    void setLoopPolicy(VideoLoopPolicy policy);
+    void cycleAudioTrack();
+    void cycleSubtitleTrack();
+    void addVolume();
+    void subVolume();
 
 private:
     Actions m_actions;

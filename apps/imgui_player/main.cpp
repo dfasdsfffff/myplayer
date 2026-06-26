@@ -295,10 +295,10 @@ void renderUi(AppState& app)
 			PlaybackController::GetInstance()->seekForward();
 		ImGui::SameLine();
 		if (ImGui::Button("Vol -", ImVec2(60, 32)))
-			VideoCtl::GetInstance()->OnSubVolume();
+			PlaybackController::GetInstance()->subVolume();
 		ImGui::SameLine();
 		if (ImGui::Button("Vol +", ImVec2(60, 32)))
-			VideoCtl::GetInstance()->OnAddVolume();
+			PlaybackController::GetInstance()->addVolume();
 		ImGui::SameLine();
 		ImGui::Checkbox("Clean view", &app.fullscreenVideo);
 

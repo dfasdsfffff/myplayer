@@ -232,36 +232,8 @@ void VideoCtl::stream_close(VideoState* is)
 		if (is->subtitle_stream >= 0)
 			stream_component_close(is, is->subtitle_stream);
 
-		avformat_close_input(&is->ic);
 	}
 
-	packet_queue_destroy(&is->videoq);
-	packet_queue_destroy(&is->audioq);
-	packet_queue_destroy(&is->subtitleq);
-
-	/* free all pictures */
-	is->pictq.destroy();
-	is->sampq.destroy();
-	is->subpq.destroy();
-	if (is->continue_read_thread) {
-		SDL_DestroyCond(is->continue_read_thread);
-		is->continue_read_thread = nullptr;
-	}
-	if (is->read_wait_mutex) {
-		SDL_DestroyMutex(is->read_wait_mutex);
-		is->read_wait_mutex = nullptr;
-	}
-	sws_freeContext(is->img_convert_ctx);
-	sws_freeContext(is->sub_convert_ctx);
-	is->img_convert_ctx = nullptr;
-	is->sub_convert_ctx = nullptr;
-	av_freep(&is->filename);
-	if (is->soundTouchHandle) {
-		soundtouch_destroy(is->soundTouchHandle);
-		is->soundTouchHandle = nullptr;
-	}
-	av_freep(&is->audio_new_buf);
-	av_freep(&is->audio_buf1);
 	// 关闭音频（尽管在stream_component_close已经调用了）
 	if (m_sdlAudio_dev) {
 		SDL_CloseAudioDevice(m_sdlAudio_dev);
@@ -285,7 +257,7 @@ void VideoCtl::set_play_speed(double dSpeed)
 	speedLock.unlock();
 
 	// 保护 m_CurStream 访问
-	std::shared_lock<std::shared_mutex> streamLock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
 	if (m_CurStream) {
 		m_CurStream->play_rate = m_fPlaybackSpeed;
 	}
@@ -388,7 +360,7 @@ void VideoCtl::stream_toggle_pause()
 
 void VideoCtl::toggle_pause()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream) return;
 	VideoState* is = m_CurStream;
 
@@ -398,7 +370,7 @@ void VideoCtl::toggle_pause()
 
 void VideoCtl::step_to_next_frame()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream) return;
 	/* if the stream is paused unpause it, then step */
 	if (m_CurStream->paused) {
@@ -2187,7 +2159,7 @@ void VideoCtl::LoopThread()
 
 void VideoCtl::OnPlaySeek(double dPercent)
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2200,7 +2172,7 @@ void VideoCtl::OnPlaySeek(double dPercent)
 
 void VideoCtl::OnPlaySeekSeconds(int seconds)
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2214,7 +2186,7 @@ void VideoCtl::OnPlaySeekSeconds(int seconds)
 void VideoCtl::OnPlayVolume(double dPercent)
 {
 	startup_volume = dPercent * SDL_MIX_MAXVOLUME;
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2224,7 +2196,7 @@ void VideoCtl::OnPlayVolume(double dPercent)
 
 void VideoCtl::OnSeekForward()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2241,7 +2213,7 @@ void VideoCtl::OnSeekForward()
 
 void VideoCtl::OnSeekBack()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2258,7 +2230,7 @@ void VideoCtl::OnSeekBack()
 
 void VideoCtl::UpdateVolume(int sign, double step)
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2329,7 +2301,7 @@ void VideoCtl::do_exit()
 
 void VideoCtl::OnAddVolume()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2342,7 +2314,7 @@ void VideoCtl::OnAddVolume()
 
 void VideoCtl::OnSubVolume()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 		return;
@@ -2355,13 +2327,13 @@ void VideoCtl::OnSubVolume()
 
 void VideoCtl::OnPause()
 {
+	toggle_pause();
 	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (m_CurStream == nullptr)
 	{
 
 		return;
 	}
-	toggle_pause();
 	SigPauseStat(m_CurStream->paused != 0);
 }
 
@@ -2381,7 +2353,7 @@ void VideoCtl::OnStopAndWait(){
 
 void VideoCtl::OnCycleAudioTrack()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream)
 		return;
 	stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_AUDIO);
@@ -2389,7 +2361,7 @@ void VideoCtl::OnCycleAudioTrack()
 
 void VideoCtl::OnCycleSubtitleTrack()
 {
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream)
 		return;
 	stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_SUBTITLE);
