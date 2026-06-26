@@ -18,6 +18,7 @@
 #include <QPropertyAnimation>
 #include <QTimer>
 #include <QMainWindow>
+#include <memory>
 
 #include "playlist.h"
 #include "title.h"
@@ -27,6 +28,9 @@
 namespace Ui {
 class MainWid;
 }
+
+class PlaybackController;
+class VideoCtl;
 
 class MainWid : public QMainWindow
 {
@@ -155,6 +159,8 @@ private:
     QRect m_resizeStartGeometry;
 
     VideoCtlBridge* m_pVideoCtlBridge = nullptr;
+    std::shared_ptr<VideoCtl> m_videoCtl;
+    std::unique_ptr<PlaybackController> m_playbackController;
 };
 
 #endif // MainWid_H

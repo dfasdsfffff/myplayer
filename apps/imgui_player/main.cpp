@@ -234,17 +234,17 @@ std::string formatTime(int seconds)
 	return buffer;
 }
 
-void startFile(AppState& app, const std::string& file)
+void startFile(AppState& app, PlaybackController& controller, const std::string& file)
 {
 	if (file.empty())
 		return;
 	app.currentFile = file;
 	app.playSeconds = 0;
 	app.totalSeconds = 0;
-	PlaybackController::GetInstance()->play(file);
+	controller.play(file);
 }
 
-void renderUi(AppState& app)
+void renderUi(AppState& app, PlaybackController& controller)
 {
 	ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize, ImGuiCond_Always);
@@ -276,29 +276,29 @@ void renderUi(AppState& app)
 		float progress = app.totalSeconds > 0 ? app.playSeconds / static_cast<float>(app.totalSeconds) : 0.0f;
 		ImGui::SetNextItemWidth(-1);
 		if (ImGui::SliderFloat("##progress", &progress, 0.0f, 1.0f, "")) {
-			PlaybackController::GetInstance()->seek(progress);
+			controller.seek(progress);
 		}
 
 		if (ImGui::Button("Open", ImVec2(76, 32)))
-			startFile(app, openMediaDialog(app.hwnd));
+			startFile(app, controller, openMediaDialog(app.hwnd));
 		ImGui::SameLine();
 		if (ImGui::Button("-5s", ImVec2(54, 32)))
-			PlaybackController::GetInstance()->seekBack();
+			controller.seekBack();
 		ImGui::SameLine();
 		if (ImGui::Button(app.paused ? "Play" : "Pause", ImVec2(76, 32)))
-			PlaybackController::GetInstance()->pause();
+			controller.pause();
 		ImGui::SameLine();
 		if (ImGui::Button("Stop", ImVec2(60, 32)))
-			PlaybackController::GetInstance()->stop();
+			controller.stop();
 		ImGui::SameLine();
 		if (ImGui::Button("+5s", ImVec2(54, 32)))
-			PlaybackController::GetInstance()->seekForward();
+			controller.seekForward();
 		ImGui::SameLine();
 		if (ImGui::Button("Vol -", ImVec2(60, 32)))
-			PlaybackController::GetInstance()->subVolume();
+			controller.subVolume();
 		ImGui::SameLine();
 		if (ImGui::Button("Vol +", ImVec2(60, 32)))
-			PlaybackController::GetInstance()->addVolume();
+			controller.addVolume();
 		ImGui::SameLine();
 		ImGui::Checkbox("Clean view", &app.fullscreenVideo);
 
@@ -373,7 +373,18 @@ int main()
 
 	UiEventQueue uiEvents;
 	std::vector<sigslot::scoped_connection> connections;
-	VideoCtl* ctl = VideoCtl::GetInstance();
+	auto ctl = VideoCtl::MakeInstance();
+	if (!ctl) {
+		ImGui_ImplDX11_Shutdown();
+		ImGui_ImplWin32_Shutdown();
+		ImGui::DestroyContext();
+		cleanupDeviceD3D(app.d3d);
+		DestroyWindow(app.hwnd);
+		UnregisterClassW(wc.lpszClassName, wc.hInstance);
+		return 1;
+	}
+	PlaybackController controller = CreatePlaybackController(*ctl);
+
 	connections.emplace_back(ctl->SigVideoFrame.connect([&](std::shared_ptr<VideoFrame> frame) {
 		uiEvents.push([&app, frame]() { app.frame = frame; });
 	}));
@@ -411,18 +422,18 @@ int main()
 
 		uiEvents.drain();
 		if (GetAsyncKeyState(VK_SPACE) & 1)
-			PlaybackController::GetInstance()->pause();
+			controller.pause();
 		if (GetAsyncKeyState(VK_LEFT) & 1)
-			PlaybackController::GetInstance()->seekBack();
+			controller.seekBack();
 		if (GetAsyncKeyState(VK_RIGHT) & 1)
-			PlaybackController::GetInstance()->seekForward();
+			controller.seekForward();
 		if (GetAsyncKeyState('O') & 1)
-			startFile(app, openMediaDialog(app.hwnd));
+			startFile(app, controller, openMediaDialog(app.hwnd));
 
 		ImGui_ImplDX11_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
-		renderUi(app);
+		renderUi(app, controller);
 		ImGui::Render();
 
 		const float clearColor[4] = {0.02f, 0.02f, 0.025f, 1.0f};
@@ -433,7 +444,7 @@ int main()
 	}
 
 	connections.clear();
-	PlaybackController::GetInstance()->stopAndWait();
+	controller.stopAndWait();
 	app.videoTexture.release();
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();

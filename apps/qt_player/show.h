@@ -25,6 +25,8 @@
 
 #include "video_frame.h"
 
+class PlaybackController;
+
 namespace Ui {
 class Show;
 }
@@ -40,6 +42,7 @@ public:
 	 * @brief	初始化
 	 */
 	bool Init();
+    void SetPlaybackController(PlaybackController* controller);
 
 protected:
 	/**
@@ -150,6 +153,7 @@ private:
 
     QMenu m_stMenu;
     QActionGroup m_stActionGroup;
+    PlaybackController* m_playbackController = nullptr;
 };
 
 #endif // DISPLAY_H

@@ -2,78 +2,53 @@
 
 #include "videoctl.h"
 
-namespace {
-
-VideoCtl* PlaybackEngine()
+PlaybackController CreatePlaybackController(VideoCtl& ctl)
 {
-    return VideoCtl::GetInstance();
-}
-
-} // namespace
-
-PlaybackController* PlaybackController::GetInstance()
-{
-    static PlaybackController instance({
-        [](const std::string& fileName) {
-            VideoCtl* ctl = PlaybackEngine();
-            return ctl ? ctl->StartPlay(fileName) : false;
+    return PlaybackController({
+        [&ctl](const std::string& fileName) {
+            return ctl.StartPlay(fileName);
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnPause();
+        [&ctl]() {
+            ctl.OnPause();
         },
-        [](double percent) {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnPlaySeek(percent);
+        [&ctl](double percent) {
+            ctl.OnPlaySeek(percent);
         },
-        [](int seconds) {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnPlaySeekSeconds(seconds);
+        [&ctl](int seconds) {
+            ctl.OnPlaySeekSeconds(seconds);
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnSeekForward();
+        [&ctl]() {
+            ctl.OnSeekForward();
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnSeekBack();
+        [&ctl]() {
+            ctl.OnSeekBack();
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnStop();
+        [&ctl]() {
+            ctl.OnStop();
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnStopAndWait();
+        [&ctl]() {
+            ctl.OnStopAndWait();
         },
-        [](double percent) {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnPlayVolume(percent);
+        [&ctl](double percent) {
+            ctl.OnPlayVolume(percent);
         },
-        [](double speed) {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->set_play_speed(speed);
+        [&ctl](double speed) {
+            ctl.set_play_speed(speed);
         },
-        [](VideoLoopPolicy policy) {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->set_play_loop_policy(policy);
+        [&ctl](VideoLoopPolicy policy) {
+            ctl.set_play_loop_policy(policy);
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnCycleAudioTrack();
+        [&ctl]() {
+            ctl.OnCycleAudioTrack();
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnCycleSubtitleTrack();
+        [&ctl]() {
+            ctl.OnCycleSubtitleTrack();
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnAddVolume();
+        [&ctl]() {
+            ctl.OnAddVolume();
         },
-        []() {
-            if (VideoCtl* ctl = PlaybackEngine())
-                ctl->OnSubVolume();
+        [&ctl]() {
+            ctl.OnSubVolume();
         },
     });
-    return &instance;
 }

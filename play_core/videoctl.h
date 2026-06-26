@@ -37,8 +37,6 @@ private:
 	VideoCtl();
 public:
 	/// @brief 获取一个d静态实例的指针
-	static VideoCtl* GetInstance();
-
 	/**
 	* @brief 创建一个视频播放实例，不是单例
 	*/

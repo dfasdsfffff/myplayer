@@ -2420,21 +2420,6 @@ bool VideoCtl::ConnectSignalSlots()
 }
 
 
-VideoCtl* VideoCtl::GetInstance()
-{
-	// Meyers' Singleton - C++11 保证线程安全初始化，程序退出时自动析构
-	static VideoCtl instance;
-	static bool initialized = false;
-	if (!initialized) {
-		if (instance.Init()) {
-			initialized = true;
-		} else {
-			return nullptr;
-		}
-	}
-	return &instance;
-}
-
 std::shared_ptr<VideoCtl> VideoCtl::MakeInstance() {
 	auto p = std::shared_ptr<VideoCtl>(new VideoCtl());
 	if (p->Init()) {

@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <memory>
+#include <type_traits>
 
 namespace {
 
@@ -28,6 +29,9 @@ void CountClose(VideoState* state)
 
 int main()
 {
+    static_assert(std::is_same_v<decltype(CreatePlaybackController), PlaybackController(VideoCtl&)>,
+        "PlaybackController should be creatable from an explicit VideoCtl instance");
+
     auto* firstState = reinterpret_cast<VideoState*>(0x1);
     auto* secondState = reinterpret_cast<VideoState*>(0x2);
 

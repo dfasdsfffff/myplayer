@@ -28,6 +28,7 @@
 #include <QStatusBar>
 #include <QFileInfo>
 #include <QKeySequence>
+#include <memory>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -94,11 +95,23 @@ MainWid::MainWid(QMainWindow* parent) :
 
 MainWid::~MainWid()
 {
+	if (m_playbackController)
+		m_playbackController->stopAndWait();
+	delete m_pVideoCtlBridge;
+	m_pVideoCtlBridge = nullptr;
 	delete ui;
 }
 
 bool MainWid::Init()
 {
+	m_videoCtl = VideoCtl::MakeInstance();
+	if (!m_videoCtl)
+	{
+		return false;
+	}
+	m_playbackController = std::make_unique<PlaybackController>(CreatePlaybackController(*m_videoCtl));
+	ui->ShowWid->SetPlaybackController(m_playbackController.get());
+
 	// 恢复上次保存的窗口状态
 	QByteArray geometry, windowState;
 	GlobalHelper::RestoreWindowState(geometry, windowState);
@@ -182,7 +195,7 @@ bool MainWid::ConnectSignalSlots()
 {
 	// 创建 VideoCtl 的 Qt 桥接，将原生 Signal 转发为 Qt signals
 	m_pVideoCtlBridge = new VideoCtlBridge(this);
-	m_pVideoCtlBridge->attach(VideoCtl::GetInstance());
+	m_pVideoCtlBridge->attach(m_videoCtl.get());
 
 	//连接信号与槽
 	connect(&m_stTitle, &Title::SigCloseBtnClicked, this, &MainWid::OnCloseBtnClicked);
@@ -197,20 +210,20 @@ bool MainWid::ConnectSignalSlots()
 
 	connect(ui->ShowWid, &Show::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 	connect(ui->ShowWid, &Show::SigFullScreen, this, &MainWid::OnFullScreenPlay);
-	connect(ui->ShowWid, &Show::SigPlayOrPause, this, []() { PlaybackController::GetInstance()->pause(); });
-	connect(ui->ShowWid, &Show::SigStop, this, []() { PlaybackController::GetInstance()->stop(); });
+	connect(ui->ShowWid, &Show::SigPlayOrPause, this, [this]() { m_playbackController->pause(); });
+	connect(ui->ShowWid, &Show::SigStop, this, [this]() { m_playbackController->stop(); });
 	connect(ui->ShowWid, &Show::SigShowMenu, this, &MainWid::OnShowMenu);
-	connect(ui->ShowWid, &Show::SigSeekForward, this, []() { PlaybackController::GetInstance()->seekForward(); });
-	connect(ui->ShowWid, &Show::SigSeekBack, this, []() { PlaybackController::GetInstance()->seekBack(); });
-	connect(ui->ShowWid, &Show::SigAddVolume, this, []() { PlaybackController::GetInstance()->addVolume(); });
-	connect(ui->ShowWid, &Show::SigSubVolume, this, []() { PlaybackController::GetInstance()->subVolume(); });
+	connect(ui->ShowWid, &Show::SigSeekForward, this, [this]() { m_playbackController->seekForward(); });
+	connect(ui->ShowWid, &Show::SigSeekBack, this, [this]() { m_playbackController->seekBack(); });
+	connect(ui->ShowWid, &Show::SigAddVolume, this, [this]() { m_playbackController->addVolume(); });
+	connect(ui->ShowWid, &Show::SigSubVolume, this, [this]() { m_playbackController->subVolume(); });
 
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowOrHidePlaylist, this, &MainWid::OnShowOrHidePlaylist);
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlaySeek, this, [](double d) { PlaybackController::GetInstance()->seek(d); });
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayVolume, this, [](double d) { PlaybackController::GetInstance()->setVolume(d); });
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayOrPause, this, []() { PlaybackController::GetInstance()->pause(); });
-	connect(ui->CtrlBarWid, &CtrlBar::SigStop, this, []() { PlaybackController::GetInstance()->stop(); });
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayLoopPolicyChanged, this, [](VideoLoopPolicy p) { PlaybackController::GetInstance()->setLoopPolicy(p); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlaySeek, this, [this](double d) { m_playbackController->seek(d); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayVolume, this, [this](double d) { m_playbackController->setVolume(d); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayOrPause, this, [this]() { m_playbackController->pause(); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigStop, this, [this]() { m_playbackController->stop(); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayLoopPolicyChanged, this, [this](VideoLoopPolicy p) { m_playbackController->setLoopPolicy(p); });
 	connect(ui->CtrlBarWid, &CtrlBar::SigBackwardPlay, &m_stPlaylist, &Playlist::OnBackwardPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigForwardPlay, &m_stPlaylist, &Playlist::OnForwardPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowMenu, this, &MainWid::OnShowMenu);
@@ -218,10 +231,10 @@ bool MainWid::ConnectSignalSlots()
 	connect(ui->CtrlBarWid, &CtrlBar::SigSpeedChanged, this, &MainWid::OnSpeedChanged);
 
 	connect(this, &MainWid::SigShowMax, &m_stTitle, &Title::OnChangeMaxBtnStyle);
-	connect(this, &MainWid::SigSeekForward, this, []() { PlaybackController::GetInstance()->seekForward(); });
-	connect(this, &MainWid::SigSeekBack, this, []() { PlaybackController::GetInstance()->seekBack(); });
-	connect(this, &MainWid::SigAddVolume, this, []() { PlaybackController::GetInstance()->addVolume(); });
-	connect(this, &MainWid::SigSubVolume, this, []() { PlaybackController::GetInstance()->subVolume(); });
+	connect(this, &MainWid::SigSeekForward, this, [this]() { m_playbackController->seekForward(); });
+	connect(this, &MainWid::SigSeekBack, this, [this]() { m_playbackController->seekBack(); });
+	connect(this, &MainWid::SigAddVolume, this, [this]() { m_playbackController->addVolume(); });
+	connect(this, &MainWid::SigSubVolume, this, [this]() { m_playbackController->subVolume(); });
 	connect(this, &MainWid::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 
 
@@ -667,7 +680,7 @@ void MainWid::OnPlayFile(QString strFileName)
 		const QString resumeFile = m_currentPlayFile;
 		QTimer::singleShot(500, this, [this, resumeFile, resumeSeconds]() {
 			if (m_currentPlayFile == resumeFile)
-				PlaybackController::GetInstance()->seekSeconds(resumeSeconds);
+				m_playbackController->seekSeconds(resumeSeconds);
 		});
 	}
 }
@@ -696,12 +709,12 @@ void MainWid::OnClearRecentFiles()
 
 void MainWid::OnCycleAudioTrack()
 {
-	PlaybackController::GetInstance()->cycleAudioTrack();
+	m_playbackController->cycleAudioTrack();
 }
 
 void MainWid::OnCycleSubtitleTrack()
 {
-	PlaybackController::GetInstance()->cycleSubtitleTrack();
+	m_playbackController->cycleSubtitleTrack();
 }
 
 void MainWid::OnVideoPlaySeconds(int seconds)
@@ -929,7 +942,7 @@ void MainWid::OnCloseBtnClicked()
 	loopPolicy = ui->CtrlBarWid->GetLoopPolicy();
 	speed = ui->CtrlBarWid->GetSpeed();
 	GlobalHelper::SavePlaySettings(volume, loopPolicy, speed);
-	PlaybackController::GetInstance()->stopAndWait();
+	m_playbackController->stopAndWait();
 	this->close();
 }
 
@@ -967,5 +980,5 @@ void MainWid::OnShowOrHidePlaylist()
 void MainWid::OnSpeedChanged(double speed)
 {
 	if (speed < 0)return;
-	PlaybackController::GetInstance()->setSpeed(speed);
+	m_playbackController->setSpeed(speed);
 }

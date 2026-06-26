@@ -5,6 +5,8 @@
 #include <functional>
 #include <string>
 
+class VideoCtl;
+
 class PlaybackController {
 public:
     struct Actions {
@@ -27,8 +29,6 @@ public:
 
     explicit PlaybackController(Actions actions);
 
-    static PlaybackController* GetInstance();
-
     bool play(const std::string& fileName);
     void pause();
     void seek(double percent);
@@ -48,3 +48,5 @@ public:
 private:
     Actions m_actions;
 };
+
+PlaybackController CreatePlaybackController(VideoCtl& ctl);

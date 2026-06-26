@@ -70,6 +70,11 @@ bool Show::Init()
     return true;
 }
 
+void Show::SetPlaybackController(PlaybackController* controller)
+{
+    m_playbackController = controller;
+}
+
 void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
 {
     m_nLastFrameWidth = nFrameWidth;
@@ -310,7 +315,12 @@ void Show::OnPlay(QString strFile)
         return;
     }
     
-    PlaybackController::GetInstance()->play(s);
+    if (!m_playbackController) {
+        qWarning() << "Warning: playback controller is not set, not starting playback.";
+        return;
+    }
+
+    m_playbackController->play(s);
 }
 
 void Show::OnStopFinished()
