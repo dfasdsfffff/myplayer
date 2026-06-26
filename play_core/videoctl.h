@@ -146,16 +146,10 @@ private:
 	void stream_component_close(VideoState* is, int stream_index);  // 保留参数，内部使用
 	void stream_close(VideoState* is);  // 保留参数，清理函数
 
-	static int get_master_sync_type(VideoState* is);  // 纯计算，设为static
-	static double get_master_clock(VideoState* is);  // 纯计算，设为static
-	static void check_external_clock_speed(VideoState* is);  // 纯操作，设为static
 	void stream_seek(int64_t pos, int64_t rel);  // 移除参数，使用m_CurStream
 	void stream_toggle_pause();  // 移除参数，使用m_CurStream
 	void toggle_pause();  // 移除参数，使用m_CurStream
 	void step_to_next_frame();  // 移除参数，使用m_CurStream
-	static double compute_target_delay(double delay, VideoState* is);  // 纯计算，设为static
-	static double vp_duration(VideoState* is, Frame* vp, Frame* nextvp);  // 纯计算，设为static
-	static void update_video_pts(VideoState* is, double pts, int64_t pos, int serial);  // 纯操作，设为static
 public:
 	static int configure_filtergraph(AVFilterGraph* graph, const char* filtergraph,
 		AVFilterContext* source_ctx, AVFilterContext* sink_ctx);  // 纯配置，设为static

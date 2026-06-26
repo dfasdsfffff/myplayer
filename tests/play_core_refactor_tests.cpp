@@ -1,10 +1,15 @@
+#define SDL_MAIN_HANDLED
+
 #include "media_session.h"
 #include "enums.h"
+#include "media_sync.h"
 #include "playback_controller.h"
 #include "playback_controller_videoctl.h"
 #include "playback_runtime.h"
 #include "renderer_dispatcher.h"
+#include "video_state.h"
 
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <type_traits>
@@ -37,6 +42,18 @@ int main()
         "PlaybackRuntime should own playback internals behind a factory");
     static_assert(std::is_same_v<decltype(std::declval<PlaybackRuntime&>().controller()), PlaybackController&>,
         "PlaybackRuntime should expose a controller without exposing VideoCtl");
+    static_assert(std::is_same_v<decltype(std::declval<VideoState&>().session), SessionState>,
+        "VideoState should expose grouped session state");
+    static_assert(std::is_same_v<decltype(std::declval<VideoState&>().clocks), MediaClockState>,
+        "VideoState should expose grouped clock state");
+    static_assert(std::is_same_v<decltype(std::declval<VideoState&>().audio), AudioState>,
+        "VideoState should expose grouped audio state");
+    static_assert(std::is_same_v<decltype(std::declval<VideoState&>().video), VideoTrackState>,
+        "VideoState should expose grouped video state");
+    static_assert(std::is_same_v<decltype(std::declval<VideoState&>().subtitle), SubtitleState>,
+        "VideoState should expose grouped subtitle state");
+    static_assert(std::is_same_v<decltype(std::declval<VideoState&>().filters), FilterState>,
+        "VideoState should expose grouped filter state");
 
     auto* firstState = reinterpret_cast<VideoState*>(0x1);
     auto* secondState = reinterpret_cast<VideoState*>(0x2);
@@ -63,6 +80,30 @@ int main()
 
     if (!Expect(CloseCount == 1, "released state should not close in destructor"))
         return 1;
+
+    {
+        auto syncState = std::make_unique<VideoState>();
+        syncState->clocks.av_sync_type = AV_SYNC_AUDIO_MASTER;
+        syncState->clocks.extclk.init(&syncState->clocks.extclk.serial);
+        syncState->video.max_frame_duration = 10.0;
+        if (!Expect(MediaSync::get_master_sync_type(syncState.get()) == AV_SYNC_EXTERNAL_CLOCK,
+                "missing audio stream should fall back to external clock"))
+            return 1;
+        if (!Expect(std::isnan(MediaSync::get_master_clock(syncState.get())),
+                "default external clock should report NaN until playback initializes it"))
+            return 1;
+
+        Frame current{};
+        Frame next{};
+        current.serial = 1;
+        current.pts = 1.0;
+        current.duration = 0.04;
+        next.serial = 1;
+        next.pts = 1.04;
+        if (!Expect(MediaSync::vp_duration(syncState.get(), &current, &next) > 0.0,
+                "frame duration helper should use grouped video state"))
+            return 1;
+    }
 
     bool dimensionsChanged = false;
     int dimensionWidth = 0;
