@@ -12,7 +12,7 @@
 
 const QString PLAYER_CONFIG = "player_config.ini";
 
-const QString APP_VERSION = "0.1.0";
+const QString APP_VERSION = "1.0.0";
 
 QString GlobalHelper::GetConfigFilePath()
 {
@@ -82,7 +82,7 @@ void GlobalHelper::SetIcon(QPushButton* btn, int iconSize,const QIcon& icon, QSt
     btn->setToolTip(strToolTip);
 }
 
-void GlobalHelper::SavePlaylist(QStringList& playList)
+void GlobalHelper::SavePlaylist(const QStringList& playList)
 {
     //QString strPlayerConfigFileName = QCoreApplication::applicationDirPath() + QDir::separator() + PLAYER_CONFIG;
     QString strPlayerConfigFileName = GetConfigFilePath();
@@ -111,7 +111,7 @@ void GlobalHelper::GetPlaylist(QStringList& playList)
     settings.endArray();
 }
 
-void GlobalHelper::SavePlayVolume(double& nVolume)
+void GlobalHelper::SavePlayVolume(double nVolume)
 {
     QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);

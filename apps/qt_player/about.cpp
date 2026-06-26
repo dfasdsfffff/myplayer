@@ -22,9 +22,6 @@ bool About::Init()
 {
     this->setWindowModality(Qt::ApplicationModal); //弹出关于窗口，主窗口不可点击
 
-    //this->setWindowFlags(Qt::Dialog);
-    //setWindowFlags(Qt::FramelessWindowHint /*| Qt::WindowSystemMenuHint*/ | Qt::WindowMinimizeButtonHint);
-
     this->setWindowIcon(QIcon("://res/player.png"));
     ui->LogoLabel->setPixmap(QPixmap("://res/player.png").scaled(80, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 

@@ -8,8 +8,7 @@
  * @brief 	公共接口
  * @note
  */
-#ifndef GLOBALHELPER_H
-#define GLOBALHELPER_H
+#pragma once
 
 enum ERROR_CODE { NoError = 0, ErrorFileInvalid };
 
@@ -49,9 +48,9 @@ public:
 	static void SetIcon(QPushButton* btn, int iconSize, QChar icon);
 	static void SetIcon(QPushButton* btn, int iconSize, const QIcon& icon, QString strToolTip = QString());
 
-	static void SavePlaylist(QStringList& playList);
+	static void SavePlaylist(const QStringList& playList);
 	static void GetPlaylist(QStringList& playList);
-	static void SavePlayVolume(double& nVolume);
+	static void SavePlayVolume(double nVolume);
 	static void GetPlayVolume(double& nVolume);
 
 	// 新增：窗口状态持久化
@@ -85,4 +84,4 @@ private:
 
 #define MAX_SLIDER_VALUE 65536
 
-#endif // GLOBALHELPER_H
+

@@ -8,8 +8,7 @@
  * @brief 	播放列表控件
  * @note
  */
-#ifndef PLAYLIST_H
-#define PLAYLIST_H
+#pragma once
 
 #include <QWidget>
 #include <QListWidgetItem>
@@ -105,4 +104,4 @@ private:
     int m_nCurrentPlayListIndex;
 };
 
-#endif // PLAYLIST_H
+

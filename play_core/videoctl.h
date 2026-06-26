@@ -8,8 +8,7 @@
  * @brief 	视频控制类
  * @note 	纯 C++ 实现，无 Qt 依赖
  */
-#ifndef VIDEOCTL_H
-#define VIDEOCTL_H
+#pragma once
 
 #include <string>
 #include <shared_mutex>
@@ -190,4 +189,4 @@ private:
 	float m_fPlaybackSpeed = 1;       // 当前的播放速度，默认为1倍速
 };
 
-#endif // VIDEOCTL_H
+

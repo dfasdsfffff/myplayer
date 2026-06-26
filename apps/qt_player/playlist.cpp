@@ -59,9 +59,6 @@ bool Playlist::Init()
 bool Playlist::InitUi()
 {
     setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/playlist.css"));
-    //ui->List->hide();
-    //this->setFixedWidth(ui->HideOrShowBtn->width());
-    //GlobalHelper::SetIcon(ui->HideOrShowBtn, 12, QChar(0xf104));
 
     ui->List->clear();
 

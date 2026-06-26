@@ -268,12 +268,6 @@ bool MainWid::ConnectSignalSlots()
 
 void MainWid::keyReleaseEvent(QKeyEvent* event)
 {
-	// 	    // 是否按下Ctrl键      特殊按键
-	//     if(event->modifiers() == Qt::ControlModifier){
-	//         // 是否按下M键    普通按键  类似
-	//         if(event->key() == Qt::Key_M)
-	//             ···
-	//     }
 	switch (event->key())
 	{
 	case Qt::Key_Return://全屏

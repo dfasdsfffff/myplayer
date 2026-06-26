@@ -233,10 +233,6 @@ void Show::RenderCurrentFrame()
 
 void Show::dragEnterEvent(QDragEnterEvent *event)
 {
-    //    if(event->mimeData()->hasFormat("text/uri-list"))
-    //    {
-    //        event->acceptProposedAction();
-    //    }
     event->acceptProposedAction();
 }
 
@@ -278,12 +274,6 @@ void Show::keyReleaseEvent(QKeyEvent *event)
         break;
     }
 }
-
-// void Show::contextMenuEvent(QContextMenuEvent* event)
-// {
-//     //m_stMenu.exec(event->globalPos());
-//     qDebug() << "Show::contextMenuEvent";
-// }
 void Show::mousePressEvent(QMouseEvent *event)
 {
     if (event->buttons() & Qt::RightButton)

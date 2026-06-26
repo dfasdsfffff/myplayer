@@ -8,8 +8,7 @@
  * @brief 	控制面板界面
  * @note
  */
-#ifndef CTRLBAR_H
-#define CTRLBAR_H
+#pragma once
 
 #include "enums.h"
 #include <QWidget>
@@ -83,4 +82,4 @@ private:
     double m_dLastVolumePercent;
 };
 
-#endif // CTRLBAR_H
+

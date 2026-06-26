@@ -1,5 +1,4 @@
-#ifndef PLAYLISTFILE_H
-#define PLAYLISTFILE_H
+#pragma once
 
 #include <QString>
 #include <QStringList>
@@ -12,4 +11,4 @@ public:
     static bool IsSupportedMovie(const QString& fileName);
 };
 
-#endif // PLAYLISTFILE_H
+

@@ -8,8 +8,7 @@
  * @brief 	播放器标题栏
  * @note
  */
-#ifndef MAINWIDTITLE_H
-#define MAINWIDTITLE_H
+#pragma once
 
 #include <QWidget>
 #include <QMouseEvent>
@@ -78,4 +77,4 @@ private:
     About about;
 };
 
-#endif // MAINWIDTITLE_H
+

@@ -28,8 +28,6 @@ Title::Title(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    //this->setMouseTracking(true);
-
     connect(ui->CloseBtn, &QPushButton::clicked, this, &Title::SigCloseBtnClicked);
     connect(ui->MinBtn, &QPushButton::clicked, this, &Title::SigMinBtnClicked);
     connect(ui->MaxBtn, &QPushButton::clicked, this, &Title::SigMaxBtnClicked);
@@ -115,11 +113,6 @@ void Title::resizeEvent(QResizeEvent *event)
 {
     //ChangeMovieNameShow();
 }
-
-// void Title::mouseMoveEvent(QMouseEvent *event)
-// {
-//     qDebug() << "Title::mouseMoveEvent";
-// }
 
 void Title::ChangeMovieNameShow()
 {

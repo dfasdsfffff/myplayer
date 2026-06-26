@@ -8,8 +8,7 @@
  * @brief 	主界面
  * @note
  */
-#ifndef MainWid_H
-#define MainWid_H
+#pragma once
 
 #include <QWidget>
 #include <QMouseEvent>
@@ -163,4 +162,4 @@ private:
     std::unique_ptr<PlaybackController> m_playbackController;
 };
 
-#endif // MainWid_H
+

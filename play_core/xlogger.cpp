@@ -1,5 +1,4 @@
 #include "xlogger.h"
-#include "xlogger.h"
 #include <mutex>
 #include <fstream>
 #include <sstream>

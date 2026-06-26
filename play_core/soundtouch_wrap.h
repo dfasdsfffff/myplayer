@@ -1,5 +1,4 @@
-#ifndef IJKSOUNDTOUCHWRAP_H
-#define IJKSOUNDTOUCHWRAP_H
+#pragma once
 
 #include <stdint.h>
 
@@ -10,4 +9,4 @@ int soundtouch_translate(void* handle, short* data, float speed, float pitch,
 
 void soundtouch_destroy(void* handle);
 
-#endif /* IJKSOUNDTOUCHWRAP_H */
+

@@ -8,8 +8,7 @@
  * @brief 	显示控件
  * @note
  */
-#ifndef DISPLAY_H
-#define DISPLAY_H
+#pragma once
 
 #include <QWidget>
 #include <QMimeData>
@@ -156,4 +155,4 @@ private:
     PlaybackController* m_playbackController = nullptr;
 };
 
-#endif // DISPLAY_H
+
