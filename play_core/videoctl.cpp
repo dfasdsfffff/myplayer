@@ -2309,14 +2309,7 @@ void VideoCtl::emit_video_frame(VideoState* is)
 		reinterpret_cast<const uint8_t* const*>(vp->frame->data), vp->frame->linesize,
 		0, vp->frame->height, dstData, dstLinesize);
 
-	if (m_nFrameW != frame->width || m_nFrameH != frame->height)
-	{
-		m_nFrameW = frame->width;
-		m_nFrameH = frame->height;
-		SigFrameDimensionsChanged(m_nFrameW, m_nFrameH);
-	}
-
-	SigVideoFrame(frame);
+	m_rendererDispatcher.dispatchFrame(frame);
 }
 
 void VideoCtl::do_exit()
@@ -2324,7 +2317,7 @@ void VideoCtl::do_exit()
 	VideoState* is = nullptr;
 	{
 		std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-		is = m_CurStream;
+		is = m_mediaSession.release();
 		m_CurStream = nullptr;
 	}
 
@@ -2406,10 +2399,17 @@ VideoCtl::VideoCtl() :
 	m_CurStream(nullptr),
 	m_bPlayLoop(false),
 	startup_volume(30),
-	m_sdlAudio_dev(0),
-	m_nFrameW(0),
-	m_nFrameH(0)
+	m_sdlAudio_dev(0)
 {
+	m_mediaSession.setCloseCallback([this](VideoState* state) {
+		stream_close(state);
+	});
+	m_rendererDispatcher.setFrameDimensionsChangedCallback([this](int width, int height) {
+		SigFrameDimensionsChanged(width, height);
+	});
+	m_rendererDispatcher.setVideoFrameCallback([this](std::shared_ptr<VideoFrame> frame) {
+		SigVideoFrame(std::move(frame));
+	});
 	avdevice_register_all();
 	//网络格式初始化（引用计数保护）
 	if (g_network_init_count.fetch_add(1) == 0)
@@ -2478,6 +2478,15 @@ VideoCtl::~VideoCtl() {
   if (m_tPlayLoopThread.joinable())
     m_tPlayLoopThread.join();
 
+  VideoState* state = nullptr;
+  {
+    std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
+    state = m_mediaSession.release();
+    m_CurStream = nullptr;
+  }
+  if (state)
+    stream_close(state);
+
   // 引用计数：仅最后一个实例析构时才执行全局清理
   if (g_network_init_count.fetch_sub(1) == 1)
   {
@@ -2520,7 +2529,8 @@ bool VideoCtl::StartPlay(const std::string& strFileName)
 
     {
         std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-        m_CurStream = is;
+        m_mediaSession.reset(is);
+        m_CurStream = m_mediaSession.get();
     }
 
     //事件循环

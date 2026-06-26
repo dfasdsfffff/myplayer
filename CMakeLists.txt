@@ -217,3 +217,13 @@ if(WIN32)
 endif()
 
 add_test(NAME playlistfile_tests COMMAND playlistfile_tests)
+
+add_executable(play_core_refactor_tests
+    tests/play_core_refactor_tests.cpp
+)
+
+target_link_libraries(play_core_refactor_tests PRIVATE
+    play_core
+)
+
+add_test(NAME play_core_refactor_tests COMMAND play_core_refactor_tests)

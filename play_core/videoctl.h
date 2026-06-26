@@ -20,6 +20,8 @@
 
 #include "datactl.h"
 #include "enums.h"
+#include "media_session.h"
+#include "renderer_dispatcher.h"
 #include "signal.h"
 #include "video_frame.h"
 
@@ -167,6 +169,7 @@ private:
 
 	std::atomic_bool m_bPlayLoop{ false }; //刷新循环标志
 	std::mutex m_playbackMutex;
+	MediaSession m_mediaSession;
 
 	bool m_bAutorotate = true;
 
@@ -182,8 +185,7 @@ private:
 	//播放刷新循环线程
 	std::thread m_tPlayLoopThread;
 
-	int m_nFrameW;
-	int m_nFrameH;
+	RendererDispatcher m_rendererDispatcher;
 
 	// 倍速播放相关
 	std::shared_mutex m_speedMutex;   // 保护mPlaybackSpeed的读写

@@ -2,7 +2,9 @@ add_library(play_core STATIC
     clock.cpp
     decoder.cpp
     frame_queue.cpp
+    media_session.cpp
     packet_queue.cpp
+    renderer_dispatcher.cpp
     videoctl.cpp
     soundtouch_wrap.cpp
     xlogger.cpp
