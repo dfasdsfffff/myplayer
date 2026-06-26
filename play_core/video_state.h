@@ -1,124 +1,137 @@
-/*
-* @file 	video_state.h
-* @brief 	视频状态数据结构
-* @note 	从 datactl.h 拆分出的 VideoState 结构体
-*/
-
 #pragma once
 
 #include "av_types.h"
 #include "decoder.h"
 #include "soundtouch_wrap.h"
 
-//视频状态，管理所有的视频信息及数据
-typedef struct VideoState {
-    ~VideoState();
+struct SessionState {
+    ~SessionState();
 
-    void* soundTouchHandle;
-    short* audio_new_buf;  /* soundtouch buf */
-    unsigned int audio_new_buf_size;
-    double play_rate;	/* 播放速度默认1.0 */
+    std::thread read_tid;
+    AVInputFormat* iformat = nullptr;
+    int abort_request = 0;
+    int force_refresh = 0;
+    int paused = 0;
+    int last_paused = 0;
+    int queue_attachments_req = 0;
+    int seek_req = 0;
+    int seek_flags = 0;
+    int64_t seek_pos = 0;
+    int64_t seek_rel = 0;
+    int read_pause_return = 0;
+    AVFormatContext* ic = nullptr;
+    int realtime = 0;
+    int eof = 0;
+    char* filename = nullptr;
+    int last_video_stream = 0;
+    int last_audio_stream = 0;
+    int last_subtitle_stream = 0;
+    SDL_mutex* read_wait_mutex = nullptr;
+    SDL_cond* continue_read_thread = nullptr;
+};
 
-    std::thread read_tid; //读取线程
-    AVInputFormat *iformat;
-    int abort_request; //停止读取标志
-    int force_refresh;
-    int paused;
-    int last_paused;
-    int queue_attachments_req;
-    int seek_req;
-    int seek_flags;
-    int64_t seek_pos;
-    int64_t seek_rel;
-    int read_pause_return;
-    AVFormatContext *ic;
-    int realtime;
-
+struct MediaClockState {
     Clock audclk;
     Clock vidclk;
     Clock extclk;
+    int av_sync_type = 0;
+};
+
+struct AudioState {
+    ~AudioState();
+
+    void* soundTouchHandle = nullptr;
+    short* audio_new_buf = nullptr;
+    unsigned int audio_new_buf_size = 0;
+    double play_rate = 0;
+
+    FrameQueue sampq;
+    Decoder aud_decoder;
+    int audio_stream = 0;
+    double audio_clock = 0;
+    int audio_clock_serial = 0;
+    double audio_diff_cum = 0;
+    double audio_diff_avg_coef = 0;
+    double audio_diff_threshold = 0;
+    int audio_diff_avg_count = 0;
+    AVStream* audio_st = nullptr;
+    PacketQueue audioq;
+    int audio_hw_buf_size = 0;
+    uint8_t* audio_buf = nullptr;
+    uint8_t* audio_buf1 = nullptr;
+    unsigned int audio_buf_size = 0;
+    unsigned int audio_buf1_size = 0;
+    int audio_buf_index = 0;
+    int audio_write_buf_size = 0;
+    int audio_volume = 0;
+
+    AudioParams audio_src{};
+    AudioParams audio_filter_src{};
+    AudioParams audio_tgt{};
+    SwrContext* swr_ctx = nullptr;
+
+    int16_t sample_array[SAMPLE_ARRAY_SIZE]{};
+    int sample_array_index = 0;
+    int last_i_start = 0;
+    RDFTContext* rdft = nullptr;
+    int rdft_bits = 0;
+    FFTSample* rdft_data = nullptr;
+    int xpos = 0;
+    double last_vis_time = 0;
+};
+
+struct VideoTrackState {
+    ~VideoTrackState();
 
     FrameQueue pictq;
-    FrameQueue subpq;
-    FrameQueue sampq;
-
-    Decoder aud_decoder;
     Decoder vid_decoder;
-    Decoder sub_decoder;
-     
-    int audio_stream;
-
-    int av_sync_type;
-
-    double audio_clock;    //最新解码并送入音频缓冲区的音频帧的结束时间
-    int audio_clock_serial;
-    double audio_diff_cum; /* used for AV difference average computation */
-    double audio_diff_avg_coef;
-    double audio_diff_threshold;
-    int audio_diff_avg_count;
-    AVStream *audio_st;
-    PacketQueue audioq;
-    int audio_hw_buf_size;
-	uint8_t* audio_buf;// 如果有重采样，存储重采样前的音频数据；如果有倍速播放则指向audio_new_buf；否则存储解码后的音频数据
-	uint8_t* audio_buf1;// 存储重采样后的音频数据
-    unsigned int audio_buf_size; /* in bytes */
-    unsigned int audio_buf1_size;
-    int audio_buf_index; /* in bytes */
-    int audio_write_buf_size;
-    int audio_volume;
-
-    struct AudioParams audio_src;
-
-    struct AudioParams audio_filter_src;
-
-    struct AudioParams audio_tgt;
-    struct SwrContext *swr_ctx;
-    int frame_drops_early;
-    int frame_drops_late;
-
-    int16_t sample_array[SAMPLE_ARRAY_SIZE];
-    int sample_array_index;
-    int last_i_start;
-    RDFTContext *rdft;
-    int rdft_bits;
-    FFTSample *rdft_data;
-    int xpos;
-    double last_vis_time;
-
-    int subtitle_stream;
-    AVStream *subtitle_st;
-    PacketQueue subtitleq;
-
-    double frame_timer;
-    double frame_last_returned_time;
-    double frame_last_filter_delay;
-    int video_stream;
-    AVStream *video_st;
+    int frame_drops_early = 0;
+    int frame_drops_late = 0;
+    double frame_timer = 0;
+    double frame_last_returned_time = 0;
+    double frame_last_filter_delay = 0;
+    int video_stream = 0;
+    AVStream* video_st = nullptr;
     PacketQueue videoq;
-    double max_frame_duration;      // maximum duration of a frame - above this, we consider the jump a timestamp discontinuity
-    struct SwsContext *img_convert_ctx;
-    struct SwsContext *sub_convert_ctx;
-    int eof;
+    double max_frame_duration = 0;
+    SwsContext* img_convert_ctx = nullptr;
+    int width = 0;
+    int height = 0;
+    int xleft = 0;
+    int ytop = 0;
+    int step = 0;
+};
 
-    char *filename;
-    int width, height, xleft, ytop;
-    int step;
+struct SubtitleState {
+    ~SubtitleState();
 
-    int vfilter_idx;
-    AVFilterContext* in_video_filter;  // 视频链中的第一个滤镜
-    AVFilterContext* out_video_filter; // 视频链中的最后一个滤镜
-    AVFilterContext* in_audio_filter;  // 音频链中的第一个滤镜
-    AVFilterContext* out_audio_filter; // 音频链中的最后一个滤镜
-    AVFilterGraph* agraph;             // 音频滤镜图
+    FrameQueue subpq;
+    Decoder sub_decoder;
+    int subtitle_stream = 0;
+    AVStream* subtitle_st = nullptr;
+    PacketQueue subtitleq;
+    SwsContext* sub_convert_ctx = nullptr;
+};
 
-    int last_video_stream, last_audio_stream, last_subtitle_stream;
+struct FilterState {
+    int vfilter_idx = 0;
+    AVFilterContext* in_video_filter = nullptr;
+    AVFilterContext* out_video_filter = nullptr;
+    AVFilterContext* in_audio_filter = nullptr;
+    AVFilterContext* out_audio_filter = nullptr;
+    AVFilterGraph* agraph = nullptr;
+};
 
-    SDL_mutex* read_wait_mutex = nullptr;
-    SDL_cond *continue_read_thread = nullptr;
-
+typedef struct VideoState {
+    MediaClockState clocks;
+    AudioState audio;
+    VideoTrackState video;
+    SubtitleState subtitle;
+    FilterState filters;
+    SessionState session;
 } VideoState;
 
-inline VideoState::~VideoState()
+inline SessionState::~SessionState()
 {
     if (read_tid.joinable()) {
         abort_request = 1;
@@ -127,25 +140,8 @@ inline VideoState::~VideoState()
         read_tid.join();
     }
 
-    if (soundTouchHandle) {
-        soundtouch_destroy(soundTouchHandle);
-        soundTouchHandle = nullptr;
-    }
-    av_freep(&audio_new_buf);
-    av_freep(&audio_buf1);
-    av_freep(&rdft_data);
     av_freep(&filename);
 
-    swr_free(&swr_ctx);
-    sws_freeContext(img_convert_ctx);
-    sws_freeContext(sub_convert_ctx);
-    img_convert_ctx = nullptr;
-    sub_convert_ctx = nullptr;
-
-    if (rdft) {
-        av_rdft_end(rdft);
-        rdft = nullptr;
-    }
     if (continue_read_thread) {
         SDL_DestroyCond(continue_read_thread);
         continue_read_thread = nullptr;
@@ -156,4 +152,34 @@ inline VideoState::~VideoState()
     }
 
     avformat_close_input(&ic);
+}
+
+inline AudioState::~AudioState()
+{
+    if (soundTouchHandle) {
+        soundtouch_destroy(soundTouchHandle);
+        soundTouchHandle = nullptr;
+    }
+    av_freep(&audio_new_buf);
+    av_freep(&audio_buf1);
+    av_freep(&rdft_data);
+
+    swr_free(&swr_ctx);
+
+    if (rdft) {
+        av_rdft_end(rdft);
+        rdft = nullptr;
+    }
+}
+
+inline VideoTrackState::~VideoTrackState()
+{
+    sws_freeContext(img_convert_ctx);
+    img_convert_ctx = nullptr;
+}
+
+inline SubtitleState::~SubtitleState()
+{
+    sws_freeContext(sub_convert_ctx);
+    sub_convert_ctx = nullptr;
 }

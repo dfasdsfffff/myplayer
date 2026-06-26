@@ -2,6 +2,7 @@ add_library(play_core STATIC
     clock.cpp
     decoder.cpp
     frame_queue.cpp
+    media_sync.cpp
     media_session.cpp
     packet_queue.cpp
     playback_controller.cpp
