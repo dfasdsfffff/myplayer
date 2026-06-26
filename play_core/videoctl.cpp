@@ -334,6 +334,7 @@ void VideoCtl::check_external_clock_speed(VideoState* is) {
 /* seek in the stream */
 void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 {
+	if (!m_CurStream) return;
 
 	if (!m_CurStream->seek_req) {
 		m_CurStream->seek_pos = pos;
@@ -347,6 +348,8 @@ void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 /* pause or resume the video */
 void VideoCtl::stream_toggle_pause()
 {
+	if (!m_CurStream) return;
+
 	if (m_CurStream->paused) {
 		m_CurStream->frame_timer += av_gettime_relative() / 1000000.0 - m_CurStream->vidclk.last_updated;
 		if (m_CurStream->read_pause_return != AVERROR(ENOSYS)) {
@@ -1701,7 +1704,7 @@ void VideoCtl::ReadThread(VideoState* is)
 	}
 
 	if (ic->pb)
-		ic->pb->eof_reached = 0; // FIXME hack, ffplay maybe should not use avio_feof() to test for the end
+		ic->pb->eof_reached = 0;
 
 	is->max_frame_duration = (ic->iformat->flags & AVFMT_TS_DISCONT) ? 10.0 : 3600.0;
 
@@ -2107,6 +2110,8 @@ void VideoCtl::refresh_loop_wait_event(VideoState* is) {
 
 void VideoCtl::seek_chapter(VideoState* is, int incr)
 {
+	if (!is) return;
+
 	int64_t pos = get_master_clock(is) * AV_TIME_BASE;
 	int i;
 
