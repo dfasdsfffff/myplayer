@@ -9,7 +9,6 @@
 - 原项目：[`itisyang/playerdemo`](https://github.com/itisyang/playerdemo)
 - 原作者：[`itisyang`](https://github.com/itisyang)
 - 原项目主页：<https://itisyang.github.io/playerdemo/>
-- 许可证：MIT License，详见 [LICENSE](LICENSE)
 
 > 本项目是在原作者开源代码基础上继续维护和调整的版本。感谢原作者 `itisyang` 对播放器示例、界面和播放核心实现的贡献。
 
