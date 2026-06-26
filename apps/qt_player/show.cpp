@@ -10,6 +10,7 @@
  */
 
 #include <QDebug>
+#include <QPalette>
 #include <mutex>
 #include <utility>
 
@@ -34,10 +35,12 @@ Show::Show(QWidget *parent) : QWidget(parent),
 
     // 防止过度刷新显示
     this->setAttribute(Qt::WA_OpaquePaintEvent);
-    // ui->label->setAttribute(Qt::WA_OpaquePaintEvent);
-
     ui->label->setAttribute(Qt::WA_NativeWindow);
-    ui->label->setUpdatesEnabled(false);
+    ui->label->setAttribute(Qt::WA_OpaquePaintEvent);
+    ui->label->setAutoFillBackground(true);
+    QPalette videoPalette = ui->label->palette();
+    videoPalette.setColor(QPalette::Window, Qt::black);
+    ui->label->setPalette(videoPalette);
 
     this->setMouseTracking(true);
 
@@ -63,8 +66,6 @@ bool Show::Init()
     {
         return false;
     }
-
-    // ui->label->setUpdatesEnabled(false);
 
     return true;
 }
@@ -179,6 +180,18 @@ void Show::DestroySdlRenderer()
     m_sdlTextureSize = QSize();
 }
 
+void Show::ClearVideoSurface()
+{
+    if (m_sdlRenderer)
+    {
+        SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
+        SDL_RenderClear(m_sdlRenderer);
+        SDL_RenderPresent(m_sdlRenderer);
+    }
+
+    ui->label->update();
+}
+
 void Show::RenderCurrentFrame()
 {
     if (!m_currentFrame || m_currentFrame->bgra.empty() || ui->label->width() <= 0 || ui->label->height() <= 0)
@@ -228,6 +241,7 @@ void Show::resizeEvent(QResizeEvent *event)
 
     ChangeShow();
     DestroySdlRenderer();
+    ClearVideoSurface();
     RenderCurrentFrame();
 }
 
@@ -302,12 +316,7 @@ void Show::OnPlay(QString strFile)
 void Show::OnStopFinished()
 {
     m_currentFrame.reset();
-    if (m_sdlRenderer)
-    {
-        SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
-        SDL_RenderClear(m_sdlRenderer);
-        SDL_RenderPresent(m_sdlRenderer);
-    }
+    ClearVideoSurface();
     update();
 }
 

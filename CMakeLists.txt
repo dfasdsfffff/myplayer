@@ -236,3 +236,12 @@ if(WIN32)
 endif()
 
 add_test(NAME play_core_refactor_tests COMMAND play_core_refactor_tests)
+
+add_executable(show_widget_tests
+    tests/show_widget_tests.cpp
+)
+
+add_test(NAME show_widget_tests COMMAND show_widget_tests)
+set_tests_properties(show_widget_tests PROPERTIES
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+)

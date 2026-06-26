@@ -119,6 +119,7 @@ private:
     void ChangeShow();
     bool EnsureSdlRenderer();
     void DestroySdlRenderer();
+    void ClearVideoSurface();
     void RenderCurrentFrame();
 signals:
     void SigOpenFile(QString strFileName);///< 增加视频文件
