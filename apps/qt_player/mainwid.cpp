@@ -40,7 +40,7 @@
 #include "ui_mainwid.h"
 #include "globalhelper.h"
 #include "playback_controller.h"
-#include "videoctl.h"
+#include "playback_runtime.h"
 #include "enums.h"
 
 const int FULLSCREEN_CTRLBAR_HIDE_DELAY = 2000; // 控制面板隐藏延迟（毫秒）
@@ -97,20 +97,20 @@ MainWid::~MainWid()
 {
 	if (m_playbackController)
 		m_playbackController->stopAndWait();
-	delete m_pVideoCtlBridge;
-	m_pVideoCtlBridge = nullptr;
+	delete m_pPlaybackRuntimeBridge;
+	m_pPlaybackRuntimeBridge = nullptr;
 	delete ui;
 }
 
 bool MainWid::Init()
 {
-	m_videoCtl = VideoCtl::MakeInstance();
-	if (!m_videoCtl)
+	m_playbackRuntime = PlaybackRuntime::Create();
+	if (!m_playbackRuntime)
 	{
 		return false;
 	}
-	m_playbackController = std::make_unique<PlaybackController>(CreatePlaybackController(*m_videoCtl));
-	ui->ShowWid->SetPlaybackController(m_playbackController.get());
+	m_playbackController = &m_playbackRuntime->controller();
+	ui->ShowWid->SetPlaybackController(m_playbackController);
 
 	// 恢复上次保存的窗口状态
 	QByteArray geometry, windowState;
@@ -193,9 +193,9 @@ void MainWid::leaveEvent(QEvent* event)
 
 bool MainWid::ConnectSignalSlots()
 {
-	// 创建 VideoCtl 的 Qt 桥接，将原生 Signal 转发为 Qt signals
-	m_pVideoCtlBridge = new VideoCtlBridge(this);
-	m_pVideoCtlBridge->attach(m_videoCtl.get());
+	// 创建 PlaybackRuntime 的 Qt 桥接，将原生 Signal 转发为 Qt signals
+	m_pPlaybackRuntimeBridge = new PlaybackRuntimeBridge(this);
+	m_pPlaybackRuntimeBridge->attach(m_playbackRuntime.get());
 
 	//连接信号与槽
 	connect(&m_stTitle, &Title::SigCloseBtnClicked, this, &MainWid::OnCloseBtnClicked);
@@ -238,22 +238,22 @@ bool MainWid::ConnectSignalSlots()
 	connect(this, &MainWid::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 
 
-	// VideoCtl→UI 方向：通过 bridge 转发（bridge 已保证主线程投递，无需 Qt::QueuedConnection）
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoTotalSeconds, ui->CtrlBarWid, &CtrlBar::OnVideoTotalSeconds);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoPlaySeconds, ui->CtrlBarWid, &CtrlBar::OnVideoPlaySeconds);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoPlaySeconds, this, &MainWid::OnVideoPlaySeconds);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoVolume, ui->CtrlBarWid, &CtrlBar::OnVideopVolume);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigPauseStat, ui->CtrlBarWid, &CtrlBar::OnPauseStat);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, ui->CtrlBarWid, &CtrlBar::OnStopFinished);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, ui->ShowWid, &Show::OnStopFinished);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigFrameDimensionsChanged, ui->ShowWid, &Show::OnFrameDimensionsChanged);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigVideoFrame, ui->ShowWid, &Show::OnVideoFrame);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStopFinished, &m_stTitle, &Title::OnStopFinished);
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigStartPlay, &m_stTitle, &Title::OnPlay);
+	// PlaybackRuntime→UI 方向：通过 bridge 转发（bridge 已保证主线程投递，无需 Qt::QueuedConnection）
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoTotalSeconds, ui->CtrlBarWid, &CtrlBar::OnVideoTotalSeconds);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, ui->CtrlBarWid, &CtrlBar::OnVideoPlaySeconds);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, this, &MainWid::OnVideoPlaySeconds);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoVolume, ui->CtrlBarWid, &CtrlBar::OnVideopVolume);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPauseStat, ui->CtrlBarWid, &CtrlBar::OnPauseStat);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, ui->CtrlBarWid, &CtrlBar::OnStopFinished);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, ui->ShowWid, &Show::OnStopFinished);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigFrameDimensionsChanged, ui->ShowWid, &Show::OnFrameDimensionsChanged);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoFrame, ui->ShowWid, &Show::OnVideoFrame);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, &m_stTitle, &Title::OnStopFinished);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStartPlay, &m_stTitle, &Title::OnPlay);
 	// 播放完成，自动播放下一首
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigPlayNextOne, &m_stPlaylist, &Playlist::OnForwardPlay);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPlayNextOne, &m_stPlaylist, &Playlist::OnForwardPlay);
 	//
-	connect(m_pVideoCtlBridge, &VideoCtlBridge::SigRandomPlayOne, &m_stPlaylist, &Playlist::OnRandomPlay);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigRandomPlayOne, &m_stPlaylist, &Playlist::OnRandomPlay);
 
 	connect(&m_stCtrlBarAnimationTimer, &QTimer::timeout, this, &MainWid::OnCtrlBarAnimationTimeOut);
 

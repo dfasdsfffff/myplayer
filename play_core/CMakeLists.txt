@@ -6,6 +6,7 @@ add_library(play_core STATIC
     packet_queue.cpp
     playback_controller.cpp
     playback_controller_videoctl.cpp
+    playback_runtime.cpp
     renderer_dispatcher.cpp
     videoctl.cpp
     soundtouch_wrap.cpp

@@ -22,7 +22,7 @@
 #include "imgui_impl_win32.h"
 
 #include "playback_controller.h"
-#include "videoctl.h"
+#include "playback_runtime.h"
 #include "video_frame.h"
 
 #pragma comment(lib, "d3d11.lib")
@@ -373,8 +373,8 @@ int main()
 
 	UiEventQueue uiEvents;
 	std::vector<sigslot::scoped_connection> connections;
-	auto ctl = VideoCtl::MakeInstance();
-	if (!ctl) {
+	auto runtime = PlaybackRuntime::Create();
+	if (!runtime) {
 		ImGui_ImplDX11_Shutdown();
 		ImGui_ImplWin32_Shutdown();
 		ImGui::DestroyContext();
@@ -383,24 +383,24 @@ int main()
 		UnregisterClassW(wc.lpszClassName, wc.hInstance);
 		return 1;
 	}
-	PlaybackController controller = CreatePlaybackController(*ctl);
+	PlaybackController& controller = runtime->controller();
 
-	connections.emplace_back(ctl->SigVideoFrame.connect([&](std::shared_ptr<VideoFrame> frame) {
+	connections.emplace_back(runtime->SigVideoFrame.connect([&](std::shared_ptr<VideoFrame> frame) {
 		uiEvents.push([&app, frame]() { app.frame = frame; });
 	}));
-	connections.emplace_back(ctl->SigVideoTotalSeconds.connect([&](int seconds) {
+	connections.emplace_back(runtime->SigVideoTotalSeconds.connect([&](int seconds) {
 		uiEvents.push([&app, seconds]() { app.totalSeconds = seconds; });
 	}));
-	connections.emplace_back(ctl->SigVideoPlaySeconds.connect([&](int seconds) {
+	connections.emplace_back(runtime->SigVideoPlaySeconds.connect([&](int seconds) {
 		uiEvents.push([&app, seconds]() { app.playSeconds = seconds; });
 	}));
-	connections.emplace_back(ctl->SigVideoVolume.connect([&](double volume) {
+	connections.emplace_back(runtime->SigVideoVolume.connect([&](double volume) {
 		uiEvents.push([&app, volume]() { app.volume = volume; });
 	}));
-	connections.emplace_back(ctl->SigPauseStat.connect([&](bool paused) {
+	connections.emplace_back(runtime->SigPauseStat.connect([&](bool paused) {
 		uiEvents.push([&app, paused]() { app.paused = paused; });
 	}));
-	connections.emplace_back(ctl->SigStopFinished.connect([&]() {
+	connections.emplace_back(runtime->SigStopFinished.connect([&]() {
 		uiEvents.push([&app]() {
 			app.frame.reset();
 			app.videoTexture.release();

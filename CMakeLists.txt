@@ -67,7 +67,7 @@ set(HEADER_FILES
     ${PLAYERDEMO_QT_APP_DIR}/settingwid.h
     ${PLAYERDEMO_QT_APP_DIR}/show.h
     ${PLAYERDEMO_QT_APP_DIR}/title.h
-    ${PLAYERDEMO_QT_APP_DIR}/videoctl_bridge.h
+    ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.h
 )
 
 set(SOURCE_FILES
@@ -83,7 +83,7 @@ set(SOURCE_FILES
     ${PLAYERDEMO_QT_APP_DIR}/settingwid.cpp
     ${PLAYERDEMO_QT_APP_DIR}/show.cpp
     ${PLAYERDEMO_QT_APP_DIR}/title.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/videoctl_bridge.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.cpp
 )
 
 set(UI_FILES

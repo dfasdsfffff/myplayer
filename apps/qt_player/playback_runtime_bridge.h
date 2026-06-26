@@ -1,11 +1,3 @@
-/*
-* @file 	videoctl_bridge.h
-* @brief 	VideoCtl 的 Qt 信号桥接
-* @note 	将 VideoCtl 的原生 Signal<> 转发为 Qt signals，
-*          通过 QMetaObject::invokeMethod(Qt::QueuedConnection)
-*          确保在工作线程发出的信号被编组到 Qt 主线程
-*/
-
 #pragma once
 
 #include <QObject>
@@ -17,25 +9,22 @@
 #include "signal.h"
 #include "video_frame.h"
 
-class VideoCtl;
+class PlaybackRuntime;
 
-class VideoCtlBridge : public QObject
+class PlaybackRuntimeBridge : public QObject
 {
 	Q_OBJECT
 
 public:
-	// 必须在 Qt 主线程上创建
-	explicit VideoCtlBridge(QObject* parent = nullptr);
-	~VideoCtlBridge() override;
+	explicit PlaybackRuntimeBridge(QObject* parent = nullptr);
+	~PlaybackRuntimeBridge() override;
 
-	// 连接 VideoCtl 的所有 Signal，仅调用一次
-	void attach(VideoCtl* ctl);
+	void attach(PlaybackRuntime* runtime);
 
-	VideoCtlBridge(const VideoCtlBridge&) = delete;
-	VideoCtlBridge& operator=(const VideoCtlBridge&) = delete;
+	PlaybackRuntimeBridge(const PlaybackRuntimeBridge&) = delete;
+	PlaybackRuntimeBridge& operator=(const PlaybackRuntimeBridge&) = delete;
 
 signals:
-	// Qt signals，镜像 VideoCtl 的信号，使用 Qt 类型
 	void SigPlayMsg(const QString& strMsg);
 	void SigFrameDimensionsChanged(int nFrameWidth, int nFrameHeight);
 	void SigVideoFrame(std::shared_ptr<VideoFrame> frame);
@@ -52,6 +41,6 @@ signals:
 private:
 	void detach();
 
-	VideoCtl* m_ctl = nullptr;
+	PlaybackRuntime* m_runtime = nullptr;
 	std::vector<sigslot::scoped_connection> m_connections;
 };

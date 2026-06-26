@@ -22,14 +22,14 @@
 #include "playlist.h"
 #include "title.h"
 #include "settingwid.h"
-#include "videoctl_bridge.h"
+#include "playback_runtime_bridge.h"
 
 namespace Ui {
 class MainWid;
 }
 
 class PlaybackController;
-class VideoCtl;
+class PlaybackRuntime;
 
 class MainWid : public QMainWindow
 {
@@ -157,9 +157,8 @@ private:
     QPoint m_resizeStartGlobalPos;
     QRect m_resizeStartGeometry;
 
-    VideoCtlBridge* m_pVideoCtlBridge = nullptr;
-    std::shared_ptr<VideoCtl> m_videoCtl;
-    std::unique_ptr<PlaybackController> m_playbackController;
+    PlaybackRuntimeBridge* m_pPlaybackRuntimeBridge = nullptr;
+    std::unique_ptr<PlaybackRuntime> m_playbackRuntime;
+    PlaybackController* m_playbackController = nullptr;
 };
-
 

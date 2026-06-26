@@ -1,6 +1,8 @@
 #include "media_session.h"
 #include "enums.h"
 #include "playback_controller.h"
+#include "playback_controller_videoctl.h"
+#include "playback_runtime.h"
 #include "renderer_dispatcher.h"
 
 #include <iostream>
@@ -31,6 +33,10 @@ int main()
 {
     static_assert(std::is_same_v<decltype(CreatePlaybackController), PlaybackController(VideoCtl&)>,
         "PlaybackController should be creatable from an explicit VideoCtl instance");
+    static_assert(std::is_same_v<decltype(PlaybackRuntime::Create()), std::unique_ptr<PlaybackRuntime>>,
+        "PlaybackRuntime should own playback internals behind a factory");
+    static_assert(std::is_same_v<decltype(std::declval<PlaybackRuntime&>().controller()), PlaybackController&>,
+        "PlaybackRuntime should expose a controller without exposing VideoCtl");
 
     auto* firstState = reinterpret_cast<VideoState*>(0x1);
     auto* secondState = reinterpret_cast<VideoState*>(0x2);

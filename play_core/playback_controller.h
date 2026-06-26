@@ -5,8 +5,6 @@
 #include <functional>
 #include <string>
 
-class VideoCtl;
-
 class PlaybackController {
 public:
     struct Actions {
@@ -48,5 +46,3 @@ public:
 private:
     Actions m_actions;
 };
-
-PlaybackController CreatePlaybackController(VideoCtl& ctl);
