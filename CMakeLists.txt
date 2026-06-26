@@ -226,4 +226,13 @@ target_link_libraries(play_core_refactor_tests PRIVATE
     play_core
 )
 
+if(WIN32)
+    add_custom_command(TARGET play_core_refactor_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${PLAYERDEMO_RUNTIME_DLLS}
+            $<TARGET_FILE_DIR:play_core_refactor_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
 add_test(NAME play_core_refactor_tests COMMAND play_core_refactor_tests)

@@ -38,6 +38,7 @@
 #include "mainwid.h"
 #include "ui_mainwid.h"
 #include "globalhelper.h"
+#include "playback_controller.h"
 #include "videoctl.h"
 #include "enums.h"
 
@@ -196,19 +197,19 @@ bool MainWid::ConnectSignalSlots()
 
 	connect(ui->ShowWid, &Show::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 	connect(ui->ShowWid, &Show::SigFullScreen, this, &MainWid::OnFullScreenPlay);
-	connect(ui->ShowWid, &Show::SigPlayOrPause, this, []() { VideoCtl::GetInstance()->OnPause(); });
-	connect(ui->ShowWid, &Show::SigStop, this, []() { VideoCtl::GetInstance()->OnStop(); });
+	connect(ui->ShowWid, &Show::SigPlayOrPause, this, []() { PlaybackController::GetInstance()->pause(); });
+	connect(ui->ShowWid, &Show::SigStop, this, []() { PlaybackController::GetInstance()->stop(); });
 	connect(ui->ShowWid, &Show::SigShowMenu, this, &MainWid::OnShowMenu);
-	connect(ui->ShowWid, &Show::SigSeekForward, this, []() { VideoCtl::GetInstance()->OnSeekForward(); });
-	connect(ui->ShowWid, &Show::SigSeekBack, this, []() { VideoCtl::GetInstance()->OnSeekBack(); });
+	connect(ui->ShowWid, &Show::SigSeekForward, this, []() { PlaybackController::GetInstance()->seekForward(); });
+	connect(ui->ShowWid, &Show::SigSeekBack, this, []() { PlaybackController::GetInstance()->seekBack(); });
 	connect(ui->ShowWid, &Show::SigAddVolume, this, []() { VideoCtl::GetInstance()->OnAddVolume(); });
 	connect(ui->ShowWid, &Show::SigSubVolume, this, []() { VideoCtl::GetInstance()->OnSubVolume(); });
 
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowOrHidePlaylist, this, &MainWid::OnShowOrHidePlaylist);
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlaySeek, this, [](double d) { VideoCtl::GetInstance()->OnPlaySeek(d); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlaySeek, this, [](double d) { PlaybackController::GetInstance()->seek(d); });
 	connect(ui->CtrlBarWid, &CtrlBar::SigPlayVolume, this, [](double d) { VideoCtl::GetInstance()->OnPlayVolume(d); });
-	connect(ui->CtrlBarWid, &CtrlBar::SigPlayOrPause, this, []() { VideoCtl::GetInstance()->OnPause(); });
-	connect(ui->CtrlBarWid, &CtrlBar::SigStop, this, []() { VideoCtl::GetInstance()->OnStop(); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigPlayOrPause, this, []() { PlaybackController::GetInstance()->pause(); });
+	connect(ui->CtrlBarWid, &CtrlBar::SigStop, this, []() { PlaybackController::GetInstance()->stop(); });
 	connect(ui->CtrlBarWid, &CtrlBar::SigPlayLoopPolicyChanged, this, [](VideoLoopPolicy p) { VideoCtl::GetInstance()->set_play_loop_policy(p); });
 	connect(ui->CtrlBarWid, &CtrlBar::SigBackwardPlay, &m_stPlaylist, &Playlist::OnBackwardPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigForwardPlay, &m_stPlaylist, &Playlist::OnForwardPlay);
@@ -217,8 +218,8 @@ bool MainWid::ConnectSignalSlots()
 	connect(ui->CtrlBarWid, &CtrlBar::SigSpeedChanged, this, &MainWid::OnSpeedChanged);
 
 	connect(this, &MainWid::SigShowMax, &m_stTitle, &Title::OnChangeMaxBtnStyle);
-	connect(this, &MainWid::SigSeekForward, this, []() { VideoCtl::GetInstance()->OnSeekForward(); });
-	connect(this, &MainWid::SigSeekBack, this, []() { VideoCtl::GetInstance()->OnSeekBack(); });
+	connect(this, &MainWid::SigSeekForward, this, []() { PlaybackController::GetInstance()->seekForward(); });
+	connect(this, &MainWid::SigSeekBack, this, []() { PlaybackController::GetInstance()->seekBack(); });
 	connect(this, &MainWid::SigAddVolume, this, []() { VideoCtl::GetInstance()->OnAddVolume(); });
 	connect(this, &MainWid::SigSubVolume, this, []() { VideoCtl::GetInstance()->OnSubVolume(); });
 	connect(this, &MainWid::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
@@ -666,7 +667,7 @@ void MainWid::OnPlayFile(QString strFileName)
 		const QString resumeFile = m_currentPlayFile;
 		QTimer::singleShot(500, this, [this, resumeFile, resumeSeconds]() {
 			if (m_currentPlayFile == resumeFile)
-				VideoCtl::GetInstance()->OnPlaySeekSeconds(resumeSeconds);
+				PlaybackController::GetInstance()->seekSeconds(resumeSeconds);
 		});
 	}
 }
@@ -928,7 +929,7 @@ void MainWid::OnCloseBtnClicked()
 	loopPolicy = ui->CtrlBarWid->GetLoopPolicy();
 	speed = ui->CtrlBarWid->GetSpeed();
 	GlobalHelper::SavePlaySettings(volume, loopPolicy, speed);
-	VideoCtl::GetInstance()->OnStopAndWait();
+	PlaybackController::GetInstance()->stopAndWait();
 	this->close();
 }
 

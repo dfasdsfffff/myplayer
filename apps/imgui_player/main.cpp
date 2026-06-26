@@ -21,6 +21,7 @@
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
 
+#include "playback_controller.h"
 #include "videoctl.h"
 #include "video_frame.h"
 
@@ -240,7 +241,7 @@ void startFile(AppState& app, const std::string& file)
 	app.currentFile = file;
 	app.playSeconds = 0;
 	app.totalSeconds = 0;
-	VideoCtl::GetInstance()->StartPlay(file);
+	PlaybackController::GetInstance()->play(file);
 }
 
 void renderUi(AppState& app)
@@ -275,23 +276,23 @@ void renderUi(AppState& app)
 		float progress = app.totalSeconds > 0 ? app.playSeconds / static_cast<float>(app.totalSeconds) : 0.0f;
 		ImGui::SetNextItemWidth(-1);
 		if (ImGui::SliderFloat("##progress", &progress, 0.0f, 1.0f, "")) {
-			VideoCtl::GetInstance()->OnPlaySeek(progress);
+			PlaybackController::GetInstance()->seek(progress);
 		}
 
 		if (ImGui::Button("Open", ImVec2(76, 32)))
 			startFile(app, openMediaDialog(app.hwnd));
 		ImGui::SameLine();
 		if (ImGui::Button("-5s", ImVec2(54, 32)))
-			VideoCtl::GetInstance()->OnSeekBack();
+			PlaybackController::GetInstance()->seekBack();
 		ImGui::SameLine();
 		if (ImGui::Button(app.paused ? "Play" : "Pause", ImVec2(76, 32)))
-			VideoCtl::GetInstance()->OnPause();
+			PlaybackController::GetInstance()->pause();
 		ImGui::SameLine();
 		if (ImGui::Button("Stop", ImVec2(60, 32)))
-			VideoCtl::GetInstance()->OnStop();
+			PlaybackController::GetInstance()->stop();
 		ImGui::SameLine();
 		if (ImGui::Button("+5s", ImVec2(54, 32)))
-			VideoCtl::GetInstance()->OnSeekForward();
+			PlaybackController::GetInstance()->seekForward();
 		ImGui::SameLine();
 		if (ImGui::Button("Vol -", ImVec2(60, 32)))
 			VideoCtl::GetInstance()->OnSubVolume();
@@ -410,11 +411,11 @@ int main()
 
 		uiEvents.drain();
 		if (GetAsyncKeyState(VK_SPACE) & 1)
-			VideoCtl::GetInstance()->OnPause();
+			PlaybackController::GetInstance()->pause();
 		if (GetAsyncKeyState(VK_LEFT) & 1)
-			VideoCtl::GetInstance()->OnSeekBack();
+			PlaybackController::GetInstance()->seekBack();
 		if (GetAsyncKeyState(VK_RIGHT) & 1)
-			VideoCtl::GetInstance()->OnSeekForward();
+			PlaybackController::GetInstance()->seekForward();
 		if (GetAsyncKeyState('O') & 1)
 			startFile(app, openMediaDialog(app.hwnd));
 
@@ -432,7 +433,7 @@ int main()
 	}
 
 	connections.clear();
-	VideoCtl::GetInstance()->OnStopAndWait();
+	PlaybackController::GetInstance()->stopAndWait();
 	app.videoTexture.release();
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();

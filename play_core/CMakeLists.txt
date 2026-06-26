@@ -4,6 +4,8 @@ add_library(play_core STATIC
     frame_queue.cpp
     media_session.cpp
     packet_queue.cpp
+    playback_controller.cpp
+    playback_controller_videoctl.cpp
     renderer_dispatcher.cpp
     videoctl.cpp
     soundtouch_wrap.cpp

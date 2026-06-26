@@ -1,4 +1,5 @@
 #include "media_session.h"
+#include "playback_controller.h"
 #include "renderer_dispatcher.h"
 
 #include <iostream>
@@ -91,6 +92,57 @@ int main()
 
     dispatcher.dispatchFrame(nullptr);
     if (!Expect(frameCount == 2, "null frame should be ignored"))
+        return 1;
+
+    std::string playedFile;
+    int pauseCount = 0;
+    int stopCount = 0;
+    int stopAndWaitCount = 0;
+    double lastSeekPercent = -1.0;
+    int lastSeekSeconds = -1;
+    int seekForwardCount = 0;
+    int seekBackCount = 0;
+
+    PlaybackController controller({
+        [&](const std::string& fileName) {
+            playedFile = fileName;
+            return true;
+        },
+        [&]() { ++pauseCount; },
+        [&](double percent) { lastSeekPercent = percent; },
+        [&](int seconds) { lastSeekSeconds = seconds; },
+        [&]() { ++seekForwardCount; },
+        [&]() { ++seekBackCount; },
+        [&]() { ++stopCount; },
+        [&]() { ++stopAndWaitCount; },
+    });
+
+    if (!Expect(controller.play("movie.mp4"), "play should return engine play result"))
+        return 1;
+    if (!Expect(playedFile == "movie.mp4", "play should forward file name"))
+        return 1;
+
+    controller.pause();
+    controller.seek(0.5);
+    controller.seekSeconds(42);
+    controller.seekForward();
+    controller.seekBack();
+    controller.stop();
+    controller.stopAndWait();
+
+    if (!Expect(pauseCount == 1, "pause should forward once"))
+        return 1;
+    if (!Expect(lastSeekPercent == 0.5, "seek should forward percent"))
+        return 1;
+    if (!Expect(lastSeekSeconds == 42, "seekSeconds should forward seconds"))
+        return 1;
+    if (!Expect(seekForwardCount == 1, "seekForward should forward once"))
+        return 1;
+    if (!Expect(seekBackCount == 1, "seekBack should forward once"))
+        return 1;
+    if (!Expect(stopCount == 1, "stop should forward once"))
+        return 1;
+    if (!Expect(stopAndWaitCount == 1, "stopAndWait should forward once"))
         return 1;
 
     return 0;

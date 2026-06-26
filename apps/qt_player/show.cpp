@@ -17,7 +17,7 @@
 #include "ui_show.h"
 
 #include "globalhelper.h"
-#include "videoctl.h"
+#include "playback_controller.h"
 
 std::mutex g_show_rect_mutex;
 
@@ -296,7 +296,7 @@ void Show::OnPlay(QString strFile)
         return;
     }
     
-    VideoCtl::GetInstance()->StartPlay(s);
+    PlaybackController::GetInstance()->play(s);
 }
 
 void Show::OnStopFinished()
