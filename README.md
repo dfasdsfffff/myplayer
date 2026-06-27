@@ -232,3 +232,23 @@ Windows 下正常构建后，CMake 会把 `lib/ffmpeg/bin/*.dll`、`lib/SDL2/lib
 本项目遵循 GPL License，详见 [LICENSE](LICENSE)。
 
 本仓库基于 [itisyang/playerdemo](https://github.com/itisyang/playerdemo) 开源项目整理和修改，原作者为 [`itisyang`](https://github.com/itisyang)。
+
+## Core network playback API
+
+The existing string entry point remains supported:
+
+```cpp
+runtime->controller().play("movie.mp4");
+```
+
+Network playback can pass per-request options through `MediaSource`:
+
+```cpp
+MediaSource source{"rtsp://example.test/live"};
+source.network.rtspTransport = RtspTransport::Tcp;
+source.network.connectTimeout = std::chrono::seconds{10};
+source.network.readTimeout = std::chrono::seconds{15};
+source.network.maxReconnectAttempts = 5;
+
+runtime->controller().play(source);
+```
