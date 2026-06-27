@@ -7,9 +7,14 @@ PlaybackController::PlaybackController(Actions actions)
 {
 }
 
-bool PlaybackController::play(const std::string& fileName)
+bool PlaybackController::play(const MediaSource& source)
 {
-    return m_actions.play ? m_actions.play(fileName) : false;
+    return m_actions.play ? m_actions.play(source) : false;
+}
+
+bool PlaybackController::play(const std::string& location)
+{
+    return play(MediaSource{location});
 }
 
 void PlaybackController::pause()

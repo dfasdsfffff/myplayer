@@ -66,6 +66,12 @@ void PlaybackRuntime::connectSignals()
     m_connections.emplace_back(m_videoCtl->SigStartPlay.connect([this](const std::string& fileName) {
         SigStartPlay(fileName);
     }));
+    m_connections.emplace_back(m_videoCtl->SigPlaybackStatus.connect([this](const PlaybackStatus& status) {
+        SigPlaybackStatus(status);
+    }));
+    m_connections.emplace_back(m_videoCtl->SigMediaInfo.connect([this](const MediaInfo& info) {
+        SigMediaInfo(info);
+    }));
     m_connections.emplace_back(m_videoCtl->SigPlayNextOne.connect([this]() {
         SigPlayNextOne();
     }));

@@ -5,8 +5,8 @@
 PlaybackController CreatePlaybackController(VideoCtl& ctl)
 {
     return PlaybackController({
-        [&ctl](const std::string& fileName) {
-            return ctl.StartPlay(fileName);
+        [&ctl](const MediaSource& source) {
+            return ctl.StartPlay(source);
         },
         [&ctl]() {
             ctl.OnPause();

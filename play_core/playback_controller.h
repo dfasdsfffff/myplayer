@@ -1,6 +1,7 @@
 #pragma once
 
 #include "enums.h"
+#include "media_source.h"
 
 #include <functional>
 #include <string>
@@ -8,7 +9,7 @@
 class PlaybackController {
 public:
     struct Actions {
-        std::function<bool(const std::string&)> play;
+        std::function<bool(const MediaSource&)> play;
         std::function<void()> pause;
         std::function<void(double)> seek;
         std::function<void(int)> seekSeconds;
@@ -27,7 +28,8 @@ public:
 
     explicit PlaybackController(Actions actions);
 
-    bool play(const std::string& fileName);
+    bool play(const MediaSource& source);
+    bool play(const std::string& location);
     void pause();
     void seek(double percent);
     void seekSeconds(int seconds);

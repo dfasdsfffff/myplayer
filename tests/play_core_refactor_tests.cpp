@@ -2,6 +2,7 @@
 
 #include "media_session.h"
 #include "enums.h"
+#include "media_source.h"
 #include "media_sync.h"
 #include "playback_controller.h"
 #include "playback_controller_videoctl.h"
@@ -146,7 +147,7 @@ int main()
     if (!Expect(frameCount == 2, "null frame should be ignored"))
         return 1;
 
-    std::string playedFile;
+    MediaSource playedSource;
     int pauseCount = 0;
     int stopCount = 0;
     int stopAndWaitCount = 0;
@@ -163,8 +164,8 @@ int main()
     int subVolumeCount = 0;
 
     PlaybackController controller({
-        [&](const std::string& fileName) {
-            playedFile = fileName;
+        [&](const MediaSource& source) {
+            playedSource = source;
             return true;
         },
         [&]() { ++pauseCount; },
@@ -185,7 +186,14 @@ int main()
 
     if (!Expect(controller.play("movie.mp4"), "play should return engine play result"))
         return 1;
-    if (!Expect(playedFile == "movie.mp4", "play should forward file name"))
+    if (!Expect(playedSource.location == "movie.mp4", "string play should wrap source"))
+        return 1;
+
+    MediaSource source{"rtsp://host/live"};
+    source.network.maxReconnectAttempts = 3;
+    if (!Expect(controller.play(source), "structured play should return engine play result"))
+        return 1;
+    if (!Expect(playedSource.network.maxReconnectAttempts == 3, "structured options should forward"))
         return 1;
 
     controller.pause();

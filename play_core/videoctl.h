@@ -19,6 +19,7 @@
 
 #include "datactl.h"
 #include "enums.h"
+#include "media_source.h"
 #include "media_session.h"
 #include "renderer_dispatcher.h"
 #include "signal.h"
@@ -51,6 +52,7 @@ public:
 	* @note
 	*/
 	bool StartPlay(const std::string& strFileName);
+	bool StartPlay(const MediaSource& source);
 
 
 	static int audio_decode_frame(VideoState* is);  // 设为static，可从静态回调调用
@@ -69,6 +71,8 @@ public:
 	Signal<>             SigStop;
 	Signal<>             SigStopFinished;
 	Signal<const std::string&>  SigStartPlay;
+	Signal<const PlaybackStatus&> SigPlaybackStatus;
+	Signal<const MediaInfo&> SigMediaInfo;
 	Signal<>             SigPlayNextOne;
 	Signal<>             SigRandomPlayOne;
 

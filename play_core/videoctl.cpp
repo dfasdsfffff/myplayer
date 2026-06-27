@@ -2352,10 +2352,15 @@ VideoCtl::~VideoCtl() {
 
 bool VideoCtl::StartPlay(const std::string& strFileName)
 {
+    return StartPlay(MediaSource{strFileName});
+}
+
+bool VideoCtl::StartPlay(const MediaSource& source)
+{
 	std::lock_guard<std::mutex> lock(m_playbackMutex);
 
     // 检查输入参数
-    if (strFileName.empty()) {
+    if (source.location.empty()) {
         av_log(NULL, AV_LOG_ERROR, "File name is empty, cannot start playback!\n");
         return false;
     }
@@ -2365,12 +2370,12 @@ bool VideoCtl::StartPlay(const std::string& strFileName)
     {
         m_tPlayLoopThread.join();
     }
-    SigStartPlay(strFileName);//正式播放，发送给标题栏
+    SigStartPlay(source.location);//正式播放，发送给标题栏
 
     VideoState* is;
 
     //打开流
-    is = stream_open(strFileName.c_str());
+    is = stream_open(source.location.c_str());
     if (!is) {
         av_log(NULL, AV_LOG_FATAL, "Failed to initialize VideoState!\n");
         return false;

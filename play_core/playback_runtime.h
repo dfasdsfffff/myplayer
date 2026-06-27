@@ -31,6 +31,8 @@ public:
     Signal<> SigStop;
     Signal<> SigStopFinished;
     Signal<const std::string&> SigStartPlay;
+    Signal<const PlaybackStatus&> SigPlaybackStatus;
+    Signal<const MediaInfo&> SigMediaInfo;
     Signal<> SigPlayNextOne;
     Signal<> SigRandomPlayOne;
 
