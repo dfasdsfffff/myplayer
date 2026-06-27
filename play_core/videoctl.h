@@ -13,6 +13,7 @@
 #include <string>
 #include <shared_mutex>
 #include <atomic>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -133,6 +134,7 @@ private:
 	static int is_realtime(AVFormatContext* s);  // 纯操作，设为static
 	void ReadThread(VideoState* CurStream);
 	void LoopThread();
+	VideoState* stream_open(const MediaSource& source);
 	VideoState* stream_open(const char* filename);
 
 	void stream_cycle_channel(VideoState* is, int codec_type);
@@ -163,6 +165,9 @@ private:
 
 	std::atomic_bool m_bPlayLoop{ false }; //刷新循环标志
 	std::mutex m_playbackMutex;
+	std::mutex m_reconnectMutex;
+	std::condition_variable m_reconnectCv;
+	std::atomic_bool m_reconnectCancelled{false};
 	MediaSession m_mediaSession;
 
 	bool m_bAutorotate = true;

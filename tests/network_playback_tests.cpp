@@ -90,5 +90,16 @@ int main()
     if (!Expect(InterruptNetworkIo(&io) != 0, "cancel interrupts"))
         return 1;
 
+    if (!Expect(BuildMediaInfo(MediaSource{"udp://host:9000"}, nullptr).live, "UDP is live"))
+        return 1;
+    if (!Expect(!BuildMediaInfo(MediaSource{"udp://host:9000"}, nullptr).seekable, "live not seekable"))
+        return 1;
+    if (!Expect(!CanSeek(MediaInfo{true, true, false, std::nullopt}), "seek rejected"))
+        return 1;
+    if (!Expect(UseUnlimitedBuffer(MediaSource{"rtp://host:9000"}, false), "realtime uses unlimited buffer"))
+        return 1;
+    if (!Expect(!UseUnlimitedBuffer(MediaSource{"movie.mp4"}, false), "local uses normal buffer"))
+        return 1;
+
     return 0;
 }

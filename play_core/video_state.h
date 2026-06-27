@@ -2,6 +2,7 @@
 
 #include "av_types.h"
 #include "decoder.h"
+#include "network_input.h"
 #include "soundtouch_wrap.h"
 
 struct SessionState {
@@ -28,6 +29,12 @@ struct SessionState {
     int last_subtitle_stream = 0;
     SDL_mutex* read_wait_mutex = nullptr;
     SDL_cond* continue_read_thread = nullptr;
+    MediaSource source;
+    MediaInfo mediaInfo;
+    IoControl io;
+    std::atomic<int> readResult{0};
+    std::atomic<PlaybackError> readError{PlaybackError::None};
+    bool unlimitedBuffer{false};
 };
 
 struct MediaClockState {
@@ -135,6 +142,7 @@ inline SessionState::~SessionState()
 {
     if (read_tid.joinable()) {
         abort_request = 1;
+        io.cancelled.store(true, std::memory_order_release);
         if (continue_read_thread)
             SDL_CondSignal(continue_read_thread);
         read_tid.join();

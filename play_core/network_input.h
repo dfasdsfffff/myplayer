@@ -12,6 +12,8 @@ extern "C" {
 #include <libavutil/dict.h>
 }
 
+struct AVFormatContext;
+
 enum class MediaSourceKind {
     LocalFile,
     Http,
@@ -71,3 +73,6 @@ struct IoControl {
 AvDictionary BuildInputOptions(const MediaSource& source);
 PlaybackError MapAvError(int avError, bool realtime);
 int InterruptNetworkIo(void* opaque);
+MediaInfo BuildMediaInfo(const MediaSource& source, AVFormatContext* formatContext);
+bool CanSeek(const MediaInfo& info);
+bool UseUnlimitedBuffer(const MediaSource& source, bool formatRealtime);

@@ -16,6 +16,7 @@
 #include "videoctl.h"
 
 #include "media_sync.h"
+#include "network_input.h"
 #include "soundtouch_wrap.h"
 
 #pragma execution_character_set("utf-8")
@@ -29,7 +30,6 @@ static std::atomic<int> g_network_init_count{0};
 // 是否允许丢帧（如果视频太慢了，跟不上音频或者外部时钟）
 // -1为自动丢帧，0为不丢帧，1为强制丢帧
 static int framedrop = 1;
-static int infinite_buffer = -1;
 static int64_t audio_callback_time;
 
 #define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
@@ -135,7 +135,7 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 static int decode_interrupt_cb(void* ctx)
 {
 	VideoState* is = (VideoState*)ctx;
-	return is->session.abort_request;
+	return is->session.abort_request || InterruptNetworkIo(&is->session.io);
 }
 
 
@@ -219,6 +219,7 @@ void VideoCtl::stream_close(VideoState* is)
 	if (!is) return;
 	/* XXX: 使用特殊的url_shutdown调用来彻底中止解析 */
 	is->session.abort_request = 1;
+	is->session.io.cancelled.store(true, std::memory_order_release);
 	if (is->session.continue_read_thread)
 		SDL_CondSignal(is->session.continue_read_thread);
 	if (is->session.read_tid.joinable())
@@ -273,6 +274,7 @@ void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
 void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 {
 	if (!m_CurStream) return;
+	if (!m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo)) return;
 
 	if (!m_CurStream->session.seek_req) {
 		m_CurStream->session.seek_pos = pos;
@@ -1529,6 +1531,7 @@ void VideoCtl::ReadThread(VideoState* is)
 	int pkt_in_play_range = 0;
 	const AVDictionaryEntry* t;
 	AVDictionary** opts = nullptr;
+	AvDictionary inputOptions;
 	int orig_nb_streams = 0;
 	SDL_mutex* wait_mutex = SDL_CreateMutex();
 	int scan_all_pmts_set = 0;
@@ -1565,10 +1568,15 @@ void VideoCtl::ReadThread(VideoState* is)
 
 	//打开文件，获得封装等信息
 
-	err = avformat_open_input(&ic, is->session.filename, nullptr, nullptr);
+	inputOptions = BuildInputOptions(is->session.source);
+	is->session.io.begin(IoOperation::Opening, is->session.source.network.connectTimeout);
+	err = avformat_open_input(&ic, is->session.filename, nullptr, inputOptions.put());
+	is->session.io.end();
 	if (err < 0) {
 		print_error(is->session.filename, err);
-		ret = -1;
+		is->session.readResult.store(err, std::memory_order_release);
+		is->session.readError.store(MapAvError(err, IsRealtimeSource(ClassifyMediaSource(is->session.source.location))), std::memory_order_release);
+		ret = err;
 		goto fail;
 	}
 
@@ -1580,7 +1588,10 @@ void VideoCtl::ReadThread(VideoState* is)
 
 	orig_nb_streams = ic->nb_streams;
 	//读取一部分视音频数据并且获得一些相关的信息
+	is->session.io.begin(IoOperation::Probing,
+		std::chrono::duration_cast<std::chrono::milliseconds>(is->session.source.network.analyzeDuration));
 	err = avformat_find_stream_info(ic, opts);
+	is->session.io.end();
 
 	//     for (i = 0; i < orig_nb_streams; i++)
 	//         av_dict_free(&opts[i]);
@@ -1589,7 +1600,9 @@ void VideoCtl::ReadThread(VideoState* is)
 	if (err < 0) {
 		av_log(NULL, AV_LOG_WARNING,
 			"%s: could not find codec parameters\n", is->session.filename);
-		ret = -1;
+		is->session.readResult.store(err, std::memory_order_release);
+		is->session.readError.store(MapAvError(err, IsRealtimeSource(ClassifyMediaSource(is->session.source.location))), std::memory_order_release);
+		ret = err;
 		goto fail;
 	}
 
@@ -1599,9 +1612,12 @@ void VideoCtl::ReadThread(VideoState* is)
 	is->video.max_frame_duration = (ic->iformat->flags & AVFMT_TS_DISCONT) ? 10.0 : 3600.0;
 
 	is->session.realtime = is_realtime(ic);
+	is->session.mediaInfo = BuildMediaInfo(is->session.source, ic);
+	is->session.unlimitedBuffer = UseUnlimitedBuffer(is->session.source, is->session.realtime != 0);
+	SigMediaInfo(is->session.mediaInfo);
 
 	// 发送视频总时长信号，单位为秒
-	SigVideoTotalSeconds(static_cast<int>(ic->duration / 1000000LL));
+	SigVideoTotalSeconds(is->session.mediaInfo.duration ? static_cast<int>(is->session.mediaInfo.duration->count() / 1000) : 0);
 
 	// 根据用户指定的流 specifier 来设置每种媒体类型的流索引。 
 	// specifier 是一个流选择表达式（stream specifier），
@@ -1672,9 +1688,7 @@ void VideoCtl::ReadThread(VideoState* is)
 		ret = -1;
 		goto fail;
 	}
-
-	if (infinite_buffer < 0 && is->session.realtime)
-		infinite_buffer = 1;
+	SigPlaybackStatus(PlaybackStatus{PlaybackState::Playing, PlaybackError::None, 0, is->session.source.network.maxReconnectAttempts, {}, RedactMediaLocation(is->session.source.location)});
 
 	//读取视频数据
 	for (;;) {
@@ -1738,7 +1752,7 @@ void VideoCtl::ReadThread(VideoState* is)
 		}
 
 		/* if the queue are full, no need to read more */
-		if (infinite_buffer < 1 &&
+		if (!is->session.unlimitedBuffer &&
 			(is->audio.audioq.size + is->video.videoq.size + is->subtitle.subtitleq.size > MAX_QUEUE_SIZE
 				|| (stream_has_enough_packets(is->audio.audio_st, is->audio.audio_stream, &is->audio.audioq) &&
 					stream_has_enough_packets(is->video.video_st, is->video.video_stream, &is->video.videoq) &&
@@ -1776,8 +1790,12 @@ void VideoCtl::ReadThread(VideoState* is)
 			}
 		}
 		//按帧读取
+		is->session.io.begin(IoOperation::Reading, is->session.source.network.readTimeout);
 		ret = av_read_frame(ic, pkt);
+		is->session.io.end();
 		if (ret < 0) {
+			is->session.readResult.store(ret, std::memory_order_release);
+			is->session.readError.store(MapAvError(ret, is->session.realtime != 0), std::memory_order_release);
 			if ((ret == AVERROR_EOF || avio_feof(ic->pb)) && !is->session.eof) {
 				if (is->video.video_stream >= 0)
 					packet_queue_put_nullpacket(&is->video.videoq, pkt, is->video.video_stream);
@@ -1827,7 +1845,11 @@ fail:
 		avformat_close_input(&ic);
 	// 通知 LoopThread 线程读取结束
 	if (ret != 0)
+	{
+		const auto error = is->session.readError.load(std::memory_order_acquire);
+		SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, error, 0, is->session.source.network.maxReconnectAttempts, {}, RedactMediaLocation(is->session.source.location)});
 		m_bPlayLoop.store(false, std::memory_order_release);
+	}
 	if (is->session.read_wait_mutex) {
 		SDL_DestroyMutex(is->session.read_wait_mutex);
 		is->session.read_wait_mutex = nullptr;
@@ -1837,6 +1859,11 @@ fail:
 
 VideoState* VideoCtl::stream_open(const char* filename)
 {
+	return stream_open(MediaSource{filename ? filename : ""});
+}
+
+VideoState* VideoCtl::stream_open(const MediaSource& source)
+{
 	VideoState* is;
 	//构造视频状态类
 	is = new (std::nothrow) VideoState{};
@@ -1845,6 +1872,7 @@ VideoState* VideoCtl::stream_open(const char* filename)
 	is->session.last_video_stream = is->video.video_stream = -1;
 	is->session.last_audio_stream = is->audio.audio_stream = -1;
 	is->session.last_subtitle_stream = is->subtitle.subtitle_stream = -1;
+	is->session.source = source;
 
 	is->audio.soundTouchHandle = soundtouch_create();
 	is->audio.audio_new_buf = NULL;
@@ -1854,7 +1882,7 @@ VideoState* VideoCtl::stream_open(const char* filename)
 		is->audio.play_rate = m_fPlaybackSpeed;
 	}
 	//视频文件名
-	is->session.filename = av_strdup(filename);
+	is->session.filename = av_strdup(source.location.c_str());
 	if (!is->session.filename)
 		goto fail;
 	//指定输入格式
@@ -2031,22 +2059,66 @@ void VideoCtl::seek_chapter(VideoState* is, int incr)
 void VideoCtl::LoopThread()
 {
 	m_bPlayLoop.store(true, std::memory_order_release);
+	int reconnectAttempt = 0;
+	VideoState* exitStream = nullptr;
 
-	while (m_bPlayLoop.load(std::memory_order_acquire))
-	{
-		VideoState* is;
+	for (;;) {
+		while (m_bPlayLoop.load(std::memory_order_acquire))
+		{
+			VideoState* is;
+			{
+				std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+				is = m_CurStream;
+			}
+			refresh_loop_wait_event(is);
+		}
+
+		exitStream = nullptr;
 		{
 			std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-			is = m_CurStream;
+			exitStream = m_CurStream;
 		}
-		refresh_loop_wait_event(is);
+		if (!exitStream)
+			return;
+
+		const auto source = exitStream->session.source;
+		const auto error = exitStream->session.readError.load(std::memory_order_acquire);
+		const bool canReconnect = source.network.reconnect && ShouldReconnect(error)
+			&& reconnectAttempt < source.network.maxReconnectAttempts && !exitStream->session.abort_request;
+		if (!canReconnect)
+			break;
+
+		++reconnectAttempt;
+		const auto delay = ReconnectDelay(source.network, reconnectAttempt);
+		SigPlaybackStatus(PlaybackStatus{PlaybackState::Reconnecting, error, reconnectAttempt, source.network.maxReconnectAttempts, delay, RedactMediaLocation(source.location)});
+
+		{
+			std::unique_lock<std::shared_mutex> lock(m_streamMutex);
+			exitStream = m_mediaSession.release();
+			m_CurStream = nullptr;
+		}
+		stream_close(exitStream);
+
+		{
+			std::unique_lock<std::mutex> waitLock(m_reconnectMutex);
+			m_reconnectCv.wait_for(waitLock, delay);
+		}
+		if (m_reconnectCancelled.load(std::memory_order_acquire))
+			return;
+
+		VideoState* reopened = stream_open(source);
+		if (!reopened) {
+			SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, PlaybackError::Unknown, reconnectAttempt, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
+			return;
+		}
+		{
+			std::unique_lock<std::shared_mutex> lock(m_streamMutex);
+			m_mediaSession.reset(reopened);
+			m_CurStream = m_mediaSession.get();
+		}
+		m_bPlayLoop.store(true, std::memory_order_release);
 	}
 
-	VideoState* exitStream = nullptr;
-	{
-		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-		exitStream = m_CurStream;
-	}
 	if (exitStream)
 		do_exit();
 }
@@ -2059,6 +2131,8 @@ void VideoCtl::OnPlaySeek(double dPercent)
 	{
 		return;
 	}
+	if (!m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo))
+		return;
 	int64_t ts = dPercent * m_CurStream->session.ic->duration;
 	if (m_CurStream->session.ic->start_time != AV_NOPTS_VALUE)
 		ts += m_CurStream->session.ic->start_time;
@@ -2072,6 +2146,8 @@ void VideoCtl::OnPlaySeekSeconds(int seconds)
 	{
 		return;
 	}
+	if (!m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo))
+		return;
 	int64_t ts = static_cast<int64_t>(seconds) * AV_TIME_BASE;
 	if (m_CurStream->session.ic->start_time != AV_NOPTS_VALUE)
 		ts += m_CurStream->session.ic->start_time;
@@ -2236,10 +2312,32 @@ void VideoCtl::OnStop()
 {
 	// 先暂停播放循环，再退出
 	m_bPlayLoop.store(false, std::memory_order_release);
+	m_reconnectCancelled.store(true, std::memory_order_release);
+	m_reconnectCv.notify_all();
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (m_CurStream) {
+		m_CurStream->session.abort_request = 1;
+		m_CurStream->session.io.cancelled.store(true, std::memory_order_release);
+		if (m_CurStream->session.continue_read_thread)
+			SDL_CondSignal(m_CurStream->session.continue_read_thread);
+		SigPlaybackStatus(PlaybackStatus{PlaybackState::Stopped, PlaybackError::Cancelled, 0, m_CurStream->session.source.network.maxReconnectAttempts, {}, RedactMediaLocation(m_CurStream->session.source.location)});
+	}
 }
 
 void VideoCtl::OnStopAndWait(){
 	std::lock_guard<std::mutex> lock(m_playbackMutex);
+	m_bPlayLoop.store(false, std::memory_order_release);
+	m_reconnectCancelled.store(true, std::memory_order_release);
+	m_reconnectCv.notify_all();
+	{
+		std::shared_lock<std::shared_mutex> streamLock(m_streamMutex);
+		if (m_CurStream) {
+			m_CurStream->session.abort_request = 1;
+			m_CurStream->session.io.cancelled.store(true, std::memory_order_release);
+			if (m_CurStream->session.continue_read_thread)
+				SDL_CondSignal(m_CurStream->session.continue_read_thread);
+		}
+	}
 	// 先暂停播放循环，再退出
 	m_bPlayLoop.store(false, std::memory_order_release);
 	if (m_tPlayLoopThread.joinable())
@@ -2360,24 +2458,31 @@ bool VideoCtl::StartPlay(const MediaSource& source)
 	std::lock_guard<std::mutex> lock(m_playbackMutex);
 
     // 检查输入参数
-    if (source.location.empty()) {
+    const auto validation = ValidateMediaSource(source);
+    if (!validation.ok) {
         av_log(NULL, AV_LOG_ERROR, "File name is empty, cannot start playback!\n");
+		SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, PlaybackError::InvalidMedia, 0, source.network.maxReconnectAttempts, {}, validation.message});
         return false;
     }
 
     m_bPlayLoop.store(false, std::memory_order_release);
+	m_reconnectCancelled.store(true, std::memory_order_release);
+	m_reconnectCv.notify_all();
     if (m_tPlayLoopThread.joinable())
     {
         m_tPlayLoopThread.join();
     }
+	m_reconnectCancelled.store(false, std::memory_order_release);
+	SigPlaybackStatus(PlaybackStatus{PlaybackState::Opening, PlaybackError::None, 0, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
     SigStartPlay(source.location);//正式播放，发送给标题栏
 
     VideoState* is;
 
     //打开流
-    is = stream_open(source.location.c_str());
+    is = stream_open(source);
     if (!is) {
         av_log(NULL, AV_LOG_FATAL, "Failed to initialize VideoState!\n");
+		SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, PlaybackError::Unknown, 0, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
         return false;
     }
 

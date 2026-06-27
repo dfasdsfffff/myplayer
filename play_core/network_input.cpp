@@ -302,3 +302,31 @@ int InterruptNetworkIo(void* opaque)
         return 0;
     return av_gettime_relative() >= deadline ? 1 : 0;
 }
+
+MediaInfo BuildMediaInfo(const MediaSource& source, AVFormatContext* formatContext)
+{
+    const auto kind = ClassifyMediaSource(source.location);
+    MediaInfo info;
+    info.networkSource = IsNetworkSource(kind);
+    info.live = IsRealtimeSource(kind);
+
+    if (formatContext) {
+        if (formatContext->duration > 0 && !info.live)
+            info.duration = std::chrono::milliseconds{formatContext->duration / 1000};
+        info.seekable = !info.live && formatContext->pb && (formatContext->pb->seekable & AVIO_SEEKABLE_NORMAL);
+    } else {
+        info.seekable = !info.live && !info.networkSource;
+    }
+
+    return info;
+}
+
+bool CanSeek(const MediaInfo& info)
+{
+    return info.seekable;
+}
+
+bool UseUnlimitedBuffer(const MediaSource& source, bool formatRealtime)
+{
+    return formatRealtime || IsRealtimeSource(ClassifyMediaSource(source.location));
+}
