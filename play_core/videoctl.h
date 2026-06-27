@@ -28,7 +28,6 @@
 #define CONFIG_AVFILTER 0
 #endif
 
-//单例模式
 class VideoCtl
 {
 private:

@@ -2369,9 +2369,6 @@ bool VideoCtl::StartPlay(const std::string& strFileName)
 
     VideoState* is;
 
-    char file_name[1024];
-    memset(file_name, 0, 1024);
-
     //打开流
     is = stream_open(strFileName.c_str());
     if (!is) {
