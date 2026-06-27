@@ -19,6 +19,7 @@
 #include <QScreen>
 #include <QRect>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QJsonDocument>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -28,6 +29,7 @@
 #include <QStatusBar>
 #include <QFileInfo>
 #include <QKeySequence>
+#include <QMessageBox>
 #include <memory>
 
 #ifdef Q_OS_WIN
@@ -659,6 +661,22 @@ void MainWid::OpenFile()
 		emit SigOpenFile(strFileName);
 }
 
+void MainWid::OpenNetworkStream()
+{
+	bool accepted = false;
+	const QString location = QInputDialog::getText(this, "打开网络流", "网络地址:", QLineEdit::Normal,
+		QString(), &accepted).trimmed();
+	if (!accepted || location.isEmpty())
+		return;
+
+	if (!m_playbackController)
+		return;
+
+	MediaSource source{location.toStdString()};
+	if (!m_playbackController->play(source))
+		QMessageBox::warning(this, "打开网络流", "无法开始播放该网络地址。");
+}
+
 void MainWid::OnPlayFile(QString strFileName)
 {
 	FlushPlaybackPosition();
@@ -824,6 +842,8 @@ void MainWid::ConnectMenuAction(QAction* action, const QString& actionText, cons
 
 	if (functionName == "OpenFile")
 		connect(action, &QAction::triggered, this, &MainWid::OpenFile);
+	else if (hotKey == "Ctrl+U")
+		connect(action, &QAction::triggered, this, &MainWid::OpenNetworkStream);
 	else if (functionName == "OnCloseBtnClicked")
 		connect(action, &QAction::triggered, this, &MainWid::OnCloseBtnClicked);
 	else if (hotKey == "F1")

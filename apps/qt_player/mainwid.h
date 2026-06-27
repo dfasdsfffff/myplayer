@@ -87,6 +87,7 @@ private:
     void OnShowMenu();
     void OnShowAbout();
     void OpenFile();
+    void OpenNetworkStream();
     void OnPlayFile(QString strFileName);
     void OnOpenRecentFile();
     void OnClearRecentFiles();
@@ -161,4 +162,3 @@ private:
     std::unique_ptr<PlaybackRuntime> m_playbackRuntime;
     PlaybackController* m_playbackController = nullptr;
 };
-
