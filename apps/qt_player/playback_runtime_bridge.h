@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 
+#include "media_source.h"
 #include "signal.h"
 #include "video_frame.h"
 
@@ -35,6 +36,8 @@ signals:
 	void SigStop();
 	void SigStopFinished();
 	void SigStartPlay(const QString& strFileName);
+	void SigPlaybackStatus(PlaybackStatus status);
+	void SigMediaInfo(MediaInfo info);
 	void SigPlayNextOne();
 	void SigRandomPlayOne();
 

@@ -118,6 +118,24 @@ void PlaybackRuntimeBridge::attach(PlaybackRuntime* runtime)
         }, Qt::QueuedConnection);
     }));
 
+    m_connections.emplace_back(runtime->SigPlaybackStatus.connect([self](const PlaybackStatus& status) {
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self.data(), [self, status]() {
+            if (auto bridge = self.data())
+                emit bridge->SigPlaybackStatus(status);
+        }, Qt::QueuedConnection);
+    }));
+
+    m_connections.emplace_back(runtime->SigMediaInfo.connect([self](const MediaInfo& info) {
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self.data(), [self, info]() {
+            if (auto bridge = self.data())
+                emit bridge->SigMediaInfo(info);
+        }, Qt::QueuedConnection);
+    }));
+
     m_connections.emplace_back(runtime->SigPlayNextOne.connect([self]() {
         if (!self)
             return;
