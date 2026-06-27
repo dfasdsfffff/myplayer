@@ -7,6 +7,7 @@
 #include <QMessageBox>
 
 #include "medialist.h"
+#include "playlistfile.h"
 
 namespace {
 bool IsSupportedMovieFile(const QString& fileName)
@@ -134,7 +135,8 @@ void MediaList::RemoveMissingFiles()
     for (int i = count() - 1; i >= 0; --i)
     {
         QListWidgetItem* item = this->item(i);
-        if (!QFileInfo::exists(item->data(Qt::UserRole).toString()))
+        const QString location = item->data(Qt::UserRole).toString();
+        if (!PlaylistFile::IsNetworkStream(location) && !QFileInfo::exists(location))
             delete takeItem(i);
     }
 }

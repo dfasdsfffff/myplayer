@@ -46,6 +46,15 @@ int main()
                 && mainWidCpp.find("OpenNetworkStream") != std::string::npos,
             "Ctrl+U menu action should open a network stream"))
         return 1;
+    if (!Expect(mainWidCpp.find("m_stPlaylist.OnAddFileAndPlay(location)") != std::string::npos,
+            "open network stream should add the URL to the playlist and play it"))
+        return 1;
+    if (!Expect(mainWidCpp.find("IsNetworkMediaLocation") != std::string::npos,
+            "main window playback should split network streams from local file semantics"))
+        return 1;
+    if (!Expect(mainWidCpp.find("m_playbackController->play(MediaSource{location.toStdString()})") != std::string::npos,
+            "network playlist items should play through MediaSource"))
+        return 1;
 
     return 0;
 }

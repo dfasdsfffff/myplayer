@@ -8,9 +8,17 @@
 #include <QTextStream>
 #include <QUrl>
 
+bool PlaylistFile::IsNetworkStream(const QString& location)
+{
+    const QUrl url(location);
+    const QString scheme = url.scheme().toLower();
+    return scheme == "http" || scheme == "https" || scheme == "rtsp" || scheme == "rtp" || scheme == "udp";
+}
+
 bool PlaylistFile::IsSupportedMovie(const QString& fileName)
 {
-    return fileName.endsWith(".mkv", Qt::CaseInsensitive) ||
+    return IsNetworkStream(fileName) ||
+        fileName.endsWith(".mkv", Qt::CaseInsensitive) ||
         fileName.endsWith(".rmvb", Qt::CaseInsensitive) ||
         fileName.endsWith(".mp4", Qt::CaseInsensitive) ||
         fileName.endsWith(".avi", Qt::CaseInsensitive) ||
@@ -54,6 +62,12 @@ QStringList PlaylistFile::ReadM3u(const QString& playlistFileName)
         const QString candidate = cleanCandidate(rawCandidate);
         if (candidate.isEmpty())
             return false;
+        if (IsNetworkStream(candidate))
+        {
+            if (!files.contains(candidate))
+                files.append(candidate);
+            return true;
+        }
 
         QStringList variants;
         variants.append(candidate);
@@ -168,6 +182,12 @@ bool PlaylistFile::WriteM3u8(const QString& playlistFileName, const QStringList&
     out << "#EXTM3U\n";
     for (const QString& fileName : files)
     {
+        if (IsNetworkStream(fileName))
+        {
+            out << fileName << '\n';
+            continue;
+        }
+
         const QString canonicalPath = QFileInfo(fileName).canonicalFilePath();
         if (!canonicalPath.isEmpty())
             out << QDir::toNativeSeparators(canonicalPath) << '\n';

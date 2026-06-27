@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QRandomGenerator>
+#include <QUrl>
 
 #include "playlist.h"
 #include "playlistfile.h"
@@ -149,17 +150,24 @@ bool Playlist::IsSupportedMovie(const QString& strFileName) const
     return PlaylistFile::IsSupportedMovie(strFileName);
 }
 
-QListWidgetItem* Playlist::FindItemByPath(const QString& filePath) const
+bool Playlist::IsNetworkMediaLocation(const QString& location) const
 {
-    const QString cleanPath = QFileInfo(filePath).canonicalFilePath();
-    if (cleanPath.isEmpty())
+    return PlaylistFile::IsNetworkStream(location);
+}
+
+QListWidgetItem* Playlist::FindItemByLocation(const QString& location) const
+{
+    const bool networkLocation = IsNetworkMediaLocation(location);
+    const QString cleanLocation = networkLocation ? location : QFileInfo(location).canonicalFilePath();
+    if (cleanLocation.isEmpty())
         return nullptr;
 
     for (int i = 0; i < ui->List->count(); ++i)
     {
         QListWidgetItem* item = ui->List->item(i);
-        const QString itemPath = QFileInfo(item->data(Qt::UserRole).toString()).canonicalFilePath();
-        if (itemPath == cleanPath)
+        const QString itemLocation = item->data(Qt::UserRole).toString();
+        const QString cleanItemLocation = networkLocation ? itemLocation : QFileInfo(itemLocation).canonicalFilePath();
+        if (cleanItemLocation == cleanLocation)
             return item;
     }
 
@@ -171,11 +179,25 @@ QListWidgetItem* Playlist::AddFileItem(const QString& strFileName)
     if (!IsSupportedMovie(strFileName))
         return nullptr;
 
+    if (IsNetworkMediaLocation(strFileName))
+    {
+        if (QListWidgetItem* existingItem = FindItemByLocation(strFileName))
+            return existingItem;
+
+        const QUrl url(strFileName);
+        QListWidgetItem* pItem = new QListWidgetItem(ui->List);
+        pItem->setData(Qt::UserRole, QVariant(strFileName));
+        pItem->setText(url.toDisplayString(QUrl::RemoveUserInfo));
+        pItem->setToolTip(strFileName);
+        ui->List->addItem(pItem);
+        return pItem;
+    }
+
     QFileInfo fileInfo(strFileName);
     if (!fileInfo.exists() || !fileInfo.isFile())
         return nullptr;
 
-    if (QListWidgetItem* existingItem = FindItemByPath(fileInfo.filePath()))
+    if (QListWidgetItem* existingItem = FindItemByLocation(fileInfo.filePath()))
         return existingItem;
 
     QListWidgetItem* pItem = new QListWidgetItem(ui->List);

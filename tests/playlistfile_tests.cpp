@@ -60,19 +60,26 @@ int main(int argc, char* argv[])
         return 1;
 
     const QString standardM3u = dir.filePath("standard.m3u8");
+    const QString networkStream = "rtsp://example.test/live";
+    if (!Expect(PlaylistFile::IsSupportedMovie(networkStream), "network stream should be accepted as media"))
+        return 1;
+
     if (!Expect(WriteTextFile(standardM3u,
             "#EXTM3U\n"
             "#EXTINF:10,First\n"
             "001. Project Overview.mp4\n"
             "#EXTINF:20,Second\n"
-            "file:///" + QDir::toNativeSeparators(second).replace("\\", "/") + "\n"),
+            "file:///" + QDir::toNativeSeparators(second).replace("\\", "/") + "\n"
+            "#EXTINF:-1,Network\n" +
+            networkStream + "\n"),
             "write standard m3u"))
         return 1;
 
     QStringList parsed = PlaylistFile::ReadM3u(standardM3u);
-    if (!Expect(parsed.size() == 2, "standard m3u should parse two files") ||
+    if (!Expect(parsed.size() == 3, "standard m3u should parse files and network streams") ||
         !Expect(parsed.at(0) == QFileInfo(first).canonicalFilePath(), "first standard path") ||
-        !Expect(parsed.at(1) == QFileInfo(second).canonicalFilePath(), "second standard file url"))
+        !Expect(parsed.at(1) == QFileInfo(second).canonicalFilePath(), "second standard file url") ||
+        !Expect(parsed.at(2) == networkStream, "network stream path"))
         return 1;
 
     const QString vlcM3u = dir.filePath("vlc.m3u");
@@ -91,16 +98,17 @@ int main(int argc, char* argv[])
 
     const QString exportFile = dir.filePath("exported.m3u8");
     QString errorMessage;
-    if (!Expect(PlaylistFile::WriteM3u8(exportFile, { first, third }, &errorMessage), "export m3u8"))
+    if (!Expect(PlaylistFile::WriteM3u8(exportFile, { first, third, networkStream }, &errorMessage), "export m3u8"))
     {
         std::cerr << errorMessage.toStdString() << '\n';
         return 1;
     }
 
     parsed = PlaylistFile::ReadM3u(exportFile);
-    if (!Expect(parsed.size() == 2, "exported m3u8 should round trip two files") ||
+    if (!Expect(parsed.size() == 3, "exported m3u8 should round trip files and network streams") ||
         !Expect(parsed.at(0) == QFileInfo(first).canonicalFilePath(), "export first path") ||
-        !Expect(parsed.at(1) == QFileInfo(third).canonicalFilePath(), "export third path"))
+        !Expect(parsed.at(1) == QFileInfo(third).canonicalFilePath(), "export third path") ||
+        !Expect(parsed.at(2) == networkStream, "export network stream"))
         return 1;
 
     return 0;

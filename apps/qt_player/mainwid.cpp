@@ -44,6 +44,7 @@
 #include "playback_controller.h"
 #include "playback_runtime.h"
 #include "enums.h"
+#include "playlistfile.h"
 
 const int FULLSCREEN_CTRLBAR_HIDE_DELAY = 2000; // 控制面板隐藏延迟（毫秒）
 const int CTRLBAR_ANIMATION_DURATION = 1000;    // 动画持续时间（毫秒）
@@ -61,6 +62,11 @@ enum ResizeEdge {
 static bool IsResizeEdge(int edges)
 {
 	return edges != ResizeNone;
+}
+
+static bool IsNetworkMediaLocation(const QString& location)
+{
+	return PlaylistFile::IsNetworkStream(location);
 }
 
 MainWid::MainWid(QMainWindow* parent) :
@@ -672,14 +678,22 @@ void MainWid::OpenNetworkStream()
 	if (!m_playbackController)
 		return;
 
-	MediaSource source{location.toStdString()};
-	if (!m_playbackController->play(source))
-		QMessageBox::warning(this, "打开网络流", "无法开始播放该网络地址。");
+	m_stPlaylist.OnAddFileAndPlay(location);
 }
 
 void MainWid::OnPlayFile(QString strFileName)
 {
 	FlushPlaybackPosition();
+
+	if (IsNetworkMediaLocation(strFileName))
+	{
+		m_currentPlayFile.clear();
+		m_currentPlaySeconds = 0;
+		const QString location = strFileName;
+		if (!m_playbackController->play(MediaSource{location.toStdString()}))
+			QMessageBox::warning(this, "打开网络流", "无法开始播放该网络地址。");
+		return;
+	}
 
 	AddRecentFile(strFileName);
 	m_currentPlayFile = QFileInfo(strFileName).canonicalFilePath();

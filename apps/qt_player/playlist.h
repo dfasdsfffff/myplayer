@@ -88,8 +88,9 @@ signals:
 private:
     bool InitUi();
     bool ConnectSignalSlots();
+    bool IsNetworkMediaLocation(const QString& location) const;
     bool IsSupportedMovie(const QString& strFileName) const;
-    QListWidgetItem* FindItemByPath(const QString& filePath) const;
+    QListWidgetItem* FindItemByLocation(const QString& location) const;
     QListWidgetItem* AddFileItem(const QString& strFileName);
     
 private slots:
