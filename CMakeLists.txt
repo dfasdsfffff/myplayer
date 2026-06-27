@@ -237,6 +237,25 @@ endif()
 
 add_test(NAME play_core_refactor_tests COMMAND play_core_refactor_tests)
 
+add_executable(network_playback_tests
+    tests/network_playback_tests.cpp
+)
+
+target_link_libraries(network_playback_tests PRIVATE
+    play_core
+)
+
+if(WIN32)
+    add_custom_command(TARGET network_playback_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${PLAYERDEMO_RUNTIME_DLLS}
+            $<TARGET_FILE_DIR:network_playback_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
+add_test(NAME network_playback_tests COMMAND network_playback_tests)
+
 add_executable(show_widget_tests
     tests/show_widget_tests.cpp
 )
