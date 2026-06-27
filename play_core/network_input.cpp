@@ -2,8 +2,16 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <limits>
+#include <sstream>
 #include <string>
+
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavutil/error.h>
+#include <libavutil/time.h>
+}
 
 namespace {
 
@@ -51,6 +59,37 @@ void RedactSensitiveQueryValues(std::string& text, std::size_t queryStart)
             break;
         pos = next + 1;
     }
+}
+
+std::string MicrosecondsString(std::chrono::microseconds value)
+{
+    return std::to_string(value.count());
+}
+
+std::string MillisecondsAsMicrosecondsString(std::chrono::milliseconds value)
+{
+    return MicrosecondsString(std::chrono::duration_cast<std::chrono::microseconds>(value));
+}
+
+void SetOption(AVDictionary** dictionary, const char* key, const std::string& value)
+{
+    av_dict_set(dictionary, key, value.c_str(), 0);
+}
+
+void SetCommonProbeOptions(AVDictionary** dictionary, const NetworkOptions& options)
+{
+    SetOption(dictionary, "probesize", std::to_string(options.probeSize));
+    SetOption(dictionary, "analyzeduration", MicrosecondsString(options.analyzeDuration));
+}
+
+std::string BuildHeaderBlock(const std::map<std::string, std::string>& headers)
+{
+    std::ostringstream stream;
+    for (const auto& [name, value] : headers) {
+        if (!name.empty())
+            stream << name << ": " << value << "\r\n";
+    }
+    return stream.str();
 }
 
 } // namespace
@@ -146,4 +185,120 @@ std::string RedactMediaLocation(std::string_view location)
         RedactSensitiveQueryValues(result, query + 1);
 
     return result;
+}
+
+AvDictionary::~AvDictionary()
+{
+    av_dict_free(&m_dictionary);
+}
+
+AvDictionary::AvDictionary(AvDictionary&& other) noexcept
+    : m_dictionary(other.m_dictionary)
+{
+    other.m_dictionary = nullptr;
+}
+
+AvDictionary& AvDictionary::operator=(AvDictionary&& other) noexcept
+{
+    if (this != &other) {
+        av_dict_free(&m_dictionary);
+        m_dictionary = other.m_dictionary;
+        other.m_dictionary = nullptr;
+    }
+    return *this;
+}
+
+AVDictionary* AvDictionary::get() const noexcept
+{
+    return m_dictionary;
+}
+
+AVDictionary** AvDictionary::put() noexcept
+{
+    return &m_dictionary;
+}
+
+void IoControl::begin(IoOperation newOperation, std::chrono::milliseconds timeout)
+{
+    operation.store(newOperation, std::memory_order_release);
+    if (timeout.count() <= 0) {
+        deadlineUs.store(0, std::memory_order_release);
+        return;
+    }
+    const auto timeoutUs = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
+    deadlineUs.store(av_gettime_relative() + timeoutUs, std::memory_order_release);
+}
+
+void IoControl::end()
+{
+    deadlineUs.store(0, std::memory_order_release);
+    operation.store(IoOperation::None, std::memory_order_release);
+}
+
+AvDictionary BuildInputOptions(const MediaSource& source)
+{
+    AvDictionary dictionary;
+    AVDictionary** options = dictionary.put();
+    SetCommonProbeOptions(options, source.network);
+
+    const auto kind = ClassifyMediaSource(source.location);
+    if (!IsNetworkSource(kind))
+        return dictionary;
+
+    SetOption(options, "rw_timeout", MillisecondsAsMicrosecondsString(source.network.readTimeout));
+
+    if (kind == MediaSourceKind::Http) {
+        if (!source.network.userAgent.empty())
+            SetOption(options, "user_agent", source.network.userAgent);
+        const auto headers = BuildHeaderBlock(source.network.headers);
+        if (!headers.empty())
+            SetOption(options, "headers", headers);
+        if (source.network.reconnect) {
+            SetOption(options, "reconnect", "1");
+            SetOption(options, "reconnect_streamed", "1");
+            SetOption(options, "reconnect_on_network_error", "1");
+            SetOption(options, "reconnect_on_http_error", "500,502,503,504");
+        }
+    } else if (kind == MediaSourceKind::Rtsp) {
+        SetOption(options, "rtsp_transport", source.network.rtspTransport == RtspTransport::Udp ? "udp" : "tcp");
+        SetOption(options, "timeout", MillisecondsAsMicrosecondsString(source.network.connectTimeout));
+    }
+
+    return dictionary;
+}
+
+PlaybackError MapAvError(int avError, bool realtime)
+{
+    if (avError == AVERROR_EXIT)
+        return PlaybackError::Cancelled;
+    if (avError == AVERROR(ETIMEDOUT))
+        return PlaybackError::Timeout;
+    if (avError == AVERROR_HTTP_UNAUTHORIZED || avError == AVERROR_HTTP_FORBIDDEN)
+        return PlaybackError::Authentication;
+    if (avError == AVERROR_HTTP_NOT_FOUND)
+        return PlaybackError::NotFound;
+    if (avError == AVERROR_PROTOCOL_NOT_FOUND)
+        return PlaybackError::UnsupportedProtocol;
+    if (avError == AVERROR_EOF)
+        return realtime ? PlaybackError::ConnectionLost : PlaybackError::None;
+    if (avError == AVERROR_INVALIDDATA)
+        return PlaybackError::InvalidMedia;
+    if (avError == AVERROR(ECONNRESET) || avError == AVERROR(ECONNREFUSED) || avError == AVERROR(EHOSTUNREACH)
+        || avError == AVERROR(ENETUNREACH))
+        return PlaybackError::NetworkUnavailable;
+    return PlaybackError::Unknown;
+}
+
+int InterruptNetworkIo(void* opaque)
+{
+    auto* control = static_cast<IoControl*>(opaque);
+    if (!control)
+        return 0;
+    if (control->cancelled.load(std::memory_order_acquire))
+        return 1;
+
+    const auto deadline = control->deadlineUs.load(std::memory_order_acquire);
+    if (deadline == 0)
+        return 0;
+    return av_gettime_relative() >= deadline ? 1 : 0;
 }
