@@ -27,6 +27,7 @@ int main()
     const std::string showCpp = ReadFile("apps/qt_player/show.cpp");
     const std::string mainWidCpp = ReadFile("apps/qt_player/mainwid.cpp");
     const std::string mainWidH = ReadFile("apps/qt_player/mainwid.h");
+    const std::string designSystemQss = ReadFile("apps/qt_player/res/qss/design-system.css");
 
     if (!Expect(!showCpp.empty(), "show.cpp should be readable from the repository root"))
         return 1;
@@ -54,6 +55,15 @@ int main()
         return 1;
     if (!Expect(mainWidCpp.find("m_playbackController->play(MediaSource{location.toStdString()})") != std::string::npos,
             "network playlist items should play through MediaSource"))
+        return 1;
+    if (!Expect(designSystemQss.find("QInputDialog") != std::string::npos,
+            "global design system should style URL input dialogs"))
+        return 1;
+    if (!Expect(designSystemQss.find("QInputDialog QLineEdit") != std::string::npos,
+            "URL input dialogs should style their line edit"))
+        return 1;
+    if (!Expect(designSystemQss.find("QInputDialog QPushButton") != std::string::npos,
+            "URL input dialogs should style their action buttons"))
         return 1;
 
     return 0;
