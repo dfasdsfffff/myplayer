@@ -18,7 +18,7 @@ struct NetworkOptions {
     std::int64_t probeSize{5 * 1024 * 1024};
 
     RtspTransport rtspTransport{RtspTransport::Tcp};
-    std::string userAgent{"playerdemo/1.0"};
+    std::string userAgent{"myplayer/1.0"};
     std::map<std::string, std::string> headers;
 
     int maxReconnectAttempts{5};

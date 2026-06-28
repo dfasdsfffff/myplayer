@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(playerdemo VERSION 1.0.0 LANGUAGES CXX)
+project(myplayer VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -102,7 +102,7 @@ set(QRC_FILES
 )
 
 if(WIN32)
-    set(RC_FILES ${PLAYERDEMO_QT_APP_DIR}/playerdemo.rc)
+    set(RC_FILES ${PLAYERDEMO_QT_APP_DIR}/myplayer.rc)
 endif()
 
 add_executable(${PROJECT_NAME} WIN32
@@ -113,21 +113,21 @@ add_executable(${PROJECT_NAME} WIN32
     ${RC_FILES}
 )
 
-add_executable(playerdemo_imgui
+add_executable(myplayer_imgui
     ${PLAYERDEMO_IMGUI_APP_DIR}/main.cpp
 )
 
-target_include_directories(playerdemo_imgui PRIVATE
+target_include_directories(myplayer_imgui PRIVATE
     ${PLAYERDEMO_IMGUI_APP_DIR}
 )
 
-target_link_libraries(playerdemo_imgui PRIVATE
+target_link_libraries(myplayer_imgui PRIVATE
     play_core
     imgui::imgui
 )
 
 if(WIN32)
-    target_link_libraries(playerdemo_imgui PRIVATE
+    target_link_libraries(myplayer_imgui PRIVATE
         d3d11
         dxgi
         comdlg32
@@ -149,16 +149,16 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PLAYERDEMO_OUTPUT_DIR}"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${PLAYERDEMO_OUTPUT_DIR}"
-    OUTPUT_NAME_DEBUG "${PROJECT_NAME}_debug"
-    OUTPUT_NAME_RELEASE "${PROJECT_NAME}"
+    OUTPUT_NAME_DEBUG "myplayer_debug"
+    OUTPUT_NAME_RELEASE "myplayer"
 )
 
-set_target_properties(playerdemo_imgui PROPERTIES
+set_target_properties(myplayer_imgui PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PLAYERDEMO_OUTPUT_DIR}"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${PLAYERDEMO_OUTPUT_DIR}"
-    OUTPUT_NAME_DEBUG "playerdemo_imgui_debug"
-    OUTPUT_NAME_RELEASE "playerdemo_imgui"
+    OUTPUT_NAME_DEBUG "myplayer_imgui_debug"
+    OUTPUT_NAME_RELEASE "myplayer_imgui"
 )
 
 if(WIN32)
@@ -180,10 +180,10 @@ if(WIN32)
                 "${PLAYERDEMO_RUNTIME_DLL}"
                 "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
         )
-        add_custom_command(TARGET playerdemo_imgui POST_BUILD
+        add_custom_command(TARGET myplayer_imgui POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${PLAYERDEMO_RUNTIME_DLL}"
-                "$<TARGET_FILE_DIR:playerdemo_imgui>"
+                "$<TARGET_FILE_DIR:myplayer_imgui>"
         )
     endforeach()
 endif()

@@ -344,11 +344,11 @@ LRESULT WINAPI wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 int main()
 {
 	WNDCLASSEXW wc{sizeof(wc), CS_CLASSDC, wndProc, 0L, 0L, GetModuleHandleW(nullptr), nullptr, nullptr, nullptr, nullptr,
-		L"playerdemo_imgui", nullptr};
+		L"myplayer_imgui", nullptr};
 	RegisterClassExW(&wc);
 
 	AppState app;
-	app.hwnd = CreateWindowW(wc.lpszClassName, L"playerdemo_imgui", WS_OVERLAPPEDWINDOW,
+	app.hwnd = CreateWindowW(wc.lpszClassName, L"MyPlayer ImGui", WS_OVERLAPPEDWINDOW,
 		100, 100, 1280, 760, nullptr, nullptr, wc.hInstance, nullptr);
 	if (!app.hwnd)
 		return 1;

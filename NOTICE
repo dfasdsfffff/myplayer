@@ -1,0 +1,37 @@
+MyPlayer Notice
+===============
+
+MyPlayer is a maintained fork and productized build of the original
+`itisyang/playerdemo` project.
+
+Product identity:
+
+- Display name: MyPlayer
+- Internal name: myplayer
+- Project repository: https://github.com/dfasdsfffff/playerdemo-master
+
+Upstream attribution:
+
+- Original project: https://github.com/itisyang/playerdemo
+- Original author: itisyang
+- Original homepage: https://itisyang.github.io/playerdemo/
+
+License:
+
+- MyPlayer contains code derived from GPL-licensed upstream code and is
+  distributed under the GNU General Public License. See `LICENSE`.
+- Modified distributions must preserve copyright notices, license notices,
+  warranty disclaimers, and a way to obtain the corresponding source code.
+
+Third-party components:
+
+- FFmpeg: multimedia demuxing, decoding, filtering, and conversion libraries.
+- SDL2: audio/video output and platform support.
+- SoundTouch: audio tempo, pitch, and rate processing.
+- sigslot: signal/slot utility library.
+- Qt 6: desktop UI framework.
+- Dear ImGui: optional immediate-mode UI entry point.
+
+Keep each third-party component's own license file with binary and source
+distributions. This notice is a summary, not a replacement for the full
+license texts.

@@ -16,7 +16,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>PlayerDemo 关于</string>
+   <string>MyPlayer 关于</string>
   </property>
   <property name="windowIcon">
    <iconset resource="mainwid.qrc">
@@ -87,7 +87,7 @@
                 </font>
                </property>
                <property name="text">
-                <string>PlayerDemo</string>
+                <string>MyPlayer</string>
                </property>
               </widget>
              </item>

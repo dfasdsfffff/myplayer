@@ -8,6 +8,9 @@ int main(int argc, char *argv[])
 {
 //    qDebug() << "123";
     QApplication a(argc, argv);
+    QCoreApplication::setApplicationName("MyPlayer");
+    QCoreApplication::setApplicationVersion("1.0.0");
+    QCoreApplication::setOrganizationName("MyPlayer");
     
     //使用第三方字库，用来作为UI图片 ://res/fa-solid-900.ttf
     QFontDatabase::addApplicationFont("://res/fontawesome-webfont.ttf");

@@ -28,6 +28,15 @@ int main()
     const std::string mainWidCpp = ReadFile("apps/qt_player/mainwid.cpp");
     const std::string mainWidH = ReadFile("apps/qt_player/mainwid.h");
     const std::string designSystemQss = ReadFile("apps/qt_player/res/qss/design-system.css");
+    const std::string rootCMake = ReadFile("CMakeLists.txt");
+    const std::string aboutUi = ReadFile("apps/qt_player/about.ui");
+    const std::string titleUi = ReadFile("apps/qt_player/title.ui");
+    const std::string settingUi = ReadFile("apps/qt_player/settingwid.ui");
+    const std::string imguiMain = ReadFile("apps/imgui_player/main.cpp");
+    const std::string aip = ReadFile("myplayer.aip");
+    const std::string notice = ReadFile("NOTICE");
+    const std::string releaseChecklist = ReadFile("docs/release-checklist.md");
+    const std::string qaChecklist = ReadFile("docs/player-qa-checklist.md");
 
     if (!Expect(!showCpp.empty(), "show.cpp should be readable from the repository root"))
         return 1;
@@ -64,6 +73,47 @@ int main()
         return 1;
     if (!Expect(designSystemQss.find("QInputDialog QPushButton") != std::string::npos,
             "URL input dialogs should style their action buttons"))
+        return 1;
+    if (!Expect(rootCMake.find("project(myplayer VERSION 1.0.0 LANGUAGES CXX)") != std::string::npos,
+            "CMake project should use the internal product name"))
+        return 1;
+    if (!Expect(rootCMake.find("OUTPUT_NAME_DEBUG \"myplayer_debug\"") != std::string::npos
+                && rootCMake.find("OUTPUT_NAME_RELEASE \"myplayer\"") != std::string::npos,
+            "Qt executable output should use myplayer names"))
+        return 1;
+    if (!Expect(rootCMake.find("add_executable(myplayer_imgui") != std::string::npos
+                && rootCMake.find("OUTPUT_NAME_RELEASE \"myplayer_imgui\"") != std::string::npos,
+            "ImGui executable target should use myplayer names"))
+        return 1;
+    if (!Expect(aboutUi.find("MyPlayer") != std::string::npos
+                && titleUi.find("MyPlayer") != std::string::npos
+                && settingUi.find("MyPlayer") != std::string::npos,
+            "Qt visible titles should use MyPlayer"))
+        return 1;
+    if (!Expect(imguiMain.find("L\"MyPlayer ImGui\"") != std::string::npos,
+            "ImGui window title should use MyPlayer"))
+        return 1;
+    if (!Expect(aip.find("Value=\"MyPlayer\"") != std::string::npos
+                && aip.find("Value=\"myplayer\"") != std::string::npos,
+            "installer metadata should use MyPlayer/myplayer names"))
+        return 1;
+    if (!Expect(aip.find("https://github.com/dfasdsfffff/playerdemo-master") != std::string::npos,
+            "installer product links should point to the maintained MyPlayer repository"))
+        return 1;
+    if (!Expect(notice.find("MyPlayer") != std::string::npos
+                && notice.find("itisyang/playerdemo") != std::string::npos
+                && notice.find("https://github.com/dfasdsfffff/playerdemo-master") != std::string::npos
+                && notice.find("GNU General Public License") != std::string::npos,
+            "NOTICE should preserve product, upstream, and GPL attribution"))
+        return 1;
+    if (!Expect(releaseChecklist.find("GPL") != std::string::npos
+                && releaseChecklist.find("source") != std::string::npos,
+            "release checklist should document GPL source distribution"))
+        return 1;
+    if (!Expect(qaChecklist.find("format compatibility") != std::string::npos
+                && qaChecklist.find("long-running playback") != std::string::npos
+                && qaChecklist.find("network failure") != std::string::npos,
+            "player QA checklist should cover commercial-readiness playback risks"))
         return 1;
 
     return 0;

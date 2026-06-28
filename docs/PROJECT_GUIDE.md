@@ -1,4 +1,4 @@
-# playerdemo 项目快速上手与架构说明
+# MyPlayer 项目快速上手与架构说明
 
 本文面向第一次接触本仓库的开发者，目标是帮助你快速完成三件事：
 
@@ -10,12 +10,12 @@
 
 ## 1. 项目定位
 
-`playerdemo` 是一个基于 C++20、Qt Widgets、FFmpeg、SDL2 和 SoundTouch 的本地播放器示例项目。它来自 `itisyang/playerdemo`，当前仓库在原项目基础上做了二次整理，重点是把播放核心逐步从 Qt UI 中拆出来，形成可复用的 `play_core` 静态库。
+`MyPlayer` 是一个基于 C++20、Qt Widgets、FFmpeg、SDL2 和 SoundTouch 的本地播放器示例项目。它来自 `itisyang/playerdemo`，当前仓库在原项目基础上做了二次整理，重点是把播放核心逐步从 Qt UI 中拆出来，形成可复用的 `play_core` 静态库。
 
 项目当前有两个应用入口：
 
-- `playerdemo`：Qt Widgets 桌面播放器，完整 UI，主入口在 `apps/qt_player/main.cpp`。
-- `playerdemo_imgui`：Dear ImGui 版本播放器，主入口在 `apps/imgui_player/main.cpp`。
+- `MyPlayer`：Qt Widgets 桌面播放器，完整 UI，主入口在 `apps/qt_player/main.cpp`。
+- `myplayer_imgui`：Dear ImGui 版本播放器，主入口在 `apps/imgui_player/main.cpp`。
 
 公共播放能力集中在：
 
@@ -100,10 +100,10 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
 默认输出到仓库根目录的 `bin/`：
 
 ```text
-bin/playerdemo_debug.exe
-bin/playerdemo.exe
-bin/playerdemo_imgui_debug.exe
-bin/playerdemo_imgui.exe
+bin/myplayer_debug.exe
+bin/myplayer.exe
+bin/myplayer_imgui_debug.exe
+bin/myplayer_imgui.exe
 ```
 
 Windows 下构建后，CMake 会把 FFmpeg、SDL2、SoundTouch 运行时 DLL 复制到目标输出目录。
