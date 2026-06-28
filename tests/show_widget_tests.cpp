@@ -37,6 +37,7 @@ int main()
     const std::string notice = ReadFile("NOTICE");
     const std::string releaseChecklist = ReadFile("docs/release-checklist.md");
     const std::string qaChecklist = ReadFile("docs/player-qa-checklist.md");
+    const std::string portablePackager = ReadFile("scripts/package-portable.ps1");
 
     if (!Expect(!showCpp.empty(), "show.cpp should be readable from the repository root"))
         return 1;
@@ -114,6 +115,18 @@ int main()
                 && qaChecklist.find("long-running playback") != std::string::npos
                 && qaChecklist.find("network failure") != std::string::npos,
             "player QA checklist should cover commercial-readiness playback risks"))
+        return 1;
+    if (!Expect(portablePackager.find("MyPlayer-1.0.0-windows-x64.zip") != std::string::npos,
+            "portable packager should produce the expected green package name"))
+        return 1;
+    if (!Expect(portablePackager.find("windeployqt") != std::string::npos
+                && portablePackager.find("platforms") != std::string::npos,
+            "portable packager should deploy Qt runtime and platform plugins"))
+        return 1;
+    if (!Expect(portablePackager.find("LICENSE") != std::string::npos
+                && portablePackager.find("NOTICE") != std::string::npos
+                && portablePackager.find("THIRD-PARTY-NOTICES.md") != std::string::npos,
+            "portable packager should include license and notice files"))
         return 1;
 
     return 0;
