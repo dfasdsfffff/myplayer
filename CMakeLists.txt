@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 
 project(myplayer VERSION 1.0.0 LANGUAGES CXX)
 
@@ -193,6 +193,16 @@ install(TARGETS ${PROJECT_NAME}
 )
 
 enable_testing()
+
+add_executable(playback_settings_tests
+    tests/playback_settings_tests.cpp
+)
+
+target_include_directories(playback_settings_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/play_core
+)
+
+add_test(NAME playback_settings_tests COMMAND playback_settings_tests)
 
 add_executable(playlistfile_tests
     tests/playlistfile_tests.cpp

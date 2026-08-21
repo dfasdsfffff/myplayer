@@ -241,7 +241,8 @@ void Show::resizeEvent(QResizeEvent *event)
     Q_UNUSED(event);
 
     ChangeShow();
-    DestroySdlRenderer();
+    // QWidget 尺寸变化不会改变其原生窗口句柄；保留 renderer 和 texture，
+    // 避免拖动窗口时持续重建 GPU 资源。
     ClearVideoSurface();
     RenderCurrentFrame();
 }

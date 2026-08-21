@@ -1,5 +1,8 @@
 #pragma once
 
+#include <atomic>
+#include <mutex>
+
 #include "av_types.h"
 #include "decoder.h"
 #include "network_input.h"
@@ -10,12 +13,15 @@ struct SessionState {
 
     std::thread read_tid;
     AVInputFormat* iformat = nullptr;
-    int abort_request = 0;
+    // 由读取线程、播放循环和 UI 控制线程并发访问，使用原子变量消除数据竞争
+    std::atomic<int> abort_request{0};
     int force_refresh = 0;
-    int paused = 0;
+    std::atomic<int> paused{0};
     int last_paused = 0;
     int queue_attachments_req = 0;
-    int seek_req = 0;
+    // seek 命令由控制线程写入、读取线程消费，必须作为一个整体读取。
+    std::mutex seek_mutex;
+    bool seek_req = false;
     int seek_flags = 0;
     int64_t seek_pos = 0;
     int64_t seek_rel = 0;
@@ -50,7 +56,7 @@ struct AudioState {
     void* soundTouchHandle = nullptr;
     short* audio_new_buf = nullptr;
     unsigned int audio_new_buf_size = 0;
-    double play_rate = 0;
+    std::atomic<double> play_rate{1.0};
 
     FrameQueue sampq;
     Decoder aud_decoder;
@@ -70,7 +76,8 @@ struct AudioState {
     unsigned int audio_buf1_size = 0;
     int audio_buf_index = 0;
     int audio_write_buf_size = 0;
-    int audio_volume = 0;
+    // 控制线程写入、SDL 音频回调读取，使用原子变量消除数据竞争
+    std::atomic<int> audio_volume{0};
 
     AudioParams audio_src{};
     AudioParams audio_filter_src{};

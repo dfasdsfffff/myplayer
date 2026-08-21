@@ -70,7 +70,7 @@ Windows 下推荐：
 - Visual Studio 2022
 - Qt 6，例如 `C:/Qt/6.9.3/msvc2022_64`
 - vcpkg，并设置 `VCPKG_ROOT`
-- CMake 3.20+
+- CMake 3.25+（`CMakePresets.json` 使用 version 6 schema）
 
 ### 3.2 使用 Preset 构建
 
@@ -110,11 +110,13 @@ Windows 下构建后，CMake 会把 FFmpeg、SDL2、SoundTouch 运行时 DLL 复
 
 ### 3.4 测试
 
-顶层 CMake 当前注册了三个测试：
+顶层 CMake 当前注册了五个测试：
 
 ```text
+playback_settings_tests
 playlistfile_tests
 play_core_refactor_tests
+network_playback_tests
 show_widget_tests
 ```
 

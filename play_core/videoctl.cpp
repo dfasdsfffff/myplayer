@@ -17,20 +17,22 @@
 
 #include "media_sync.h"
 #include "network_input.h"
+#include "playback_settings.h"
+#include "runtime_manager.h"
 #include "soundtouch_wrap.h"
 
 #pragma execution_character_set("utf-8")
 
 extern std::mutex g_show_rect_mutex;
 
-// SDL/FFmpeg 全局初始化引用计数，多实例安全
-static std::atomic<int> g_sdl_init_count{0};
-static std::atomic<int> g_network_init_count{0};
-
 // 是否允许丢帧（如果视频太慢了，跟不上音频或者外部时钟）
 // -1为自动丢帧，0为不丢帧，1为强制丢帧
 static int framedrop = 1;
-static int64_t audio_callback_time;
+
+static int NormalizedToSdlVolume(double volume)
+{
+	return PlaybackSettings::ToSdlVolume(volume, SDL_MIX_MAXVOLUME);
+}
 
 #define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
 
@@ -91,8 +93,7 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 {
 	VideoState* is = (VideoState*)opaque;
 	int audio_size, len1;
-
-	audio_callback_time = av_gettime_relative();
+	const auto callbackTime = av_gettime_relative();
 
 	while (len > 0) {
 		if (is->audio.audio_buf_index >= is->audio.audio_buf_size) {
@@ -110,12 +111,13 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 		len1 = is->audio.audio_buf_size - is->audio.audio_buf_index;
 		if (len1 > len)
 			len1 = len;
-		if (is->audio.audio_buf && is->audio.audio_volume == SDL_MIX_MAXVOLUME)
+		const auto audioVolume = is->audio.audio_volume.load(std::memory_order_relaxed);
+		if (is->audio.audio_buf && audioVolume == SDL_MIX_MAXVOLUME)
 			memcpy(stream, (uint8_t*)is->audio.audio_buf + is->audio.audio_buf_index, len1);
 		else {
 			memset(stream, 0, len1);
 			if (is->audio.audio_buf)
-				SDL_MixAudio(stream, (uint8_t*)is->audio.audio_buf + is->audio.audio_buf_index, len1, is->audio.audio_volume);
+				SDL_MixAudio(stream, (uint8_t*)is->audio.audio_buf + is->audio.audio_buf_index, len1, audioVolume);
 		}
 		len -= len1;
 		stream += len1;
@@ -127,7 +129,7 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 		is->clocks.audclk.set_at(
 			is->audio.audio_clock - (double)(2 * is->audio.audio_hw_buf_size + is->audio.audio_write_buf_size) / is->audio.audio_tgt.bytes_per_sec,
 			is->audio.audio_clock_serial,
-			audio_callback_time / 1000000.0);
+			callbackTime / 1000000.0);
 		is->clocks.extclk.sync_to_slave(is->clocks.audclk);
 	}
 }
@@ -260,14 +262,13 @@ void VideoCtl::set_play_speed(double dSpeed)
 
 	// 保护 m_CurStream 访问
 	std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
-	if (m_CurStream) {
-		m_CurStream->audio.play_rate = m_fPlaybackSpeed;
-	}
+	if (m_CurStream)
+		m_CurStream->audio.play_rate.store(m_fPlaybackSpeed, std::memory_order_release);
 }
 
 void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
 {
-	this->m_loopPolicy = loopPolicy;
+	m_loopPolicy.store(loopPolicy, std::memory_order_release);
 }
 
 /* seek in the stream */
@@ -276,11 +277,12 @@ void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 	if (!m_CurStream) return;
 	if (!m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo)) return;
 
+	std::lock_guard<std::mutex> seekLock(m_CurStream->session.seek_mutex);
 	if (!m_CurStream->session.seek_req) {
 		m_CurStream->session.seek_pos = pos;
 		m_CurStream->session.seek_rel = rel;
 		m_CurStream->session.seek_flags &= ~AVSEEK_FLAG_BYTE;
-		m_CurStream->session.seek_req = 1;
+		m_CurStream->session.seek_req = true;
 		SDL_CondSignal(m_CurStream->session.continue_read_thread);
 	}
 }
@@ -298,7 +300,11 @@ void VideoCtl::stream_toggle_pause()
 		m_CurStream->clocks.vidclk.set(m_CurStream->clocks.vidclk.get(), m_CurStream->clocks.vidclk.serial);
 	}
 	m_CurStream->clocks.extclk.set(m_CurStream->clocks.extclk.get(), m_CurStream->clocks.extclk.serial);
-	m_CurStream->session.paused = m_CurStream->clocks.audclk.paused = m_CurStream->clocks.vidclk.paused = m_CurStream->clocks.extclk.paused = !m_CurStream->session.paused;
+	const int paused = !m_CurStream->session.paused.load(std::memory_order_acquire);
+	m_CurStream->clocks.audclk.paused = paused;
+	m_CurStream->clocks.vidclk.paused = paused;
+	m_CurStream->clocks.extclk.paused = paused;
+	m_CurStream->session.paused.store(paused, std::memory_order_release);
 }
 
 void VideoCtl::toggle_pause()
@@ -1107,26 +1113,21 @@ int VideoCtl::audio_decode_frame(VideoState* is)
 	int wanted_nb_samples;
 	Frame* af;
 	int translate_time = 1;
-	if (is->session.paused)
+	if (is->session.paused.load(std::memory_order_acquire))
 		return -1;
 reload:
 	do {
 #if defined(_WIN32)
 		// 使用条件变量等待，替代忙等待
-		while (is->audio.sampq.nb_remaining() == 0 && !is->audio.audioq.abort_request) {
-			// 设置超时，避免永久阻塞
-			audio_callback_time = av_gettime_relative();
+		while (is->audio.sampq.nb_remaining() == 0 && !is->audio.audioq.abort_request.load(std::memory_order_acquire)) {
+			const auto waitStarted = av_gettime_relative();
 			is->audio.sampq.wait_readable_for(100); // 100ms超时
-			// 检查是否超时过长
-			if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio.audio_hw_buf_size / is->audio.audio_tgt.bytes_per_sec / 2) {
+			if ((av_gettime_relative() - waitStarted) > 1000000LL * is->audio.audio_hw_buf_size / is->audio.audio_tgt.bytes_per_sec / 2)
 				return -1;
-			}
 		}
-		
-		// 检查是否因中止请求而退出
-		if (is->audio.audioq.abort_request) {
+
+		if (is->audio.audioq.abort_request.load(std::memory_order_acquire))
 			return -1;
-		}
 #endif
 		if (!(af = is->audio.sampq.peek_readable()))
 			return -1;
@@ -1195,7 +1196,8 @@ reload:
 		resampled_data_size = len2 * is->audio.audio_tgt.ch_layout.nb_channels * av_get_bytes_per_sample(is->audio.audio_tgt.fmt);
 		//=====================倍速处理 begin==========================
 		int bytes_per_sample = av_get_bytes_per_sample(is->audio.audio_tgt.fmt);
-		if (is->audio.soundTouchHandle && is->audio.play_rate != 1.0f && !is->session.abort_request)
+		const auto playbackRate = is->audio.play_rate.load(std::memory_order_acquire);
+		if (is->audio.soundTouchHandle && playbackRate != 1.0 && !is->session.abort_request.load(std::memory_order_acquire))
 		{
 			av_fast_malloc(&is->audio.audio_new_buf, &is->audio.audio_new_buf_size, out_size * translate_time);
 			if (!is->audio.audio_new_buf) {
@@ -1209,8 +1211,8 @@ reload:
 			}
 			int ret_len = soundtouch_translate(is->audio.soundTouchHandle,
 				is->audio.audio_new_buf, // input
-				(float)(is->audio.play_rate), // speed
-				(float)(1.0f / is->audio.play_rate),// pitch
+				static_cast<float>(playbackRate), // speed
+				static_cast<float>(1.0 / playbackRate),// pitch
 				resampled_data_size / 2,
 				bytes_per_sample, 
 				is->audio.audio_tgt.ch_layout.nb_channels,
@@ -1692,11 +1694,12 @@ void VideoCtl::ReadThread(VideoState* is)
 
 	//读取视频数据
 	for (;;) {
-		if (is->session.abort_request)
+		if (is->session.abort_request.load(std::memory_order_acquire))
 			break;
-		if (is->session.paused != is->session.last_paused) {
-			is->session.last_paused = is->session.paused;
-			if (is->session.paused)
+		const auto paused = is->session.paused.load(std::memory_order_acquire);
+		if (paused != is->session.last_paused) {
+			is->session.last_paused = paused;
+			if (paused)
 				is->session.read_pause_return = av_read_pause(ic);
 			else
 				av_read_play(ic);
@@ -1709,14 +1712,27 @@ void VideoCtl::ReadThread(VideoState* is)
 		//	is->sound_touch.setPitchSemiTones(0.0f); // 保持原始音调
 		//	m_bSpeedChanged = false;
 		//}
-		if (is->session.seek_req) {
-			int64_t seek_target = is->session.seek_pos;
-			int64_t seek_min = is->session.seek_rel > 0 ? seek_target - is->session.seek_rel + 2 : INT64_MIN;
-			int64_t seek_max = is->session.seek_rel < 0 ? seek_target - is->session.seek_rel - 2 : INT64_MAX;
+		int64_t seekTarget = 0;
+		int64_t seekRelative = 0;
+		int seekFlags = 0;
+		bool hasSeekRequest = false;
+		{
+			std::lock_guard<std::mutex> seekLock(is->session.seek_mutex);
+			if (is->session.seek_req) {
+				seekTarget = is->session.seek_pos;
+				seekRelative = is->session.seek_rel;
+				seekFlags = is->session.seek_flags;
+				is->session.seek_req = false;
+				hasSeekRequest = true;
+			}
+		}
+		if (hasSeekRequest) {
+			const int64_t seekMin = seekRelative > 0 ? seekTarget - seekRelative + 2 : INT64_MIN;
+			const int64_t seekMax = seekRelative < 0 ? seekTarget - seekRelative - 2 : INT64_MAX;
 			// FIXME the +-2 is due to rounding being not done in the correct direction in generation
 			//      of the seek_pos/seek_rel variables
 
-			ret = avformat_seek_file(is->session.ic, -1, seek_min, seek_target, seek_max, is->session.seek_flags);
+			ret = avformat_seek_file(is->session.ic, -1, seekMin, seekTarget, seekMax, seekFlags);
 			if (ret < 0) {
 				av_log(NULL, AV_LOG_ERROR,
 					"%s: error while seeking\n", is->session.ic->url);
@@ -1728,17 +1744,14 @@ void VideoCtl::ReadThread(VideoState* is)
 					packet_queue_flush(&is->subtitle.subtitleq);
 				if (is->video.video_stream >= 0)
 					packet_queue_flush(&is->video.videoq);
-				if (is->session.seek_flags & AVSEEK_FLAG_BYTE) {
+				if (seekFlags & AVSEEK_FLAG_BYTE)
 					is->clocks.extclk.set(NAN, 0);
-				}
-				else {
-					is->clocks.extclk.set(seek_target / (double)AV_TIME_BASE, 0);
-				}
+				else
+					is->clocks.extclk.set(seekTarget / static_cast<double>(AV_TIME_BASE), 0);
 			}
-			is->session.seek_req = 0;
 			is->session.queue_attachments_req = 1;
 			is->session.eof = 0;
-			if (is->session.paused)
+			if (paused)
 				step_to_next_frame();
 		}
 		if (is->session.queue_attachments_req) {
@@ -1753,7 +1766,9 @@ void VideoCtl::ReadThread(VideoState* is)
 
 		/* if the queue are full, no need to read more */
 		if (!is->session.unlimitedBuffer &&
-			(is->audio.audioq.size + is->video.videoq.size + is->subtitle.subtitleq.size > MAX_QUEUE_SIZE
+			(is->audio.audioq.size.load(std::memory_order_relaxed)
+				+ is->video.videoq.size.load(std::memory_order_relaxed)
+				+ is->subtitle.subtitleq.size.load(std::memory_order_relaxed) > MAX_QUEUE_SIZE
 				|| (stream_has_enough_packets(is->audio.audio_st, is->audio.audio_stream, &is->audio.audioq) &&
 					stream_has_enough_packets(is->video.video_st, is->video.video_stream, &is->video.videoq) &&
 					stream_has_enough_packets(is->subtitle.subtitle_st, is->subtitle.subtitle_stream, &is->subtitle.subtitleq)))) {
@@ -1763,21 +1778,22 @@ void VideoCtl::ReadThread(VideoState* is)
 			SDL_UnlockMutex(is->session.read_wait_mutex);
 			continue;
 		}
-		if (!is->session.paused &&
+		if (!paused &&
 			(!is->audio.audio_st || (is->audio.aud_decoder.finished == is->audio.audioq.serial && is->audio.sampq.nb_remaining() == 0)) &&
 			(!is->video.video_st || (is->video.vid_decoder.finished == is->video.videoq.serial && is->video.pictq.nb_remaining() == 0))) {
-			if (m_loopPolicy == VideoLoopPolicy::LOOP_ALL) {
+			const auto loopPolicy = m_loopPolicy.load(std::memory_order_acquire);
+			if (loopPolicy == VideoLoopPolicy::LOOP_ALL) {
 				//播放结束
 				m_bPlayLoop.store(false, std::memory_order_release);
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				SigPlayNextOne();
 				continue;
 			}
-			else if (m_loopPolicy == VideoLoopPolicy::LOOP_SINGLE) {
+			else if (loopPolicy == VideoLoopPolicy::LOOP_SINGLE) {
 				// 重新播放
 				stream_seek(0, 0);
 			}
-			else if (m_loopPolicy == VideoLoopPolicy::LOOP_RANDOM) {
+			else if (loopPolicy == VideoLoopPolicy::LOOP_RANDOM) {
 				m_bPlayLoop.store(false, std::memory_order_release);
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				SigRandomPlayOne();
@@ -1879,7 +1895,7 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 	is->audio.audio_new_buf_size = 0;
 	{
 		std::shared_lock<std::shared_mutex> lock(m_speedMutex);
-		is->audio.play_rate = m_fPlaybackSpeed;
+		is->audio.play_rate.store(m_fPlaybackSpeed, std::memory_order_release);
 	}
 	//视频文件名
 	is->session.filename = av_strdup(source.location.c_str());
@@ -1914,16 +1930,11 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 	is->clocks.audclk.init(&is->audio.audioq.serial);
 	is->clocks.extclk.init(&is->clocks.extclk.serial);
 	is->audio.audio_clock_serial = -1;
-	//音量
-	if (startup_volume < 0)
-		av_log(NULL, AV_LOG_WARNING, "-volume=%d < 0, setting to 0\n", startup_volume);
-	if (startup_volume > 100)
-		av_log(NULL, AV_LOG_WARNING, "-volume=%d > 100, setting to 100\n", startup_volume);
-	startup_volume = av_clip(startup_volume, 0, 100);
-	startup_volume = av_clip(SDL_MIX_MAXVOLUME * startup_volume / 100, 0, SDL_MIX_MAXVOLUME);
-	is->audio.audio_volume = startup_volume;
+	const double volume = m_volume.load(std::memory_order_acquire);
+	const int sdlVolume = NormalizedToSdlVolume(volume);
+	is->audio.audio_volume.store(sdlVolume, std::memory_order_release);
 
-	SigVideoVolume(startup_volume * 1.0 / SDL_MIX_MAXVOLUME);
+	SigVideoVolume(volume);
 	SigPauseStat(is->session.paused != 0);
 
 	is->clocks.av_sync_type = AV_SYNC_AUDIO_MASTER;
@@ -2058,7 +2069,6 @@ void VideoCtl::seek_chapter(VideoState* is, int incr)
 //播放控制循环
 void VideoCtl::LoopThread()
 {
-	m_bPlayLoop.store(true, std::memory_order_release);
 	int reconnectAttempt = 0;
 	VideoState* exitStream = nullptr;
 
@@ -2084,7 +2094,9 @@ void VideoCtl::LoopThread()
 		const auto source = exitStream->session.source;
 		const auto error = exitStream->session.readError.load(std::memory_order_acquire);
 		const bool canReconnect = source.network.reconnect && ShouldReconnect(error)
-			&& reconnectAttempt < source.network.maxReconnectAttempts && !exitStream->session.abort_request;
+			&& reconnectAttempt < source.network.maxReconnectAttempts
+			&& !exitStream->session.abort_request.load(std::memory_order_acquire)
+			&& !m_reconnectCancelled.load(std::memory_order_acquire);
 		if (!canReconnect)
 			break;
 
@@ -2101,7 +2113,9 @@ void VideoCtl::LoopThread()
 
 		{
 			std::unique_lock<std::mutex> waitLock(m_reconnectMutex);
-			m_reconnectCv.wait_for(waitLock, delay);
+			m_reconnectCv.wait_for(waitLock, delay, [this] {
+				return m_reconnectCancelled.load(std::memory_order_acquire);
+			});
 		}
 		if (m_reconnectCancelled.load(std::memory_order_acquire))
 			return;
@@ -2111,12 +2125,21 @@ void VideoCtl::LoopThread()
 			SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, PlaybackError::Unknown, reconnectAttempt, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
 			return;
 		}
+		bool reconnectCancelled = false;
 		{
-			std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-			m_mediaSession.reset(reopened);
-			m_CurStream = m_mediaSession.get();
+			std::lock_guard<std::mutex> reconnectLock(m_reconnectMutex);
+			reconnectCancelled = m_reconnectCancelled.load(std::memory_order_acquire);
+			if (!reconnectCancelled) {
+				std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
+				m_mediaSession.reset(reopened);
+				m_CurStream = m_mediaSession.get();
+				m_bPlayLoop.store(true, std::memory_order_release);
+			}
 		}
-		m_bPlayLoop.store(true, std::memory_order_release);
+		if (reconnectCancelled) {
+			stream_close(reopened);
+			return;
+		}
 	}
 
 	if (exitStream)
@@ -2156,13 +2179,12 @@ void VideoCtl::OnPlaySeekSeconds(int seconds)
 
 void VideoCtl::OnPlayVolume(double dPercent)
 {
-	startup_volume = dPercent * SDL_MIX_MAXVOLUME;
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
-	{
-		return;
-	}
-	m_CurStream->audio.audio_volume = startup_volume;
+	const double volume = PlaybackSettings::NormalizeVolume(dPercent);
+	m_volume.store(volume, std::memory_order_release);
+
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (m_CurStream)
+		m_CurStream->audio.audio_volume.store(NormalizedToSdlVolume(volume), std::memory_order_release);
 }
 
 void VideoCtl::OnSeekForward()
@@ -2201,16 +2223,24 @@ void VideoCtl::OnSeekBack()
 
 void VideoCtl::UpdateVolume(int sign, double step)
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
+	double normalizedVolume = 0.0;
 	{
-		return;
-	}
-	double volume_level = m_CurStream->audio.audio_volume ? (20 * log(m_CurStream->audio.audio_volume / (double)SDL_MIX_MAXVOLUME) / log(10)) : -1000.0;
-	int new_volume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volume_level + sign * step) / 20.0));
-	m_CurStream->audio.audio_volume = av_clip(m_CurStream->audio.audio_volume == new_volume ? (m_CurStream->audio.audio_volume + sign) : new_volume, 0, SDL_MIX_MAXVOLUME);
+		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+		if (!m_CurStream)
+			return;
 
-	SigVideoVolume(m_CurStream->audio.audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
+		const int currentVolume = m_CurStream->audio.audio_volume.load(std::memory_order_acquire);
+		const double volumeLevel = currentVolume
+			? (20 * log(currentVolume / static_cast<double>(SDL_MIX_MAXVOLUME)) / log(10))
+			: -1000.0;
+		const int requestedVolume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volumeLevel + sign * step) / 20.0));
+		const int updatedVolume = av_clip(currentVolume == requestedVolume ? currentVolume + sign : requestedVolume, 0, SDL_MIX_MAXVOLUME);
+		m_CurStream->audio.audio_volume.store(updatedVolume, std::memory_order_release);
+		normalizedVolume = updatedVolume / static_cast<double>(SDL_MIX_MAXVOLUME);
+		m_volume.store(normalizedVolume, std::memory_order_release);
+	}
+
+	SigVideoVolume(normalizedVolume);
 }
 
 /* display the current picture, if any */
@@ -2230,7 +2260,7 @@ void VideoCtl::emit_video_frame(VideoState* is)
 	if (!vp || !vp->frame || vp->frame->width <= 0 || vp->frame->height <= 0)
 		return;
 
-	auto frame = std::make_shared<VideoFrame>();
+	auto frame = m_framePool.acquire();
 	frame->width = vp->frame->width;
 	frame->height = vp->frame->height;
 	frame->bytesPerLine = frame->width * 4;
@@ -2272,28 +2302,12 @@ void VideoCtl::do_exit()
 
 void VideoCtl::OnAddVolume()
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
-	{
-		return;
-	}
-	double volume_level = m_CurStream->audio.audio_volume ? (20 * log(m_CurStream->audio.audio_volume / (double)SDL_MIX_MAXVOLUME) / log(10)) : -1000.0;
-	int new_volume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volume_level + SDL_VOLUME_STEP) / 20.0));
-	m_CurStream->audio.audio_volume = av_clip(m_CurStream->audio.audio_volume == new_volume ? (m_CurStream->audio.audio_volume + 1) : new_volume, 0, SDL_MIX_MAXVOLUME);
-	SigVideoVolume(m_CurStream->audio.audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
+	UpdateVolume(1, SDL_VOLUME_STEP);
 }
 
 void VideoCtl::OnSubVolume()
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
-	{
-		return;
-	}
-	double volume_level = m_CurStream->audio.audio_volume ? (20 * log(m_CurStream->audio.audio_volume / (double)SDL_MIX_MAXVOLUME) / log(10)) : -1000.0;
-	int new_volume = lrint(SDL_MIX_MAXVOLUME * pow(10.0, (volume_level - SDL_VOLUME_STEP) / 20.0));
-	m_CurStream->audio.audio_volume = av_clip(m_CurStream->audio.audio_volume == new_volume ? (m_CurStream->audio.audio_volume - 1) : new_volume, 0, SDL_MIX_MAXVOLUME);
-	SigVideoVolume(m_CurStream->audio.audio_volume * 1.0 / SDL_MIX_MAXVOLUME);
+	UpdateVolume(-1, SDL_VOLUME_STEP);
 }
 
 void VideoCtl::OnPause()
@@ -2308,38 +2322,48 @@ void VideoCtl::OnPause()
 	SigPauseStat(m_CurStream->session.paused != 0);
 }
 
-void VideoCtl::OnStop()
+void VideoCtl::requestStop()
 {
-	// 先暂停播放循环，再退出
-	m_bPlayLoop.store(false, std::memory_order_release);
-	m_reconnectCancelled.store(true, std::memory_order_release);
-	m_reconnectCv.notify_all();
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream) {
-		m_CurStream->session.abort_request = 1;
-		m_CurStream->session.io.cancelled.store(true, std::memory_order_release);
-		if (m_CurStream->session.continue_read_thread)
-			SDL_CondSignal(m_CurStream->session.continue_read_thread);
-		SigPlaybackStatus(PlaybackStatus{PlaybackState::Stopped, PlaybackError::Cancelled, 0, m_CurStream->session.source.network.maxReconnectAttempts, {}, RedactMediaLocation(m_CurStream->session.source.location)});
+	{
+		std::lock_guard<std::mutex> reconnectLock(m_reconnectMutex);
+		m_bPlayLoop.store(false, std::memory_order_release);
+		m_reconnectCancelled.store(true, std::memory_order_release);
 	}
+	m_reconnectCv.notify_all();
+
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream)
+		return;
+
+	m_CurStream->session.abort_request.store(1, std::memory_order_release);
+	m_CurStream->session.io.cancelled.store(true, std::memory_order_release);
+	if (m_CurStream->session.continue_read_thread)
+		SDL_CondSignal(m_CurStream->session.continue_read_thread);
 }
 
-void VideoCtl::OnStopAndWait(){
-	std::lock_guard<std::mutex> lock(m_playbackMutex);
-	m_bPlayLoop.store(false, std::memory_order_release);
-	m_reconnectCancelled.store(true, std::memory_order_release);
-	m_reconnectCv.notify_all();
+void VideoCtl::OnStop()
+{
+	PlaybackStatus status;
+	bool hasStatus = false;
 	{
-		std::shared_lock<std::shared_mutex> streamLock(m_streamMutex);
+		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 		if (m_CurStream) {
-			m_CurStream->session.abort_request = 1;
-			m_CurStream->session.io.cancelled.store(true, std::memory_order_release);
-			if (m_CurStream->session.continue_read_thread)
-				SDL_CondSignal(m_CurStream->session.continue_read_thread);
+			status = PlaybackStatus{PlaybackState::Stopped, PlaybackError::Cancelled, 0,
+				m_CurStream->session.source.network.maxReconnectAttempts, {},
+				RedactMediaLocation(m_CurStream->session.source.location)};
+			hasStatus = true;
 		}
 	}
-	// 先暂停播放循环，再退出
-	m_bPlayLoop.store(false, std::memory_order_release);
+
+	requestStop();
+	if (hasStatus)
+		SigPlaybackStatus(status);
+}
+
+void VideoCtl::OnStopAndWait()
+{
+	std::lock_guard<std::mutex> lock(m_playbackMutex);
+	requestStop();
 	if (m_tPlayLoopThread.joinable())
 		m_tPlayLoopThread.join();
 }
@@ -2363,7 +2387,6 @@ void VideoCtl::OnCycleSubtitleTrack()
 VideoCtl::VideoCtl() :
 	m_CurStream(nullptr),
 	m_bPlayLoop(false),
-	startup_volume(30),
 	m_sdlAudio_dev(0)
 {
 	m_mediaSession.setCloseCallback([this](VideoState* state) {
@@ -2376,32 +2399,24 @@ VideoCtl::VideoCtl() :
 		SigVideoFrame(std::move(frame));
 	});
 	avdevice_register_all();
-	//网络格式初始化（引用计数保护）
-	if (g_network_init_count.fetch_add(1) == 0)
-	{
-		avformat_network_init();
-	}
 }
 
 bool VideoCtl::Init()
 {
 	if (ConnectSignalSlots() == false)
-	{
+		return false;
+
+	auto& runtimeManager = RuntimeManager::instance();
+	if (!runtimeManager.acquireNetwork())
+		return false;
+	m_hasNetworkInitRef = true;
+
+	if (!runtimeManager.acquireSdl()) {
+		runtimeManager.releaseNetwork();
+		m_hasNetworkInitRef = false;
 		return false;
 	}
-
-	// 引用计数：仅第一个实例初始化 SDL
-	if (g_sdl_init_count.fetch_add(1) == 0)
-	{
-		if (SDL_Init(SDL_INIT_AUDIO))
-		{
-			g_sdl_init_count.fetch_sub(1);
-			av_log(NULL, AV_LOG_FATAL, "Could not initialize SDL - %s\n", SDL_GetError());
-			av_log(NULL, AV_LOG_FATAL, "(Did you set the DISPLAY variable?)\n");
-			return false;
-		}
-	}
-
+	m_hasSdlInitRef = true;
 	return true;
 }
 
@@ -2421,31 +2436,27 @@ std::shared_ptr<VideoCtl> VideoCtl::MakeInstance() {
 	return nullptr;
 }
 
-VideoCtl::~VideoCtl() {
-  std::lock_guard<std::mutex> lock(m_playbackMutex);
-  // 确保播放循环线程在析构前完全退出
-  m_bPlayLoop.store(false, std::memory_order_release);
-  if (m_tPlayLoopThread.joinable())
-    m_tPlayLoopThread.join();
+VideoCtl::~VideoCtl()
+{
+	std::lock_guard<std::mutex> lock(m_playbackMutex);
+	requestStop();
+	if (m_tPlayLoopThread.joinable())
+		m_tPlayLoopThread.join();
 
-  VideoState* state = nullptr;
-  {
-    std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
-    state = m_mediaSession.release();
-    m_CurStream = nullptr;
-  }
-  if (state)
-    stream_close(state);
+	VideoState* state = nullptr;
+	{
+		std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
+		state = m_mediaSession.release();
+		m_CurStream = nullptr;
+	}
+	if (state)
+		stream_close(state);
 
-  // 引用计数：仅最后一个实例析构时才执行全局清理
-  if (g_network_init_count.fetch_sub(1) == 1)
-  {
-    avformat_network_deinit();
-  }
-  if (g_sdl_init_count.fetch_sub(1) == 1)
-  {
-    SDL_Quit();
-  }
+	auto& runtimeManager = RuntimeManager::instance();
+	if (m_hasSdlInitRef)
+		runtimeManager.releaseSdl();
+	if (m_hasNetworkInitRef)
+		runtimeManager.releaseNetwork();
 }
 
 bool VideoCtl::StartPlay(const std::string& strFileName)
@@ -2465,14 +2476,16 @@ bool VideoCtl::StartPlay(const MediaSource& source)
         return false;
     }
 
-    m_bPlayLoop.store(false, std::memory_order_release);
-	m_reconnectCancelled.store(true, std::memory_order_release);
-	m_reconnectCv.notify_all();
-    if (m_tPlayLoopThread.joinable())
+    requestStop();
+        if (m_tPlayLoopThread.joinable())
     {
         m_tPlayLoopThread.join();
     }
-	m_reconnectCancelled.store(false, std::memory_order_release);
+	{
+		std::lock_guard<std::mutex> reconnectLock(m_reconnectMutex);
+		m_reconnectCancelled.store(false, std::memory_order_release);
+		m_bPlayLoop.store(true, std::memory_order_release);
+	}
 	SigPlaybackStatus(PlaybackStatus{PlaybackState::Opening, PlaybackError::None, 0, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
     SigStartPlay(source.location);//正式播放，发送给标题栏
 

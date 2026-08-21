@@ -22,7 +22,7 @@ Project repository and source distribution:
 
 Requirements:
 
-- CMake 3.20 or newer.
+- CMake 3.25 or newer (required by the version 6 CMake Presets schema).
 - C++20 compiler. Windows builds are tested with MSVC 2022.
 - Qt 6 with Core, Gui, and Widgets.
 - Bundled or externally provided FFmpeg, SDL2, SoundTouch, and sigslot dependencies.

@@ -7,6 +7,7 @@
 #include "playback_controller.h"
 #include "playback_controller_videoctl.h"
 #include "playback_runtime.h"
+#include "playback_settings.h"
 #include "renderer_dispatcher.h"
 #include "video_state.h"
 
@@ -37,6 +38,15 @@ void CountClose(VideoState* state)
 
 int main()
 {
+    if (!Expect(PlaybackSettings::NormalizeVolume(-0.5) == 0.0, "negative volume should clamp to zero"))
+        return 1;
+    if (!Expect(PlaybackSettings::NormalizeVolume(1.5) == 1.0, "volume above one should clamp to one"))
+        return 1;
+    if (!Expect(PlaybackSettings::ToSdlVolume(0.30, 128) == 38, "normalized volume should convert once to SDL units"))
+        return 1;
+    if (!Expect(PlaybackSettings::ToSdlVolume(0.30, 128) == 38, "repeated conversion should not drift"))
+        return 1;
+
     static_assert(std::is_same_v<decltype(CreatePlaybackController), PlaybackController(VideoCtl&)>,
         "PlaybackController should be creatable from an explicit VideoCtl instance");
     static_assert(std::is_same_v<decltype(PlaybackRuntime::Create()), std::unique_ptr<PlaybackRuntime>>,

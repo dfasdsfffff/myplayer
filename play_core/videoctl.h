@@ -13,6 +13,7 @@
 #include <string>
 #include <shared_mutex>
 #include <atomic>
+#include <array>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -151,6 +152,7 @@ private:
 	void stream_component_close(VideoState* is, int stream_index);  // 保留参数，内部使用
 	void stream_close(VideoState* is);  // 保留参数，清理函数
 
+	void requestStop();
 	void stream_seek(int64_t pos, int64_t rel);  // 移除参数，使用m_CurStream
 	void stream_toggle_pause();  // 移除参数，使用m_CurStream
 	void toggle_pause();  // 移除参数，使用m_CurStream
@@ -176,10 +178,11 @@ private:
 	std::shared_mutex m_streamMutex;  // 保护 m_CurStream 的读写
 	SDL_AudioDeviceID m_sdlAudio_dev;
 	//
-	VideoLoopPolicy m_loopPolicy = LOOP_ALL; //循环策略
+	std::atomic<VideoLoopPolicy> m_loopPolicy{LOOP_ALL}; //循环策略
 
 	/* options specified by the user */
-	int startup_volume;
+	// 归一化音量 [0.0, 1.0]，避免与 SDL 音量标量混淆导致切换媒体后音量漂移
+	std::atomic<double> m_volume{0.3};
 
 	//播放刷新循环线程
 	std::thread m_tPlayLoopThread;
@@ -189,6 +192,33 @@ private:
 	// 倍速播放相关
 	std::shared_mutex m_speedMutex;   // 保护mPlaybackSpeed的读写
 	float m_fPlaybackSpeed = 1;       // 当前的播放速度，默认为1倍速
+
+	// 优先复用无人持有的 VideoFrame 及其 bgra 容量；当 UI 仍在消费
+	// 所有预分配帧时安全扩容，避免覆写异步渲染中的帧。
+	struct VideoFramePool {
+		std::array<std::shared_ptr<VideoFrame>, 3> frames;
+		std::size_t index = 0;
+		VideoFramePool() {
+			for (auto& f : frames)
+				f = std::make_shared<VideoFrame>();
+		}
+		std::shared_ptr<VideoFrame> acquire() {
+			for (std::size_t offset = 0; offset < frames.size(); ++offset) {
+				const auto slot = (index + offset) % frames.size();
+				if (frames[slot].use_count() == 1) {
+					index = (slot + 1) % frames.size();
+					return frames[slot];
+				}
+			}
+
+			return std::make_shared<VideoFrame>();
+		}
+	};
+	VideoFramePool m_framePool;
+
+	// 由 RuntimeManager 记录的全局初始化引用，避免失败回滚破坏计数
+	bool m_hasSdlInitRef = false;
+	bool m_hasNetworkInitRef = false;
 };
 
 
