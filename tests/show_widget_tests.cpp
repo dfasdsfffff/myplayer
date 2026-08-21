@@ -32,7 +32,7 @@ int main()
     const std::string aboutUi = ReadFile("apps/qt_player/about.ui");
     const std::string titleUi = ReadFile("apps/qt_player/title.ui");
     const std::string settingUi = ReadFile("apps/qt_player/settingwid.ui");
-    const std::string imguiMain = ReadFile("apps/imgui_player/main.cpp");
+    
     const std::string aip = ReadFile("myplayer.aip");
     const std::string notice = ReadFile("NOTICE");
     const std::string releaseChecklist = ReadFile("docs/release-checklist.md");
@@ -90,9 +90,6 @@ int main()
                 && titleUi.find("MyPlayer") != std::string::npos
                 && settingUi.find("MyPlayer") != std::string::npos,
             "Qt visible titles should use MyPlayer"))
-        return 1;
-    if (!Expect(imguiMain.find("L\"MyPlayer ImGui\"") != std::string::npos,
-            "ImGui window title should use MyPlayer"))
         return 1;
     if (!Expect(aip.find("Value=\"MyPlayer\"") != std::string::npos
                 && aip.find("Value=\"myplayer\"") != std::string::npos,

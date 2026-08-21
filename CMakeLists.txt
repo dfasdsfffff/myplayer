@@ -17,7 +17,6 @@ set(PLAYERDEMO_SIGSLOT_ROOT "${PLAYERDEMO_DEPS_ROOT}/sigslot-1.2.3" CACHE PATH "
 set(PLAYERDEMO_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/bin" CACHE PATH "Runtime output directory")
 set(PLAYERDEMO_QT_ROOT "" CACHE PATH "Optional Qt installation prefix, for example C:/Qt/6.9.3/msvc2022_64")
 set(PLAYERDEMO_QT_APP_DIR "${PROJECT_SOURCE_DIR}/apps/qt_player")
-set(PLAYERDEMO_IMGUI_APP_DIR "${PROJECT_SOURCE_DIR}/apps/imgui_player")
 
 if(PLAYERDEMO_QT_ROOT)
     list(PREPEND CMAKE_PREFIX_PATH "${PLAYERDEMO_QT_ROOT}")
@@ -113,26 +112,7 @@ add_executable(${PROJECT_NAME} WIN32
     ${RC_FILES}
 )
 
-add_executable(myplayer_imgui
-    ${PLAYERDEMO_IMGUI_APP_DIR}/main.cpp
-)
 
-target_include_directories(myplayer_imgui PRIVATE
-    ${PLAYERDEMO_IMGUI_APP_DIR}
-)
-
-target_link_libraries(myplayer_imgui PRIVATE
-    play_core
-    imgui::imgui
-)
-
-if(WIN32)
-    target_link_libraries(myplayer_imgui PRIVATE
-        d3d11
-        dxgi
-        comdlg32
-    )
-endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
@@ -153,40 +133,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     OUTPUT_NAME_RELEASE "myplayer"
 )
 
-set_target_properties(myplayer_imgui PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PLAYERDEMO_OUTPUT_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${PLAYERDEMO_OUTPUT_DIR}"
-    OUTPUT_NAME_DEBUG "myplayer_imgui_debug"
-    OUTPUT_NAME_RELEASE "myplayer_imgui"
-)
 
-if(WIN32)
-    file(GLOB PLAYERDEMO_RUNTIME_DLLS CONFIGURE_DEPENDS
-        "${PLAYERDEMO_FFMPEG_ROOT}/bin/*.dll"
-        "${PLAYERDEMO_SDL2_ROOT}/lib/x64/SDL2.dll"
-        "${PLAYERDEMO_SOUNDTOUCH_ROOT}/lib/SoundTouchDLL_x64.dll"
-    )
-
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        _WINDOWS
-        UNICODE
-        _UNICODE
-    )
-
-    foreach(PLAYERDEMO_RUNTIME_DLL IN LISTS PLAYERDEMO_RUNTIME_DLLS)
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PLAYERDEMO_RUNTIME_DLL}"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-        )
-        add_custom_command(TARGET myplayer_imgui POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PLAYERDEMO_RUNTIME_DLL}"
-                "$<TARGET_FILE_DIR:myplayer_imgui>"
-        )
-    endforeach()
-endif()
 
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
