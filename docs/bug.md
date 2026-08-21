@@ -151,7 +151,6 @@ startup_volume(30)
 
 - `play_core/videoctl.cpp`：2499 行
 - `apps/qt_player/mainwid.cpp`：1012 行
-- `apps/imgui_player/main.cpp`：456 行
 
 尤其 `VideoCtl` 同时负责：
 
@@ -199,10 +198,9 @@ CMake Error: Unrecognized "version" field
 
 ### P1：无法只构建播放核心
 
-顶层 CMake 无条件查找 Qt 和 ImGui，并始终构建两个应用及所有测试：
+顶层 CMake 无条件查找 Qt，并始终构建应用及所有测试：
 
-- `CMakeLists.txt:42`
-- `CMakeLists.txt:43`
+- `CMakeLists.txt:41`
 
 这会让无 UI 的核心开发、CI 和跨平台验证变得困难。
 
@@ -210,7 +208,6 @@ CMake Error: Unrecognized "version" field
 
 ```cmake
 option(MYPLAYER_BUILD_QT_APP "Build Qt application" ON)
-option(MYPLAYER_BUILD_IMGUI_APP "Build ImGui application" ON)
 include(CTest)
 ```
 

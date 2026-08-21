@@ -8,7 +8,7 @@
 - 支持每次播放独立配置连接、读取、探测、请求头和 RTSP 传输方式。
 - 支持可取消的打开、探测、读取、退避和完整会话重连。
 - 向应用层返回结构化播放状态、错误和媒体能力。
-- 保留 `play(const std::string&)` 及现有信号，兼容 Qt 和 ImGui 调用方。
+- 保留 `play(const std::string&)` 及现有信号，兼容 Qt 调用方。
 - 所有自动化测试均不依赖公网服务。
 
 本次不新增 Qt 的“打开 URL”对话框，不改造本地播放列表的数据模型。
@@ -268,7 +268,7 @@ stateDiagram-v2
 - `SigStartPlay`
 - `SigVideoTotalSeconds`
 
-字符串重载构造默认 `MediaSource` 后调用结构化重载。原有 Qt 和 ImGui 调用点不需要同步修改。
+字符串重载构造默认 `MediaSource` 后调用结构化重载。原有 Qt 调用点不需要同步修改。
 
 ## 11. 事件线程语义
 

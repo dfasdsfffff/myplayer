@@ -334,15 +334,15 @@ Build `playerdemo`; expected compilation failure until the types are included an
 
 Include `media_source.h`, connect both runtime signals, capture each value by copy, and emit it from `QMetaObject::invokeMethod(..., Qt::QueuedConnection)`. Do not access QWidget or retain references from the core callback.
 
-- [ ] **Step 3: Build Qt and ImGui applications**
+- [ ] **Step 3: Build the Qt application**
 
 Run:
 
 ```powershell
-cmake --build build --config Debug --target playerdemo playerdemo_imgui
+cmake --build build --config Debug --target myplayer
 ```
 
-Expected: both targets build.
+Expected: the target builds.
 
 - [ ] **Step 4: Commit the bridge slice**
 

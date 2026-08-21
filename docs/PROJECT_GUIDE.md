@@ -12,10 +12,9 @@
 
 `MyPlayer` 是一个基于 C++20、Qt Widgets、FFmpeg、SDL2 和 SoundTouch 的本地播放器示例项目。它来自 `itisyang/playerdemo`，当前仓库在原项目基础上做了二次整理，重点是把播放核心逐步从 Qt UI 中拆出来，形成可复用的 `play_core` 静态库。
 
-项目当前有两个应用入口：
+项目当前应用入口：
 
 - `MyPlayer`：Qt Widgets 桌面播放器，完整 UI，主入口在 `apps/qt_player/main.cpp`。
-- `myplayer_imgui`：Dear ImGui 版本播放器，主入口在 `apps/imgui_player/main.cpp`。
 
 公共播放能力集中在：
 
@@ -34,8 +33,6 @@
 | SDL2 | 音频设备输出，Qt 显示区域上的视频渲染窗口/Renderer |
 | SoundTouch | 音频变速处理 |
 | sigslot | `play_core` 内部事件通知，避免播放核心依赖 Qt |
-| Dear ImGui | ImGui 版播放器 UI |
-| vcpkg | 当前主要用于安装 `imgui` 及其 Win32/DX11 绑定 |
 
 第三方二进制依赖默认从仓库 `lib/` 读取：
 
@@ -102,8 +99,6 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
 ```text
 bin/myplayer_debug.exe
 bin/myplayer.exe
-bin/myplayer_imgui_debug.exe
-bin/myplayer_imgui.exe
 ```
 
 Windows 下构建后，CMake 会把 FFmpeg、SDL2、SoundTouch 运行时 DLL 复制到目标输出目录。
@@ -139,8 +134,7 @@ ctest --test-dir build -C Debug --output-on-failure
 ```text
 playerdemo/
 ├── apps/
-│   ├── qt_player/             # Qt Widgets 版播放器
-│   └── imgui_player/          # Dear ImGui 版播放器
+│   └── qt_player/             # Qt Widgets 版播放器
 ├── play_core/                 # 播放核心静态库
 ├── tests/                     # 单元/结构回归测试
 ├── lib/                       # 随仓库提供的第三方依赖
@@ -169,17 +163,7 @@ Qt 版播放器主要由这些类组成：
 | `PlaybackRuntimeBridge` | 把 `play_core` 的 sigslot 事件转成 Qt signals，并投递到 Qt 主线程 |
 | `CustomSlider` | 支持点击/拖动即时触发的进度条/音量条 |
 
-### 4.2 `apps/imgui_player`
-
-ImGui 版入口在 `apps/imgui_player/main.cpp`。它使用：
-
-- Win32 + Direct3D 11 创建窗口和渲染上下文。
-- `PlaybackController` 控制播放核心。
-- `VideoFrame` 数据更新 D3D texture。
-
-这个入口的价值是验证 `play_core` 不强绑定 Qt：同一个核心可以被 Qt UI 或 ImGui UI 使用。
-
-### 4.3 `play_core`
+### 4.2 `play_core`
 
 | 文件/类 | 职责 |
 | --- | --- |
@@ -221,7 +205,7 @@ flowchart LR
 
 这个分层解决的问题：
 
-- `VideoCtl` 可以被 Qt、ImGui 或未来其他 UI 复用。
+- `VideoCtl` 可以被 Qt 或未来其他 UI 复用。
 - 播放核心线程不直接操作 Qt 控件，避免跨线程 UI 调用。
 - UI 只拿到 `PlaybackController`，不会直接依赖 `VideoCtl` 的大量内部方法。
 - 核心事件通过 `sigslot` 发出，再由 `PlaybackRuntimeBridge` 用 `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` 投递回 Qt 主线程。
@@ -810,7 +794,7 @@ play_core/playback_controller_videoctl.cpp
 1. 在 `PlaybackController::Actions` 增加一个 `std::function`。
 2. 在 `PlaybackController` 增加 public 方法。
 3. 在 `CreatePlaybackController(VideoCtl&)` 绑定到 `VideoCtl` 方法。
-4. 在 Qt UI 或 ImGui UI 中调用 controller 方法。
+4. 在 Qt UI 中调用 controller 方法。
 
 ### 17.3 `VideoCtl`
 
@@ -922,10 +906,9 @@ apps/qt_player/playback_runtime_bridge.cpp
 play_core/videoctl.cpp          # emit_video_frame()
 play_core/renderer_dispatcher.* # 帧派发
 apps/qt_player/show.cpp         # SDL texture 渲染
-apps/imgui_player/main.cpp      # ImGui/D3D texture 渲染
 ```
 
-如果只是 UI 显示策略，比如铺满、等比、背景色，通常改 `Show`。如果是核心输出格式，比如 BGRA 改 RGBA，要同步检查 Qt 和 ImGui 两个入口。
+如果只是 UI 显示策略，比如铺满、等比、背景色，通常改 `Show`。如果是核心输出格式，比如 BGRA 改 RGBA，要同步检查 Qt 渲染入口。
 
 ### 18.4 修改音频变速
 
@@ -997,15 +980,7 @@ tests/playlistfile_tests.cpp
 cmake -S . -B build -DPLAYERDEMO_QT_ROOT="C:/Qt/6.9.3/msvc2022_64"
 ```
 
-### 20.2 CMake 找不到 ImGui
-
-检查：
-
-- `VCPKG_ROOT` 是否设置。
-- 是否使用 vcpkg toolchain。
-- `vcpkg.json` 中声明了 `imgui` 的 `win32-binding` 和 `dx11-binding` feature。
-
-### 20.3 运行时缺 DLL
+### 20.2 运行时缺 DLL
 
 确认构建后输出目录包含：
 
@@ -1070,7 +1045,7 @@ Qt Multimedia 更适合快速做播放器应用，但不利于展示和修改底
 
 ### 21.2 为什么播放核心不依赖 Qt
 
-`play_core` 是静态库，被 Qt 版和 ImGui 版同时使用。核心不依赖 Qt 后：
+`play_core` 是静态库，供 Qt 应用使用。核心不依赖 Qt 后：
 
 - 更容易测试。
 - 更容易复用到其他 UI。

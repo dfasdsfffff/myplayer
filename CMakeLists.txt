@@ -39,7 +39,6 @@ endif()
 add_subdirectory(play_core)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
-find_package(imgui CONFIG REQUIRED)
 
 if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)
     message(STATUS "Mapping Qt debug config to release")

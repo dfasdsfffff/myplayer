@@ -18,7 +18,7 @@ This refactor should not change the public playback API. It should reduce intern
 ## Non-Goals
 
 - Do not rewrite the playback engine in one pass.
-- Do not change Qt or ImGui integration points.
+- Do not change Qt integration points.
 - Do not replace FFmpeg, SDL, SoundTouch, or the existing queue implementations.
 - Do not change user-visible playback behavior as part of the structural work.
 

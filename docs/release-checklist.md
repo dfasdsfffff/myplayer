@@ -18,7 +18,7 @@ Use this checklist before publishing a MyPlayer binary package.
 - Build Release configuration.
 - Build Debug configuration when symbols are needed for troubleshooting.
 - Run `ctest --test-dir build -C Debug --output-on-failure`.
-- Confirm `bin/myplayer.exe` and `bin/myplayer_imgui.exe` are produced for Release builds.
+- Confirm `bin/myplayer.exe` is produced for Release builds.
 - Confirm runtime DLLs copied beside the executable match the actual Qt, FFmpeg, SDL2, and SoundTouch versions.
 
 ## Installer

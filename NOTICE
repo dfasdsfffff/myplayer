@@ -30,7 +30,6 @@ Third-party components:
 - SoundTouch: audio tempo, pitch, and rate processing.
 - sigslot: signal/slot utility library.
 - Qt 6: desktop UI framework.
-- Dear ImGui: optional immediate-mode UI entry point.
 
 Keep each third-party component's own license file with binary and source
 distributions. This notice is a summary, not a replacement for the full

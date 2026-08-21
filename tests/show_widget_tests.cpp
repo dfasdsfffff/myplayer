@@ -82,10 +82,7 @@ int main()
                 && rootCMake.find("OUTPUT_NAME_RELEASE \"myplayer\"") != std::string::npos,
             "Qt executable output should use myplayer names"))
         return 1;
-    if (!Expect(rootCMake.find("add_executable(myplayer_imgui") != std::string::npos
-                && rootCMake.find("OUTPUT_NAME_RELEASE \"myplayer_imgui\"") != std::string::npos,
-            "ImGui executable target should use myplayer names"))
-        return 1;
+
     if (!Expect(aboutUi.find("MyPlayer") != std::string::npos
                 && titleUi.find("MyPlayer") != std::string::npos
                 && settingUi.find("MyPlayer") != std::string::npos,

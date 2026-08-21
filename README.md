@@ -12,7 +12,7 @@ Project repository and source distribution:
 
 - Local audio/video playback through FFmpeg decoding and SDL2 output.
 - Qt Widgets main application with playlist, playback controls, custom title bar, settings, and about dialog.
-- Optional Dear ImGui player entry point for lower-level playback experiments.
+
 - Network stream support for HTTP(S), RTSP, RTP, UDP, and related playback sources.
 - Playlist import/export support for local files and network stream URLs.
 - Playback speed and audio processing support through SoundTouch.
@@ -26,7 +26,7 @@ Requirements:
 - C++20 compiler. Windows builds are tested with MSVC 2022.
 - Qt 6 with Core, Gui, and Widgets.
 - Bundled or externally provided FFmpeg, SDL2, SoundTouch, and sigslot dependencies.
-- vcpkg for the Dear ImGui dependency.
+
 
 Typical Windows build:
 
@@ -41,8 +41,6 @@ Build outputs:
 ```text
 bin/myplayer_debug.exe
 bin/myplayer.exe
-bin/myplayer_imgui_debug.exe
-bin/myplayer_imgui.exe
 ```
 
 The `PLAYERDEMO_*` CMake cache variables are kept for compatibility with the existing build scripts:
@@ -59,7 +57,6 @@ The `PLAYERDEMO_*` CMake cache variables are kept for compatibility with the exi
 
 ```text
 apps/qt_player/       Qt Widgets application
-apps/imgui_player/    Dear ImGui application
 play_core/            Playback runtime, decoding, queues, clocks, networking
 tests/                Build and behavior regression tests
 lib/                  Bundled third-party dependency roots

@@ -33,8 +33,3 @@ Bundled license files are under `lib/sigslot-1.2.3/`.
 Used for the Qt Widgets desktop interface. Follow the license terms that apply
 to the Qt distribution used for your release build.
 
-## Dear ImGui
-
-Used by the optional ImGui player entry point.
-
-Dear ImGui is resolved through vcpkg for this project.
