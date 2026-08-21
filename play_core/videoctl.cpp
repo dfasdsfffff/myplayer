@@ -1880,6 +1880,8 @@ VideoState* VideoCtl::stream_open(const char* filename)
 
 VideoState* VideoCtl::stream_open(const MediaSource& source)
 {
+	const double volume = m_volume.load(std::memory_order_acquire);
+	const int sdlVolume = NormalizedToSdlVolume(volume);
 	VideoState* is;
 	//构造视频状态类
 	is = new (std::nothrow) VideoState{};
@@ -1930,8 +1932,6 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 	is->clocks.audclk.init(&is->audio.audioq.serial);
 	is->clocks.extclk.init(&is->clocks.extclk.serial);
 	is->audio.audio_clock_serial = -1;
-	const double volume = m_volume.load(std::memory_order_acquire);
-	const int sdlVolume = NormalizedToSdlVolume(volume);
 	is->audio.audio_volume.store(sdlVolume, std::memory_order_release);
 
 	SigVideoVolume(volume);
