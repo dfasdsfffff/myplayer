@@ -171,7 +171,7 @@ int FrameQueue::nb_remaining()
 int64_t FrameQueue::last_pos()
 {
 	Frame* fp = &queue[rindex];
-	if (rindex_shown && fp->serial == pktq->serial)
+	if (rindex_shown && fp->serial == pktq->serial.load(std::memory_order_acquire))
 		return fp->pos;
 	else
 		return -1;

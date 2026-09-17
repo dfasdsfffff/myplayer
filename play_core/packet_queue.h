@@ -37,12 +37,12 @@ public:
 	// 过渡期间保持 public，供 Decoder/FrameQueue 直接访问
 	AVFifo* pkt_list = nullptr;
 	// 以下标量由队列内部在 mutex 保护下更新，但调用方会无锁读取，
-	// 因此使用原子变量消除数据竞争。serial 仍为普通 int（Clock 持有其 int*）。
+	// 因此使用原子变量消除数据竞争。
 	std::atomic<int> nb_packets{0};
 	std::atomic<int> size{0};
 	std::atomic<int64_t> duration{0};
 	std::atomic<int> abort_request{1};
-	int serial = 0;
+	std::atomic<int> serial{0};
 	SDL_mutex* mutex = nullptr;
 	SDL_cond* cond = nullptr;
 

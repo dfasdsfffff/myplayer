@@ -283,3 +283,4 @@ playerdemo/GeneratedFiles/ui_mainwid.h
 /playerdemo/GeneratedFiles
 build
 .worktrees/
+.cache/

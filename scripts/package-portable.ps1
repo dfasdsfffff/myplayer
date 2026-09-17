@@ -132,20 +132,20 @@ New-Item -ItemType Directory -Path $stagePath | Out-Null
 Copy-RequiredFile -Path $exePath -Destination $stagePath
 
 $cachePath = Join-Path $buildPath "CMakeCache.txt"
-$depsRoot = Read-CMakeCacheValue -CachePath $cachePath -Name "PLAYERDEMO_DEPS_ROOT"
-if ([string]::IsNullOrWhiteSpace($depsRoot)) {
-    $depsRoot = Join-Path $root "lib"
+$vcpkgInstalledDir = Read-CMakeCacheValue -CachePath $cachePath -Name "VCPKG_INSTALLED_DIR"
+$vcpkgTriplet = Read-CMakeCacheValue -CachePath $cachePath -Name "VCPKG_TARGET_TRIPLET"
+if ([string]::IsNullOrWhiteSpace($vcpkgInstalledDir) -or [string]::IsNullOrWhiteSpace($vcpkgTriplet)) {
+    throw "vcpkg dependency paths are unavailable. Configure the project with the vcpkg toolchain first."
 }
 
-$ffmpegBin = Join-Path $depsRoot "ffmpeg\bin"
-if (Test-Path -LiteralPath $ffmpegBin) {
-    Get-ChildItem -LiteralPath $ffmpegBin -Filter "*.dll" | ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $stagePath -Force
-    }
+$vcpkgBin = Join-Path (Join-Path $vcpkgInstalledDir $vcpkgTriplet) "bin"
+if (-not (Test-Path -LiteralPath $vcpkgBin)) {
+    throw "vcpkg runtime directory not found: $vcpkgBin"
 }
 
-Copy-RequiredFile -Path (Join-Path $depsRoot "SDL2\lib\x64\SDL2.dll") -Destination $stagePath
-Copy-RequiredFile -Path (Join-Path $depsRoot "soundtouch-2.3.3\lib\SoundTouchDLL_x64.dll") -Destination $stagePath
+Get-ChildItem -LiteralPath $vcpkgBin -Filter "*.dll" | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination $stagePath -Force
+}
 
 if ([string]::IsNullOrWhiteSpace($QtRoot)) {
     $QtRoot = Read-CMakeCacheValue -CachePath $cachePath -Name "PLAYERDEMO_QT_ROOT"

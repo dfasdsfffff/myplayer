@@ -168,12 +168,6 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 		is->audio.audio_buf1_size = 0;
 		is->audio.audio_buf = NULL;
 
-		if (is->audio.rdft) {
-			av_rdft_end(is->audio.rdft);
-			av_freep(&is->audio.rdft_data);
-			is->audio.rdft = NULL;
-			is->audio.rdft_bits = 0;
-		}
 		if (is->audio.soundTouchHandle)
 		{
 			soundtouch_destroy(is->audio.soundTouchHandle);
@@ -297,9 +291,11 @@ void VideoCtl::stream_toggle_pause()
 		if (m_CurStream->session.read_pause_return != AVERROR(ENOSYS)) {
 			m_CurStream->clocks.vidclk.paused = 0;
 		}
-		m_CurStream->clocks.vidclk.set(m_CurStream->clocks.vidclk.get(), m_CurStream->clocks.vidclk.serial);
+		m_CurStream->clocks.vidclk.set(m_CurStream->clocks.vidclk.get(),
+			m_CurStream->clocks.vidclk.serial.load(std::memory_order_acquire));
 	}
-	m_CurStream->clocks.extclk.set(m_CurStream->clocks.extclk.get(), m_CurStream->clocks.extclk.serial);
+	m_CurStream->clocks.extclk.set(m_CurStream->clocks.extclk.get(),
+		m_CurStream->clocks.extclk.serial.load(std::memory_order_acquire));
 	const int paused = !m_CurStream->session.paused.load(std::memory_order_acquire);
 	m_CurStream->clocks.audclk.paused = paused;
 	m_CurStream->clocks.vidclk.paused = paused;
@@ -422,16 +418,23 @@ int VideoCtl::configure_video_filters(AVFilterGraph* graph, VideoState* is, cons
 	if (ret < 0)
 		goto fail;
 
-	ret = avfilter_graph_create_filter(&filt_out,
-		avfilter_get_by_name("buffersink"),
-		"ffplay_buffersink", NULL, NULL, graph);
-	if (ret < 0)
-		goto fail;
+    filt_out = avfilter_graph_alloc_filter(graph, avfilter_get_by_name("buffersink"),
+        "ffplay_buffersink");
+    if (!filt_out) {
+        ret = AVERROR(ENOMEM);
+        goto fail;
+    }
 
-	if ((ret = av_opt_set_int_list(filt_out, "pix_fmts", video_filter_pix_fmts, AV_PIX_FMT_NONE, AV_OPT_SEARCH_CHILDREN)) < 0)
-		goto fail;
-	if ((ret = av_opt_set_int_list(filt_out, "color_spaces", sdl_supported_color_spaces, AVCOL_SPC_UNSPECIFIED, AV_OPT_SEARCH_CHILDREN)) < 0)
-		goto fail;
+    if ((ret = av_opt_set_array(filt_out, "pixel_formats", AV_OPT_SEARCH_CHILDREN, 0,
+        FF_ARRAY_ELEMS(video_filter_pix_fmts) - 1, AV_OPT_TYPE_PIXEL_FMT, video_filter_pix_fmts)) < 0)
+        goto fail;
+    if ((ret = av_opt_set_array(filt_out, "colorspaces", AV_OPT_SEARCH_CHILDREN, 0,
+        FF_ARRAY_ELEMS(sdl_supported_color_spaces) - 1, AV_OPT_TYPE_INT, sdl_supported_color_spaces)) < 0)
+        goto fail;
+
+    ret = avfilter_init_dict(filt_out, NULL);
+    if (ret < 0)
+        goto fail;
 
 	last_filter = filt_out;
 
@@ -513,8 +516,6 @@ fail:
 
 int VideoCtl::configure_audio_filters(VideoState* is, const char* afilters, int force_output_format)
 {
-	static const enum AVSampleFormat sample_fmts[] = { AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_NONE };
-	int sample_rates[2] = { 0, -1 };
 	AVFilterContext* filt_asrc = NULL, * filt_asink = NULL;
 	char aresample_swr_opts[512] = "";
 	const AVDictionaryEntry* e = NULL;
@@ -547,30 +548,30 @@ int VideoCtl::configure_audio_filters(VideoState* is, const char* afilters, int 
 		asrc_args, NULL, is->filters.agraph);
 	if (ret < 0)
 		goto end;
-	// 创建音频汇滤镜
-	ret = avfilter_graph_create_filter(&filt_asink,
-		avfilter_get_by_name("abuffersink"), "ffplay_abuffersink",
-		NULL, NULL, is->filters.agraph);
-	if (ret < 0)
-		goto end;
+    // 创建音频汇滤镜
+    filt_asink = avfilter_graph_alloc_filter(is->filters.agraph, avfilter_get_by_name("abuffersink"),
+        "ffplay_abuffersink");
+    if (!filt_asink) {
+        ret = AVERROR(ENOMEM);
+        goto end;
+    }
 
-	if ((ret = av_opt_set_int_list(filt_asink, "sample_fmts", sample_fmts, AV_SAMPLE_FMT_NONE, AV_OPT_SEARCH_CHILDREN)) < 0)
-		goto end;
-	if ((ret = av_opt_set_int(filt_asink, "all_channel_counts", 1, AV_OPT_SEARCH_CHILDREN)) < 0)
-		goto end;
+    if ((ret = av_opt_set(filt_asink, "sample_formats", "s16", AV_OPT_SEARCH_CHILDREN)) < 0)
+        goto end;
 
-	if (force_output_format)
-	{
-		av_bprint_clear(&bp);
-		av_channel_layout_describe_bprint(&is->audio.audio_tgt.ch_layout, &bp);
-		sample_rates[0] = is->audio.audio_tgt.freq;
-		if ((ret = av_opt_set_int(filt_asink, "all_channel_counts", 0, AV_OPT_SEARCH_CHILDREN)) < 0)
-			goto end;
-		if ((ret = av_opt_set(filt_asink, "ch_layouts", bp.str, AV_OPT_SEARCH_CHILDREN)) < 0)
-			goto end;
-		if ((ret = av_opt_set_int_list(filt_asink, "sample_rates", sample_rates, -1, AV_OPT_SEARCH_CHILDREN)) < 0)
-			goto end;
-	}
+    if (force_output_format)
+    {
+        if ((ret = av_opt_set_array(filt_asink, "channel_layouts", AV_OPT_SEARCH_CHILDREN,
+            0, 1, AV_OPT_TYPE_CHLAYOUT, &is->audio.audio_tgt.ch_layout)) < 0)
+            goto end;
+        if ((ret = av_opt_set_array(filt_asink, "samplerates", AV_OPT_SEARCH_CHILDREN,
+            0, 1, AV_OPT_TYPE_INT, &is->audio.audio_tgt.freq)) < 0)
+            goto end;
+    }
+
+    ret = avfilter_init_dict(filt_asink, NULL);
+    if (ret < 0)
+        goto end;
 	{
 
 		std::string s = afilters;
@@ -625,7 +626,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			lastvp = is->video.pictq.peek_last();
 			vp = is->video.pictq.peek();
 
-			if (vp->serial != is->video.videoq.serial) {
+			if (vp->serial != is->video.videoq.serial.load(std::memory_order_acquire)) {
 				is->video.pictq.next();
 				goto retry;
 			}
@@ -675,7 +676,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 					else
 						sp2 = NULL;
 
-					if (sp->serial != is->subtitle.subtitleq.serial
+					if (sp->serial != is->subtitle.subtitleq.serial.load(std::memory_order_acquire)
 						|| (is->clocks.vidclk.pts > (sp->pts + ((float)sp->sub.end_display_time / 1000)))
 						|| (sp2 && is->clocks.vidclk.pts > (sp2->pts + ((float)sp2->sub.start_display_time / 1000))))
 					{
@@ -757,7 +758,7 @@ int VideoCtl::get_video_frame(VideoState* is, AVFrame* frame)
 				double diff = dpts - MediaSync::get_master_clock(is);
 				if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD &&
 					diff - is->video.frame_last_filter_delay < 0 &&
-					is->video.vid_decoder.pkt_serial == is->clocks.vidclk.serial &&
+					is->video.vid_decoder.pkt_serial == is->clocks.vidclk.serial.load(std::memory_order_acquire) &&
 					is->video.videoq.nb_packets) {
 					is->video.frame_drops_early++;
 					av_frame_unref(frame);
@@ -769,11 +770,6 @@ int VideoCtl::get_video_frame(VideoState* is, AVFrame* frame)
 
 	return got_picture;
 }
-
-struct FrameData
-{
-	int64_t pkt_pos;
-};
 
 int VideoCtl::audio_thread(void* arg)
 {
@@ -853,7 +849,7 @@ int VideoCtl::audio_thread(void* arg)
 				av_frame_move_ref(af->frame, frame);
 				frame_queue_push(&is->audio.sampq);
 				// config avfilter
-				if (is->audio.audioq.serial != is->audio.aud_decoder.pkt_serial)
+				if (is->audio.audioq.serial.load(std::memory_order_acquire) != is->audio.aud_decoder.pkt_serial)
 					break;
 			}
 			if (ret == AVERROR_EOF)
@@ -864,7 +860,8 @@ int VideoCtl::audio_thread(void* arg)
 				goto the_end;
 
 			af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
-			af->pos = frame->pkt_pos;
+			FrameData* fd = frame->opaque_ref ? reinterpret_cast<FrameData*>(frame->opaque_ref->data) : nullptr;
+			af->pos = fd ? fd->pkt_pos : -1;
 			af->serial = is->audio.aud_decoder.pkt_serial;
 			af->duration = av_q2d({ frame->nb_samples, frame->sample_rate });
 
@@ -983,7 +980,7 @@ int VideoCtl::video_thread(void* arg)
 			pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
 			ret = queue_picture(is, frame, pts, duration, fd ? fd->pkt_pos : -1, is->video.vid_decoder.pkt_serial);
 			av_frame_unref(frame);
-			if (is->video.videoq.serial != is->video.vid_decoder.pkt_serial)
+			if (is->video.videoq.serial.load(std::memory_order_acquire) != is->video.vid_decoder.pkt_serial)
 				break;
 		}
 #else
@@ -992,7 +989,8 @@ int VideoCtl::video_thread(void* arg)
 		duration = (frame_rate.num && frame_rate.den ? av_q2d({ frame_rate.den, frame_rate.num }) : 0);
 		// 计算视频帧的显示时间戳，单位为秒
 		pts = ((frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb));// 根据播放速度调整延迟
-		ret = queue_picture(is, frame, pts, duration, frame->pkt_pos, is->video.vid_decoder.pkt_serial);
+		FrameData* fd = frame->opaque_ref ? reinterpret_cast<FrameData*>(frame->opaque_ref->data) : nullptr;
+		ret = queue_picture(is, frame, pts, duration, fd ? fd->pkt_pos : -1, is->video.vid_decoder.pkt_serial);
 		av_frame_unref(frame);
 #endif
 		if (ret < 0)
@@ -1132,7 +1130,7 @@ reload:
 		if (!(af = is->audio.sampq.peek_readable()))
 			return -1;
 		is->audio.sampq.next();
-	} while (af->serial != is->audio.audioq.serial);
+	} while (af->serial != is->audio.audioq.serial.load(std::memory_order_acquire));
 	// 根据frame中指定的音频参数获取缓冲区的大小 af->frame->channels * af->frame->nb_samples * 2
 	data_size = av_samples_get_buffer_size(NULL, af->frame->ch_layout.nb_channels,
 		af->frame->nb_samples,
@@ -1389,6 +1387,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		av_dict_set(&opts, "threads", "auto", 0);
 	if (stream_lowres)
 		av_dict_set_int(&opts, "lowres", stream_lowres, 0);
+    av_dict_set(&opts, "flags", "+copy_opaque", AV_DICT_MULTIKEY);
 	if ((ret = avcodec_open2(avctx, codec, &opts)) < 0) {
 		goto fail;
 	}
@@ -1585,7 +1584,6 @@ void VideoCtl::ReadThread(VideoState* is)
 	is->session.ic = ic;
 
 
-	av_format_inject_global_side_data(ic);
 
 
 	orig_nb_streams = ic->nb_streams;
@@ -1779,8 +1777,8 @@ void VideoCtl::ReadThread(VideoState* is)
 			continue;
 		}
 		if (!paused &&
-			(!is->audio.audio_st || (is->audio.aud_decoder.finished == is->audio.audioq.serial && is->audio.sampq.nb_remaining() == 0)) &&
-			(!is->video.video_st || (is->video.vid_decoder.finished == is->video.videoq.serial && is->video.pictq.nb_remaining() == 0))) {
+			(!is->audio.audio_st || (is->audio.aud_decoder.finished == is->audio.audioq.serial.load(std::memory_order_acquire) && is->audio.sampq.nb_remaining() == 0)) &&
+			(!is->video.video_st || (is->video.vid_decoder.finished == is->video.videoq.serial.load(std::memory_order_acquire) && is->video.pictq.nb_remaining() == 0))) {
 			const auto loopPolicy = m_loopPolicy.load(std::memory_order_acquire);
 			if (loopPolicy == VideoLoopPolicy::LOOP_ALL) {
 				//播放结束

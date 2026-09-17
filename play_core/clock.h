@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 
@@ -14,7 +15,7 @@
 
 class Clock {
 public:
-	void init(int* queue_serial);
+	void init(const std::atomic<int>* queue_serial);
 	double get() const;
 	void set(double pts, int serial);
 	void set_at(double pts, int serial, double time);
@@ -26,7 +27,7 @@ public:
 	double pts_drift = 0.0;     /* clock base minus time at which we updated the clock */
 	double last_updated = 0.0;
 	double speed = 1.0;
-	int serial = -1;            /* clock is based on a packet with this serial */
+	std::atomic<int> serial{-1}; /* clock is based on a packet with this serial */
 	int paused = 0;
-	int* queue_serial = nullptr; /* pointer to the current packet queue serial, used for obsolete clock detection */
+	const std::atomic<int>* queue_serial = nullptr; /* current packet queue generation */
 };

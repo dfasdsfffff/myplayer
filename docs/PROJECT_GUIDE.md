@@ -34,23 +34,10 @@
 | SoundTouch | 音频变速处理 |
 | sigslot | `play_core` 内部事件通知，避免播放核心依赖 Qt |
 
-第三方二进制依赖默认从仓库 `lib/` 读取：
-
-```text
-lib/
-├── ffmpeg/
-├── SDL2/
-├── soundtouch-2.3.3/
-└── sigslot-1.2.3/
-```
-
-顶层 CMake 允许通过 cache 变量替换这些路径：
+FFmpeg、SDL2 和 SoundTouch 由 `vcpkg.json` 声明，并通过 vcpkg toolchain 按当前 triplet 构建。仓库中的 `lib/` 目录保留作历史二进制备份；当前构建仅从其中读取 header-only 的 sigslot：
 
 ```text
 PLAYERDEMO_DEPS_ROOT
-PLAYERDEMO_FFMPEG_ROOT
-PLAYERDEMO_SDL2_ROOT
-PLAYERDEMO_SOUNDTOUCH_ROOT
 PLAYERDEMO_SIGSLOT_ROOT
 PLAYERDEMO_QT_ROOT
 PLAYERDEMO_OUTPUT_DIR
@@ -64,7 +51,7 @@ PLAYERDEMO_OUTPUT_DIR
 
 Windows 下推荐：
 
-- Visual Studio 2022
+- Visual Studio 2026
 - Qt 6，例如 `C:/Qt/6.9.3/msvc2022_64`
 - vcpkg，并设置 `VCPKG_ROOT`
 - CMake 3.25+（`CMakePresets.json` 使用 version 6 schema）

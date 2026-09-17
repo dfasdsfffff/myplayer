@@ -42,7 +42,7 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
     int ret = AVERROR(EAGAIN);
 
     for (;;) {
-        if (queue->serial == pkt_serial) {
+        if (queue->serial.load(std::memory_order_acquire) == pkt_serial) {
             do {
                 if (queue->abort_request)
                     return -1;
@@ -101,7 +101,7 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
                     next_pts_tb = start_pts_tb;
                 }
             }
-            if (queue->serial == pkt_serial)
+            if (queue->serial.load(std::memory_order_acquire) == pkt_serial)
                 break;
             av_packet_unref(pkt);
         } while (1);
@@ -121,6 +121,13 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
             av_packet_unref(pkt);
         }
         else {
+            if (pkt->buf && !pkt->opaque_ref) {
+                pkt->opaque_ref = av_buffer_allocz(sizeof(FrameData));
+                if (!pkt->opaque_ref)
+                    return AVERROR(ENOMEM);
+                reinterpret_cast<FrameData*>(pkt->opaque_ref->data)->pkt_pos = pkt->pos;
+            }
+
             if (avcodec_send_packet(avctx, pkt) == AVERROR(EAGAIN)) {
                 av_log(avctx, AV_LOG_ERROR, "Receive_frame and send_packet both returned EAGAIN, which is an API violation.\n");
                 packet_pending = 1;

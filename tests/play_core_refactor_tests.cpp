@@ -12,6 +12,7 @@
 #include "video_state.h"
 
 #include <cmath>
+#include <atomic>
 #include <iostream>
 #include <memory>
 #include <type_traits>
@@ -38,6 +39,19 @@ void CountClose(VideoState* state)
 
 int main()
 {
+    static_assert(std::is_same_v<decltype(std::declval<PacketQueue&>().serial), std::atomic<int>>,
+        "packet queue generation must be safe to observe across threads");
+
+    std::atomic<int> queueSerial{1};
+    Clock queueClock;
+    queueClock.init(&queueSerial);
+    queueClock.set(12.5, 1);
+    if (!Expect(queueClock.get() == 12.5, "clock should remain valid for the current queue generation"))
+        return 1;
+    queueSerial.fetch_add(1, std::memory_order_release);
+    if (!Expect(std::isnan(queueClock.get()), "clock should become obsolete after the queue generation changes"))
+        return 1;
+
     if (!Expect(PlaybackSettings::NormalizeVolume(-0.5) == 0.0, "negative volume should clamp to zero"))
         return 1;
     if (!Expect(PlaybackSettings::NormalizeVolume(1.5) == 1.0, "volume above one should clamp to one"))

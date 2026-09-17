@@ -23,9 +23,9 @@ Project repository and source distribution:
 Requirements:
 
 - CMake 3.25 or newer (required by the version 6 CMake Presets schema).
-- C++20 compiler. Windows builds are tested with MSVC 2022.
+- C++20 compiler. Windows builds use Visual Studio 2026 (MSVC).
 - Qt 6 with Core, Gui, and Widgets.
-- Bundled or externally provided FFmpeg, SDL2, SoundTouch, and sigslot dependencies.
+- vcpkg, which resolves FFmpeg, SDL2, and SoundTouch from the manifest.
 
 
 Typical Windows build:
@@ -45,10 +45,7 @@ bin/myplayer.exe
 
 The `PLAYERDEMO_*` CMake cache variables are kept for compatibility with the existing build scripts:
 
-- `PLAYERDEMO_DEPS_ROOT`
-- `PLAYERDEMO_FFMPEG_ROOT`
-- `PLAYERDEMO_SDL2_ROOT`
-- `PLAYERDEMO_SOUNDTOUCH_ROOT`
+- `PLAYERDEMO_DEPS_ROOT` (retained for the bundled sigslot headers)
 - `PLAYERDEMO_SIGSLOT_ROOT`
 - `PLAYERDEMO_QT_ROOT`
 - `PLAYERDEMO_OUTPUT_DIR`

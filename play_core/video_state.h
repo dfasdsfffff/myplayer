@@ -87,9 +87,6 @@ struct AudioState {
     int16_t sample_array[SAMPLE_ARRAY_SIZE]{};
     int sample_array_index = 0;
     int last_i_start = 0;
-    RDFTContext* rdft = nullptr;
-    int rdft_bits = 0;
-    FFTSample* rdft_data = nullptr;
     int xpos = 0;
     double last_vis_time = 0;
 };
@@ -177,14 +174,9 @@ inline AudioState::~AudioState()
     }
     av_freep(&audio_new_buf);
     av_freep(&audio_buf1);
-    av_freep(&rdft_data);
 
     swr_free(&swr_ctx);
 
-    if (rdft) {
-        av_rdft_end(rdft);
-        rdft = nullptr;
-    }
 }
 
 inline VideoTrackState::~VideoTrackState()

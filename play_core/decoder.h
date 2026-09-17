@@ -14,6 +14,10 @@
 // 解码器重排序pts，-1表示自动，0表示不重排序，1表示重排序
 extern int decoder_reorder_pts;
 
+struct FrameData {
+	int64_t pkt_pos;
+};
+
 //解码器，管理数据队列
 class Decoder {
 public:

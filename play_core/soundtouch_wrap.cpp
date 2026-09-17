@@ -1,5 +1,5 @@
 #include "soundtouch_wrap.h"
-#include "SoundTouchDLL.h"
+#include <soundtouch/SoundTouchDLL.h>
 
 void* soundtouch_create()
 {

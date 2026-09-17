@@ -6,14 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(PLAYERDEMO_USE_BUNDLED_DEPS "Prefer third-party libraries from the repository lib directory" ON)
 option(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE "Use release Qt libraries for Debug builds" OFF)
 
-set(PLAYERDEMO_DEPS_ROOT "${PROJECT_SOURCE_DIR}/lib" CACHE PATH "Third-party dependency root")
-set(PLAYERDEMO_FFMPEG_ROOT "${PLAYERDEMO_DEPS_ROOT}/ffmpeg" CACHE PATH "FFmpeg root directory")
-set(PLAYERDEMO_SDL2_ROOT "${PLAYERDEMO_DEPS_ROOT}/SDL2" CACHE PATH "SDL2 root directory")
-set(PLAYERDEMO_SOUNDTOUCH_ROOT "${PLAYERDEMO_DEPS_ROOT}/soundtouch-2.3.3" CACHE PATH "SoundTouch root directory")
-set(PLAYERDEMO_SIGSLOT_ROOT "${PLAYERDEMO_DEPS_ROOT}/sigslot-1.2.3" CACHE PATH "sigslot root directory")
+set(PLAYERDEMO_DEPS_ROOT "${PROJECT_SOURCE_DIR}/lib" CACHE PATH "Repository third-party source root")
+set(PLAYERDEMO_SIGSLOT_ROOT "${PLAYERDEMO_DEPS_ROOT}/sigslot-1.2.3" CACHE PATH "sigslot header-only dependency root")
 set(PLAYERDEMO_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/bin" CACHE PATH "Runtime output directory")
 set(PLAYERDEMO_QT_ROOT "" CACHE PATH "Optional Qt installation prefix, for example C:/Qt/6.9.3/msvc2022_64")
 set(PLAYERDEMO_QT_APP_DIR "${PROJECT_SOURCE_DIR}/apps/qt_player")
@@ -22,23 +18,18 @@ if(PLAYERDEMO_QT_ROOT)
     list(PREPEND CMAKE_PREFIX_PATH "${PLAYERDEMO_QT_ROOT}")
 endif()
 
-if(PLAYERDEMO_USE_BUNDLED_DEPS AND NOT DEFINED sdl2_DIR AND EXISTS "${PLAYERDEMO_SDL2_ROOT}/cmake/sdl2-config.cmake")
-    set(sdl2_DIR "${PLAYERDEMO_SDL2_ROOT}/cmake" CACHE PATH "Location of sdl2-config.cmake")
-endif()
 
 if(MSVC)
     add_compile_options(/Zc:__cplusplus /MP /utf-8)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
-find_package(SDL2 CONFIG QUIET)
-if(NOT TARGET SDL2::SDL2)
-    find_package(sdl2 CONFIG REQUIRED)
-endif()
+find_package(FFMPEG REQUIRED)
+find_package(SDL2 CONFIG REQUIRED)
+find_package(SoundTouch CONFIG REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 add_subdirectory(play_core)
-
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)
     message(STATUS "Mapping Qt debug config to release")
@@ -182,14 +173,6 @@ target_link_libraries(play_core_refactor_tests PRIVATE
     play_core
 )
 
-if(WIN32)
-    add_custom_command(TARGET play_core_refactor_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${PLAYERDEMO_RUNTIME_DLLS}
-            $<TARGET_FILE_DIR:play_core_refactor_tests>
-        COMMAND_EXPAND_LISTS
-    )
-endif()
 
 add_test(NAME play_core_refactor_tests COMMAND play_core_refactor_tests)
 
@@ -201,14 +184,6 @@ target_link_libraries(network_playback_tests PRIVATE
     play_core
 )
 
-if(WIN32)
-    add_custom_command(TARGET network_playback_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${PLAYERDEMO_RUNTIME_DLLS}
-            $<TARGET_FILE_DIR:network_playback_tests>
-        COMMAND_EXPAND_LISTS
-    )
-endif()
 
 add_test(NAME network_playback_tests COMMAND network_playback_tests)
 
