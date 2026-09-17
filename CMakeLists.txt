@@ -251,6 +251,28 @@ set_tests_properties(stream_reader_tests PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:stream_reader_tests>"
 )
 
+add_executable(audio_output_tests
+    tests/audio_output_tests.cpp
+)
+
+target_link_libraries(audio_output_tests PRIVATE
+    play_core
+)
+
+if(WIN32)
+    add_custom_command(TARGET audio_output_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:audio_output_tests>
+            $<TARGET_FILE_DIR:audio_output_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
+add_test(NAME audio_output_tests COMMAND audio_output_tests)
+set_tests_properties(audio_output_tests PROPERTIES
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:audio_output_tests>"
+)
+
 add_executable(show_widget_tests
     tests/show_widget_tests.cpp
 )

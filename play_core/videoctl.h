@@ -17,6 +17,7 @@
 #include <memory>
 #include <mutex>
 
+#include "audio_output.h"
 #include "datactl.h"
 #include "enums.h"
 #include "media_source.h"
@@ -57,8 +58,6 @@ public:
 	bool StartPlay(const MediaSource& source);
 
 
-	static int audio_decode_frame(VideoState* is);  // 设为static，可从静态回调调用
-	void update_sample_display(VideoState* is, short* samples, int samples_size);
 	void set_play_speed(double dSpeed);
 	void set_play_loop_policy(VideoLoopPolicy loopPolicy);
 
@@ -120,9 +119,6 @@ private:
 	 * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
 	 * @note 返回具体的音频采样数
 	 */
-	static int synchronize_audio(VideoState* is, int nb_samples);  // 设为static，可从static函数调用
-
-	int audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, int wanted_sample_rate, struct AudioParams* audio_hw_params);
 	int stream_component_open(VideoState* is, int stream_index);
 	void LoopThread();
 	VideoState* stream_open(const MediaSource& source);
@@ -158,7 +154,7 @@ private:
 
 	VideoState* m_CurStream;
 	std::shared_mutex m_streamMutex;  // 保护 m_CurStream 的读写
-	SDL_AudioDeviceID m_sdlAudio_dev;
+	AudioOutput m_audioOutput;
 	//
 	std::atomic<VideoLoopPolicy> m_loopPolicy{LOOP_ALL}; //循环策略
 
