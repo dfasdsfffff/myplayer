@@ -4,6 +4,8 @@
 
 **Goal:** Split `VideoCtl` into focused reconnect, filter, decoder, demux, and audio components while preserving its public API and playback behavior.
 
+**Execution Status:** Complete on branch `codex/videoctl-decomposition-continue` through commit `6631cf7` (`refactor: finish VideoCtl decomposition`). Tasks 1-6 have been implemented and verified; the final automated verification was `cmake --build build --config Debug` plus `ctest --test-dir build -C Debug --output-on-failure` with 10/10 tests passing. Manual smoke was not run because no sample media file was present in the repository.
+
 **Architecture:** Keep `VideoCtl` as the facade and lifecycle coordinator. Move one cohesive responsibility at a time into a Qt-free `play_core` class, characterize the existing behavior before each move, and run the complete suite after every task. Ownership stays with `MediaSession` and worker lifetimes remain subordinate to the current `VideoState`.
 
 **Tech Stack:** C++20, CMake 3.25+, Qt 6, FFmpeg, SDL2, SoundTouch, the repository's lightweight `Expect` test harness with CTest, and vcpkg.
