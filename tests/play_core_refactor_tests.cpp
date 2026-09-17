@@ -9,11 +9,14 @@
 #include "playback_runtime.h"
 #include "playback_settings.h"
 #include "renderer_dispatcher.h"
+#include "video_frame_converter.h"
 #include "video_state.h"
 
-#include <cmath>
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <type_traits>
 
@@ -35,10 +38,48 @@ void CountClose(VideoState* state)
     LastClosedState = state;
 }
 
+struct AvFrameDeleter {
+    void operator()(AVFrame* frame) const
+    {
+        av_frame_free(&frame);
+    }
+};
+
 } // namespace
 
 int main()
 {
+    VideoFrameConverter frameConverter;
+    if (!Expect(frameConverter.convert(nullptr) == nullptr, "converter should reject a missing source frame"))
+        return 1;
+
+    std::unique_ptr<AVFrame, AvFrameDeleter> sourceFrame(av_frame_alloc());
+    if (!Expect(sourceFrame != nullptr, "test source frame should allocate"))
+        return 1;
+    sourceFrame->format = AV_PIX_FMT_BGRA;
+    sourceFrame->width = 2;
+    sourceFrame->height = 2;
+    if (!Expect(av_frame_get_buffer(sourceFrame.get(), 32) == 0, "test source buffer should allocate"))
+        return 1;
+
+    for (int row = 0; row < sourceFrame->height; ++row)
+        std::fill_n(sourceFrame->data[0] + row * sourceFrame->linesize[0], sourceFrame->width * 4, uint8_t{0});
+    const uint8_t firstPixel[] = {17, 34, 51, 255};
+    std::copy(std::begin(firstPixel), std::end(firstPixel), sourceFrame->data[0]);
+
+    const auto convertedFrame = frameConverter.convert(sourceFrame.get());
+    if (!Expect(convertedFrame != nullptr, "converter should produce a display frame"))
+        return 1;
+    if (!Expect(convertedFrame->width == 2 && convertedFrame->height == 2,
+            "converted frame should preserve source dimensions"))
+        return 1;
+    if (!Expect(convertedFrame->bytesPerLine == 8 && convertedFrame->bgra.size() == 16,
+            "converted frame should expose tightly packed BGRA storage"))
+        return 1;
+    if (!Expect(std::equal(std::begin(firstPixel), std::end(firstPixel), convertedFrame->bgra.begin()),
+            "BGRA input should preserve pixel values"))
+        return 1;
+
     static_assert(std::is_same_v<decltype(std::declval<PacketQueue&>().serial), std::atomic<int>>,
         "packet queue generation must be safe to observe across threads");
 

@@ -2258,27 +2258,12 @@ void VideoCtl::emit_video_frame(VideoState* is)
 	if (!vp || !vp->frame || vp->frame->width <= 0 || vp->frame->height <= 0)
 		return;
 
-	auto frame = m_framePool.acquire();
-	frame->width = vp->frame->width;
-	frame->height = vp->frame->height;
-	frame->bytesPerLine = frame->width * 4;
-	frame->bgra.resize(static_cast<size_t>(frame->bytesPerLine) * frame->height);
-
-	is->video.img_convert_ctx = sws_getCachedContext(is->video.img_convert_ctx,
-		vp->frame->width, vp->frame->height, static_cast<AVPixelFormat>(vp->frame->format),
-		vp->frame->width, vp->frame->height, AV_PIX_FMT_BGRA,
-		SWS_BICUBIC, NULL, NULL, NULL);
-	if (!is->video.img_convert_ctx)
+	auto frame = m_frameConverter.convert(vp->frame);
+	if (!frame)
 	{
-		av_log(NULL, AV_LOG_FATAL, "Cannot initialize the conversion context\n");
+		av_log(NULL, AV_LOG_ERROR, "Cannot convert video frame\n");
 		return;
 	}
-
-	uint8_t* dstData[4] = { frame->bgra.data(), nullptr, nullptr, nullptr };
-	int dstLinesize[4] = { frame->bytesPerLine, 0, 0, 0 };
-	sws_scale(is->video.img_convert_ctx,
-		reinterpret_cast<const uint8_t* const*>(vp->frame->data), vp->frame->linesize,
-		0, vp->frame->height, dstData, dstLinesize);
 
 	m_rendererDispatcher.dispatchFrame(frame);
 }

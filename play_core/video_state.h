@@ -92,8 +92,6 @@ struct AudioState {
 };
 
 struct VideoTrackState {
-    ~VideoTrackState();
-
     FrameQueue pictq;
     Decoder vid_decoder;
     int frame_drops_early = 0;
@@ -105,7 +103,6 @@ struct VideoTrackState {
     AVStream* video_st = nullptr;
     PacketQueue videoq;
     double max_frame_duration = 0;
-    SwsContext* img_convert_ctx = nullptr;
     int width = 0;
     int height = 0;
     int xleft = 0;
@@ -177,12 +174,6 @@ inline AudioState::~AudioState()
 
     swr_free(&swr_ctx);
 
-}
-
-inline VideoTrackState::~VideoTrackState()
-{
-    sws_freeContext(img_convert_ctx);
-    img_convert_ctx = nullptr;
 }
 
 inline SubtitleState::~SubtitleState()

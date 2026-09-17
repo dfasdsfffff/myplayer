@@ -284,3 +284,6 @@ playerdemo/GeneratedFiles/ui_mainwid.h
 build
 .worktrees/
 .cache/
+build-refactor/
+__cmake_systeminformation/
+build-verify/

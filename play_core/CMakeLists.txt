@@ -10,6 +10,7 @@ add_library(play_core STATIC
     playback_controller_videoctl.cpp
     playback_runtime.cpp
     renderer_dispatcher.cpp
+    video_frame_converter.cpp
     videoctl.cpp
     soundtouch_wrap.cpp
     xlogger.cpp

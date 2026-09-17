@@ -13,11 +13,9 @@
 #include <string>
 #include <shared_mutex>
 #include <atomic>
-#include <array>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <vector>
 
 #include "datactl.h"
 #include "enums.h"
@@ -25,7 +23,7 @@
 #include "media_session.h"
 #include "renderer_dispatcher.h"
 #include "signal.h"
-#include "video_frame.h"
+#include "video_frame_converter.h"
 
 #ifndef CONFIG_AVFILTER
 #define CONFIG_AVFILTER 0
@@ -193,28 +191,7 @@ private:
 	std::shared_mutex m_speedMutex;   // 保护mPlaybackSpeed的读写
 	float m_fPlaybackSpeed = 1;       // 当前的播放速度，默认为1倍速
 
-	// 优先复用无人持有的 VideoFrame 及其 bgra 容量；当 UI 仍在消费
-	// 所有预分配帧时安全扩容，避免覆写异步渲染中的帧。
-	struct VideoFramePool {
-		std::array<std::shared_ptr<VideoFrame>, 3> frames;
-		std::size_t index = 0;
-		VideoFramePool() {
-			for (auto& f : frames)
-				f = std::make_shared<VideoFrame>();
-		}
-		std::shared_ptr<VideoFrame> acquire() {
-			for (std::size_t offset = 0; offset < frames.size(); ++offset) {
-				const auto slot = (index + offset) % frames.size();
-				if (frames[slot].use_count() == 1) {
-					index = (slot + 1) % frames.size();
-					return frames[slot];
-				}
-			}
-
-			return std::make_shared<VideoFrame>();
-		}
-	};
-	VideoFramePool m_framePool;
+	VideoFrameConverter m_frameConverter;
 
 	// 由 RuntimeManager 记录的全局初始化引用，避免失败回滚破坏计数
 	bool m_hasSdlInitRef = false;
