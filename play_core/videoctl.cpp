@@ -15,6 +15,7 @@
 #include <new>
 #include "videoctl.h"
 
+#include "decoder_workers.h"
 #include "filter_configurator.h"
 #include "media_sync.h"
 #include "network_input.h"
@@ -26,14 +27,14 @@
 
 extern std::mutex g_show_rect_mutex;
 
-// 是否允许丢帧（如果视频太慢了，跟不上音频或者外部时钟）
-// -1为自动丢帧，0为不丢帧，1为强制丢帧
-static int framedrop = 1;
-
 static int NormalizedToSdlVolume(double volume)
 {
 	return PlaybackSettings::ToSdlVolume(volume, SDL_MIX_MAXVOLUME);
 }
+
+// 是否允许丢帧（如果视频太慢了，跟不上音频或者外部时钟）
+// -1为自动丢帧，0为不丢帧，1为强制丢帧
+static int framedrop = 1;
 
 #define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
 
@@ -41,23 +42,6 @@ static void print_error(const char* s, int err) {
 	char buf[256];
 	av_strerror(err, buf, sizeof(buf));
 	av_log(NULL, AV_LOG_ERROR, "%s: %s\n", s, buf);
-}
-
-/*
-这段代码定义了一个名为 cmp_audio_fmts 的静态内联函数，用于比较两个音频格式（AVSampleFormat 类型）及其对应的通道数（int64_t 类型）。具体来说，该函数会根据以下规则返回一个整数值：
-
-如果两个音频流的通道数都等于1，则忽略其样本格式是否为平面格式（planar format），直接比较它们的打包样本格式（packed sample format）。如果不相等，则返回非零值（表示不同），否则返回0（表示相同）。
-
-如果任一音频流的通道数大于1，则首先比较两者的通道数是否相等。如果不相等，则直接返回非零值（表示不同）。如果通道数相等，则进一步比较它们的样本格式是否相同。只要有一个条件不满足，就返回非零值（表示不同），只有两者都相同时才返回0（表示相同）。
-*/
-static inline int cmp_audio_fmts(enum AVSampleFormat fmt1, int64_t channel_count1,
-	enum AVSampleFormat fmt2, int64_t channel_count2)
-{
-	/* 如果通道计数== 1，平面格式和非平面格式是相同的 */
-	if (channel_count1 == 1 && channel_count2 == 1)
-		return av_get_packed_sample_fmt(fmt1) != av_get_packed_sample_fmt(fmt2);
-	else
-		return channel_count1 != channel_count2 || fmt1 != fmt2;
 }
 
 /* prepare a new audio buffer */
@@ -408,337 +392,6 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 	is->session.force_refresh = 0;
 
 	SigVideoPlaySeconds(static_cast<int>(MediaSync::get_master_clock(is)));
-}
-
-int VideoCtl::queue_picture(VideoState* is, AVFrame* src_frame, double pts, double duration, int64_t pos, int serial)
-{
-	Frame* vp;
-
-	if (!(vp = is->video.pictq.peek_writable()))
-		return -1;
-
-	vp->sar = src_frame->sample_aspect_ratio;
-	vp->width = src_frame->width;
-	vp->height = src_frame->height;
-	vp->format = src_frame->format;
-	vp->pts = pts;
-	vp->duration = duration;
-	vp->pos = pos;
-	vp->serial = serial;
-
-	av_frame_move_ref(vp->frame, src_frame);
-	is->video.pictq.push();
-	return 0;
-}
-
-// 从视频队列中获取数据，并解码数据，得到可显示的视频帧
-// 返回值：-1表示出错，0表示没有得到视频帧，1表示得到视频帧
-int VideoCtl::get_video_frame(VideoState* is, AVFrame* frame)
-{
-	int got_picture;
-
-	if ((got_picture = is->video.vid_decoder.decode_frame(frame, NULL)) < 0)
-		return -1;
-
-	if (got_picture) {
-		double dpts = NAN;
-
-		if (frame->pts != AV_NOPTS_VALUE)
-			dpts = av_q2d(is->video.video_st->time_base) * frame->pts;
-		/*
-		基于流与视频帧的宽高比，猜测视频帧的屏幕宽高比。
-		流与视频帧的宽高比存在不同的情况，这个函数返回一个值，让你用于显示视频帧。
-		默认原则：先用stream中的宽高比，再选择frame的。
-		若没结果，则返回值为0/1
-		*/
-		frame->sample_aspect_ratio = av_guess_sample_aspect_ratio(is->session.ic, is->video.video_st, frame);
-
-		if (framedrop > 0 //允许丢帧
-			|| (framedrop && MediaSync::get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)// 自动丢帧，并且视频不是主时钟
-			) {
-			if (frame->pts != AV_NOPTS_VALUE) {
-				// 如果视频帧的pts与主时钟的差值小于AV_NOSYNC_THRESHOLD（有同步的意义），
-				// 并且比上次丢帧的时间更早，
-				// 并且视频解码器的pkt_serial与视频时钟的serial相同，
-				// 并且视频队列中有数据包，那么丢弃该帧
-				double diff = dpts - MediaSync::get_master_clock(is);
-				if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD &&
-					diff - is->video.frame_last_filter_delay < 0 &&
-					is->video.vid_decoder.pkt_serial == is->clocks.vidclk.serial.load(std::memory_order_acquire) &&
-					is->video.videoq.nb_packets) {
-					is->video.frame_drops_early++;
-					av_frame_unref(frame);
-					got_picture = 0;
-				}
-			}
-		}
-	}
-
-	return got_picture;
-}
-
-int VideoCtl::audio_thread(void* arg)
-{
-	VideoState* is = (VideoState*)arg;
-	AVFrame* frame = av_frame_alloc();
-	Frame* af;
-	int reconfigure;
-	int got_frame = 0;
-	AVRational tb;
-	int ret = 0;
-	int last_serial = -1;
-
-	if (!frame)
-		return AVERROR(ENOMEM);
-
-	do {
-		if ((got_frame = is->audio.aud_decoder.decode_frame(frame, NULL)) < 0)
-			goto the_end;
-
-		if (got_frame) {
-			tb = AVRational{ 1, frame->sample_rate };
-			tb = AVRational{ 1, frame->sample_rate };
-#if CONFIG_AVFILTER
-			// config filter
-			reconfigure =
-				cmp_audio_fmts(is->audio.audio_filter_src.fmt, is->audio.audio_filter_src.ch_layout.nb_channels,
-					static_cast<AVSampleFormat>(frame->format), frame->ch_layout.nb_channels) ||
-				av_channel_layout_compare(&is->audio.audio_filter_src.ch_layout, &frame->ch_layout) ||
-				is->audio.audio_filter_src.freq != frame->sample_rate ||
-				is->audio.aud_decoder.pkt_serial != last_serial;
-
-			if (reconfigure)
-			{
-				char buf1[1024], buf2[1024];
-				av_channel_layout_describe(&is->audio.audio_filter_src.ch_layout, buf1, sizeof(buf1));
-				av_channel_layout_describe(&frame->ch_layout, buf2, sizeof(buf2));
-				av_log(NULL, AV_LOG_DEBUG,
-					"Audio frame changed from rate:%d ch:%d fmt:%s layout:%s serial:%d to rate:%d ch:%d fmt:%s layout:%s serial:%d\n",
-					is->audio.audio_filter_src.freq, is->audio.audio_filter_src.ch_layout.nb_channels, av_get_sample_fmt_name(is->audio.audio_filter_src.fmt), buf1, last_serial,
-					frame->sample_rate, frame->ch_layout.nb_channels, av_get_sample_fmt_name(static_cast<AVSampleFormat>(frame->format)), buf2, is->audio.aud_decoder.pkt_serial);
-
-				is->audio.audio_filter_src.fmt = static_cast<AVSampleFormat>(frame->format);
-				ret = av_channel_layout_copy(&is->audio.audio_filter_src.ch_layout, &frame->ch_layout);
-				if (ret < 0)
-				{
-					goto the_end;
-				}
-				is->audio.audio_filter_src.freq = frame->sample_rate;
-				last_serial = is->audio.aud_decoder.pkt_serial;
-				double currentSpeed;
-				{
-					std::shared_lock<std::shared_mutex> lock(m_speedMutex);
-					currentSpeed = m_fPlaybackSpeed;
-				}
-				auto afilters = std::format("atempo={:.2f}", currentSpeed);
-				if ((ret = ConfigureAudioFilters(is, afilters.c_str(), true)) < 0)
-				{
-					goto the_end;
-				}
-			}
-			// end config avfilter
-			if ((ret = av_buffersrc_add_frame(is->filters.in_audio_filter, frame)) < 0)
-				goto the_end;
-
-			while ((ret = av_buffersink_get_frame_flags(is->filters.out_audio_filter, frame, 0)) >= 0)
-			{
-				FrameData* fd = frame->opaque_ref ? (FrameData*)frame->opaque_ref->data : NULL;
-				tb = av_buffersink_get_time_base(is->filters.out_audio_filter);
-				if (!(af = frame_queue_peek_writable(&is->audio.sampq)))
-					goto the_end;
-
-				af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
-				af->pos = fd ? fd->pkt_pos : -1;
-				af->serial = is->audio.aud_decoder.pkt_serial;
-				af->duration = av_q2d(AVRational{ frame->nb_samples, frame->sample_rate });
-
-				av_frame_move_ref(af->frame, frame);
-				frame_queue_push(&is->audio.sampq);
-				// config avfilter
-				if (is->audio.audioq.serial.load(std::memory_order_acquire) != is->audio.aud_decoder.pkt_serial)
-					break;
-			}
-			if (ret == AVERROR_EOF)
-				is->audio.aud_decoder.finished = is->audio.aud_decoder.pkt_serial;
-			// end config avfilter
-#else
-			if (!(af = is->audio.sampq.peek_writable()))
-				goto the_end;
-
-			af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
-			FrameData* fd = frame->opaque_ref ? reinterpret_cast<FrameData*>(frame->opaque_ref->data) : nullptr;
-			af->pos = fd ? fd->pkt_pos : -1;
-			af->serial = is->audio.aud_decoder.pkt_serial;
-			af->duration = av_q2d({ frame->nb_samples, frame->sample_rate });
-
-			av_frame_move_ref(af->frame, frame);
-			is->audio.sampq.push();
-#endif
-		}
-	} while (ret >= 0 || ret == AVERROR(EAGAIN) || ret == AVERROR_EOF);
-the_end:
-
-	av_frame_free(&frame);
-	return ret;
-}
-
-//视频解码线程
-int VideoCtl::video_thread(void* arg)
-{
-	VideoState* is = (VideoState*)arg;
-	AVFrame* frame = av_frame_alloc();
-	double pts;
-	double duration;
-	int ret;
-	AVRational tb = is->video.video_st->time_base;
-	// 帧率，单位为帧/秒，表示每秒钟显示多少帧
-	AVRational frame_rate = av_guess_frame_rate(is->session.ic, is->video.video_st, NULL);
-	// 滤镜相关
-	AVFilterGraph* graph = NULL;
-	AVFilterContext* filt_out = NULL, * filt_in = NULL;
-	int last_w = 0;
-	int last_h = 0;
-	enum AVPixelFormat last_format = AVPixelFormat(-2);
-	int last_serial = -1;
-	int last_vfilter_idx = 0;
-	if (!frame)
-	{
-		return AVERROR(ENOMEM);
-	}
-
-	//循环从队列中获取视频帧
-	for (;;) {
-		ret = get_video_frame(is, frame);
-		if (ret < 0)
-			goto the_end;
-		if (!ret)
-			continue;
-#if CONFIG_AVFILTER
-		// 新建滤镜
-		if (last_w != frame->width ||
-			last_h != frame->height ||
-			last_format != frame->format ||
-			last_serial != is->video.vid_decoder.pkt_serial ||
-			last_vfilter_idx != is->filters.vfilter_idx)
-		{
-			av_log(NULL, AV_LOG_DEBUG,
-				"Video frame changed from size:%dx%d format:%s serial:%d to size:%dx%d format:%s serial:%d\n",
-				last_w, last_h,
-				(const char*)av_x_if_null(av_get_pix_fmt_name(last_format), "none"), last_serial,
-				frame->width, frame->height,
-				(const char*)av_x_if_null(av_get_pix_fmt_name(AVPixelFormat(frame->format)), "none"), is->video.vid_decoder.pkt_serial);
-			avfilter_graph_free(&graph);
-			graph = avfilter_graph_alloc();
-			if (!graph)
-			{
-				ret = AVERROR(ENOMEM);
-				goto the_end;
-			}
-			graph->nb_threads = 0;
-			double currentSpeed;
-			{
-				std::shared_lock<std::shared_mutex> lock(m_speedMutex);
-				currentSpeed = m_fPlaybackSpeed;
-			}
-			std::string mvfilters = std::format("setpts={:.2f}*PTS", 1 / currentSpeed);
-			if ((ret = ConfigureVideoFilters(graph, is, mvfilters.c_str(), frame, m_bAutorotate)) < 0)
-			{
-				m_bPlayLoop.store(false, std::memory_order_release);
-				goto the_end;
-			}
-			filt_in = is->filters.in_video_filter;
-			filt_out = is->filters.out_video_filter;
-			last_w = frame->width;
-			last_h = frame->height;
-			last_format = AVPixelFormat(frame->format);
-			last_serial = is->video.vid_decoder.pkt_serial;
-			last_vfilter_idx = is->filters.vfilter_idx;
-			frame_rate = av_buffersink_get_frame_rate(filt_out);
-		}
-		// end 新建滤镜
-
-		ret = av_buffersrc_add_frame(filt_in, frame);
-		if (ret < 0)
-			goto the_end;
-
-		while (ret >= 0)
-		{
-			FrameData* fd;
-
-			is->video.frame_last_returned_time = av_gettime_relative() / 1000000.0;
-
-			ret = av_buffersink_get_frame_flags(filt_out, frame, 0);
-			if (ret < 0)
-			{
-				if (ret == AVERROR_EOF)
-					is->video.vid_decoder.finished = is->video.vid_decoder.pkt_serial;
-				ret = 0;
-				break;
-			}
-
-			fd = frame->opaque_ref ? (FrameData*)frame->opaque_ref->data : NULL;
-
-			is->video.frame_last_filter_delay = av_gettime_relative() / 1000000.0 - is->video.frame_last_returned_time;
-			if (fabs(is->video.frame_last_filter_delay) > AV_NOSYNC_THRESHOLD / 10.0)
-				is->video.frame_last_filter_delay = 0;
-			tb = av_buffersink_get_time_base(filt_out);
-			duration = (frame_rate.num && frame_rate.den ? av_q2d(AVRational{ frame_rate.den, frame_rate.num }) : 0);
-			pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
-			ret = queue_picture(is, frame, pts, duration, fd ? fd->pkt_pos : -1, is->video.vid_decoder.pkt_serial);
-			av_frame_unref(frame);
-			if (is->video.videoq.serial.load(std::memory_order_acquire) != is->video.vid_decoder.pkt_serial)
-				break;
-		}
-#else
-		
-		// 计算每帧的显示时间，单位为秒
-		duration = (frame_rate.num && frame_rate.den ? av_q2d({ frame_rate.den, frame_rate.num }) : 0);
-		// 计算视频帧的显示时间戳，单位为秒
-		pts = ((frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb));// 根据播放速度调整延迟
-		FrameData* fd = frame->opaque_ref ? reinterpret_cast<FrameData*>(frame->opaque_ref->data) : nullptr;
-		ret = queue_picture(is, frame, pts, duration, fd ? fd->pkt_pos : -1, is->video.vid_decoder.pkt_serial);
-		av_frame_unref(frame);
-#endif
-		if (ret < 0)
-			goto the_end;
-	}
-the_end:
-
-	av_frame_free(&frame);
-	return 0;
-}
-
-int VideoCtl::subtitle_thread(void* arg)
-{
-	VideoState* is = (VideoState*)arg;
-	Frame* sp;
-	int got_subtitle;
-	double pts;
-
-	for (;;) {
-		if (!(sp = is->subtitle.subpq.peek_writable()))
-			return 0;
-
-		if ((got_subtitle = is->subtitle.sub_decoder.decode_frame(NULL, &sp->sub)) < 0)
-			break;
-
-		pts = 0;
-
-		if (got_subtitle && sp->sub.format == 0) {
-			if (sp->sub.pts != AV_NOPTS_VALUE)
-				pts = sp->sub.pts / (double)AV_TIME_BASE;
-			sp->pts = pts;
-			sp->serial = is->subtitle.sub_decoder.pkt_serial;
-			sp->width = is->subtitle.sub_decoder.avctx->width;
-			sp->height = is->subtitle.sub_decoder.avctx->height;
-			/* now we can update the picture count */
-			is->subtitle.subpq.push();
-		}
-		else if (got_subtitle) {
-			avsubtitle_free(&sp->sub);
-		}
-	}
-	return 0;
 }
 
 /* copy samples for viewing in editor window */
@@ -1165,7 +818,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		}
 
 		packet_queue_start(is->audio.aud_decoder.queue);
-		is->audio.aud_decoder.decode_thread = std::thread(&VideoCtl::audio_thread, this, is);
+		is->audio.aud_decoder.decode_thread = std::thread(&DecoderWorkers::Audio, is);
 
 		SDL_PauseAudioDevice(m_sdlAudio_dev, 0);
 		break;
@@ -1176,7 +829,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if ((ret = is->video.vid_decoder.init(avctx, &is->video.videoq, is->session.continue_read_thread)) < 0)
 			goto fail;
 		packet_queue_start(is->video.vid_decoder.queue);
-		is->video.vid_decoder.decode_thread = std::thread(&VideoCtl::video_thread, this, is);
+		is->video.vid_decoder.decode_thread = std::thread(&DecoderWorkers::Video, is);
 		is->session.queue_attachments_req = 1;
 		break;
 	case AVMEDIA_TYPE_SUBTITLE:
@@ -1186,7 +839,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if ((ret = is->subtitle.sub_decoder.init(avctx, &is->subtitle.subtitleq, is->session.continue_read_thread)) < 0)
 			goto fail;
 		packet_queue_start(is->subtitle.sub_decoder.queue);
-		is->subtitle.sub_decoder.decode_thread = std::thread(&VideoCtl::subtitle_thread, this, is);
+		is->subtitle.sub_decoder.decode_thread = std::thread(&DecoderWorkers::Subtitle, is);
 		break;
 	default:
 		break;
@@ -1735,6 +1388,10 @@ the_end:
 
 void VideoCtl::refresh_loop_wait_event(VideoState* is) {
 	double remaining_time = REFRESH_RATE;
+	if (is && is->session.stop_refresh_loop.exchange(false, std::memory_order_acq_rel)) {
+		m_bPlayLoop.store(false, std::memory_order_release);
+		return;
+	}
 	if (is && (!is->session.paused || is->session.force_refresh))
 		video_refresh(is, &remaining_time);
 	if (remaining_time > 0.0)

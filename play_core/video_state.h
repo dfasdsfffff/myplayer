@@ -29,6 +29,7 @@ struct SessionState {
     AVFormatContext* ic = nullptr;
     int realtime = 0;
     int eof = 0;
+    std::atomic_bool stop_refresh_loop{false};
     char* filename = nullptr;
     int last_video_stream = 0;
     int last_audio_stream = 0;

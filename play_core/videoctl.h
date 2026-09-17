@@ -113,13 +113,6 @@ private:
 	 * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
 	 * @note 返回值0表示，数据帧被丢弃了
 	 */
-	int get_video_frame(VideoState* is, AVFrame* frame);
-
-	int audio_thread(void* arg);
-
-	int video_thread(void* arg);
-
-	int subtitle_thread(void* arg);
 	/**
 	 * @brief	同步音频
 	 * @param  is 视频状态, nb_samples 音频采样数
@@ -141,7 +134,6 @@ private:
 	void refresh_loop_wait_event(VideoState* is);
 	void seek_chapter(VideoState* is, int incr);
 	void video_refresh(void* opaque, double* remaining_time);
-	int queue_picture(VideoState* is, AVFrame* src_frame, double pts, double duration, int64_t pos, int serial);
 	//更新音量
 	void UpdateVolume(int sign, double step);
 

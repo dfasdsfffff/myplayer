@@ -207,6 +207,28 @@ target_link_libraries(filter_configurator_tests PRIVATE
 
 add_test(NAME filter_configurator_tests COMMAND filter_configurator_tests)
 
+add_executable(decoder_workers_tests
+    tests/decoder_workers_tests.cpp
+)
+
+target_link_libraries(decoder_workers_tests PRIVATE
+    play_core
+)
+
+if(WIN32)
+    add_custom_command(TARGET decoder_workers_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:decoder_workers_tests>
+            $<TARGET_FILE_DIR:decoder_workers_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
+add_test(NAME decoder_workers_tests COMMAND decoder_workers_tests)
+set_tests_properties(decoder_workers_tests PROPERTIES
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:decoder_workers_tests>"
+)
+
 add_executable(show_widget_tests
     tests/show_widget_tests.cpp
 )
