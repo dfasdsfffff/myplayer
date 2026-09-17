@@ -9,6 +9,7 @@
 #include "playback_runtime.h"
 #include "playback_settings.h"
 #include "renderer_dispatcher.h"
+#include "videoctl.h"
 #include "video_frame_converter.h"
 #include "video_state.h"
 
@@ -49,6 +50,37 @@ struct AvFrameDeleter {
 
 int main()
 {
+    static_assert(std::is_same_v<decltype(static_cast<bool (VideoCtl::*)(const std::string&)>(&VideoCtl::StartPlay)),
+        bool (VideoCtl::*)(const std::string&)>,
+        "VideoCtl::StartPlay(string) public signature must remain stable");
+    static_assert(std::is_same_v<decltype(static_cast<bool (VideoCtl::*)(const MediaSource&)>(&VideoCtl::StartPlay)),
+        bool (VideoCtl::*)(const MediaSource&)>,
+        "VideoCtl::StartPlay(MediaSource) public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnStop), void (VideoCtl::*)()>,
+        "VideoCtl::OnStop public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnStopAndWait), void (VideoCtl::*)()>,
+        "VideoCtl::OnStopAndWait public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnPlaySeek), void (VideoCtl::*)(double)>,
+        "VideoCtl::OnPlaySeek public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnPlaySeekSeconds), void (VideoCtl::*)(int)>,
+        "VideoCtl::OnPlaySeekSeconds public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnSeekForward), void (VideoCtl::*)()>,
+        "VideoCtl::OnSeekForward public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnSeekBack), void (VideoCtl::*)()>,
+        "VideoCtl::OnSeekBack public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnPause), void (VideoCtl::*)()>,
+        "VideoCtl::OnPause public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnPlayVolume), void (VideoCtl::*)(double)>,
+        "VideoCtl::OnPlayVolume public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::set_play_speed), void (VideoCtl::*)(double)>,
+        "VideoCtl::set_play_speed public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::set_play_loop_policy), void (VideoCtl::*)(VideoLoopPolicy)>,
+        "VideoCtl::set_play_loop_policy public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnCycleAudioTrack), void (VideoCtl::*)()>,
+        "VideoCtl::OnCycleAudioTrack public signature must remain stable");
+    static_assert(std::is_same_v<decltype(&VideoCtl::OnCycleSubtitleTrack), void (VideoCtl::*)()>,
+        "VideoCtl::OnCycleSubtitleTrack public signature must remain stable");
+
     VideoFrameConverter frameConverter;
     if (!Expect(frameConverter.convert(nullptr) == nullptr, "converter should reject a missing source frame"))
         return 1;

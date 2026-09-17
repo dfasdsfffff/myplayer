@@ -13,7 +13,6 @@
 #include <string>
 #include <shared_mutex>
 #include <atomic>
-#include <condition_variable>
 #include <memory>
 #include <mutex>
 
@@ -107,18 +106,6 @@ private:
 	 * @note
 	 */
 	bool ConnectSignalSlots();
-	/**
-	 * @brief	从视频队列中获取数据，并解码数据，得到可显示的视频帧
-	 *
-	 * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
-	 * @note 返回值0表示，数据帧被丢弃了
-	 */
-	/**
-	 * @brief	同步音频
-	 * @param  is 视频状态, nb_samples 音频采样数
-	 * @return	-1表示出错，0表示没有得到视频帧，1表示得到视频帧
-	 * @note 返回具体的音频采样数
-	 */
 	int stream_component_open(VideoState* is, int stream_index);
 	void LoopThread();
 	VideoState* stream_open(const MediaSource& source);
