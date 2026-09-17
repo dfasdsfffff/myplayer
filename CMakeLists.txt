@@ -229,6 +229,28 @@ set_tests_properties(decoder_workers_tests PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:decoder_workers_tests>"
 )
 
+add_executable(stream_reader_tests
+    tests/stream_reader_tests.cpp
+)
+
+target_link_libraries(stream_reader_tests PRIVATE
+    play_core
+)
+
+if(WIN32)
+    add_custom_command(TARGET stream_reader_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:stream_reader_tests>
+            $<TARGET_FILE_DIR:stream_reader_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
+add_test(NAME stream_reader_tests COMMAND stream_reader_tests)
+set_tests_properties(stream_reader_tests PROPERTIES
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:stream_reader_tests>"
+)
+
 add_executable(show_widget_tests
     tests/show_widget_tests.cpp
 )

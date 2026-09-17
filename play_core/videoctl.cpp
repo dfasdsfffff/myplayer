@@ -90,13 +90,6 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
 	}
 }
 
-static int decode_interrupt_cb(void* ctx)
-{
-	VideoState* is = (VideoState*)ctx;
-	return is->session.abort_request || InterruptNetworkIo(&is->session.io);
-}
-
-
 void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 {
 	if (!is || !is->session.ic)
@@ -855,381 +848,6 @@ out:
 	return ret;
 }
 
-int VideoCtl::stream_has_enough_packets(AVStream* st, int stream_id, PacketQueue* queue) {
-	return stream_id < 0 ||
-		queue->abort_request ||
-		(st->disposition & AV_DISPOSITION_ATTACHED_PIC) ||
-		queue->nb_packets > MIN_FRAMES && (!queue->duration || av_q2d(st->time_base) * queue->duration > 1.0);
-}
-
-int VideoCtl::is_realtime(AVFormatContext* s)
-{
-	if (!strcmp(s->iformat->name, "rtp")
-		|| !strcmp(s->iformat->name, "rtsp")
-		|| !strcmp(s->iformat->name, "sdp")
-		)
-		return 1;
-
-	if (s->pb && (!strncmp(s->url, "rtp:", 4)
-		|| !strncmp(s->url, "udp:", 4)
-		)
-		)
-		return 1;
-	return 0;
-}
-
-/* this thread gets the stream from the disk or the network */
-//读取线程
-void VideoCtl::ReadThread(VideoState* is)
-{
-	//VideoState *is = (VideoState *)arg;
-	AVFormatContext* ic = NULL;
-	int err, i, ret;
-	int st_index[AVMEDIA_TYPE_NB];
-	AVPacket* pkt = NULL;
-	int64_t stream_start_time;
-	int pkt_in_play_range = 0;
-	const AVDictionaryEntry* t;
-	AVDictionary** opts = nullptr;
-	AvDictionary inputOptions;
-	int orig_nb_streams = 0;
-	SDL_mutex* wait_mutex = SDL_CreateMutex();
-	int scan_all_pmts_set = 0;
-	int64_t pkt_ts;
-
-	const char* wanted_stream_spec[AVMEDIA_TYPE_NB] = { 0 };
-
-	if (!wait_mutex) {
-		av_log(NULL, AV_LOG_FATAL, "SDL_CreateMutex(): %s\n", SDL_GetError());
-		ret = AVERROR(ENOMEM);
-		goto fail;
-	}
-	is->session.read_wait_mutex = wait_mutex;
-	memset(st_index, -1, sizeof(st_index));
-	is->session.eof = 0;
-
-
-	pkt = av_packet_alloc();
-	if (!pkt) {
-		av_log(NULL, AV_LOG_FATAL, "Could not allocate packet.\n");
-		ret = AVERROR(ENOMEM);
-		goto fail;
-	}
-
-	//构建 处理封装格式 结构体
-	ic = avformat_alloc_context();
-	if (!ic) {
-		av_log(NULL, AV_LOG_FATAL, "Could not allocate context.\n");
-		ret = AVERROR(ENOMEM);
-		goto fail;
-	}
-	ic->interrupt_callback.callback = decode_interrupt_cb;
-	ic->interrupt_callback.opaque = is;
-
-	//打开文件，获得封装等信息
-
-	inputOptions = BuildInputOptions(is->session.source);
-	is->session.io.begin(IoOperation::Opening, is->session.source.network.connectTimeout);
-	err = avformat_open_input(&ic, is->session.filename, nullptr, inputOptions.put());
-	is->session.io.end();
-	if (err < 0) {
-		print_error(is->session.filename, err);
-		is->session.readResult.store(err, std::memory_order_release);
-		is->session.readError.store(MapAvError(err, IsRealtimeSource(ClassifyMediaSource(is->session.source.location))), std::memory_order_release);
-		ret = err;
-		goto fail;
-	}
-
-	is->session.ic = ic;
-
-
-
-
-	orig_nb_streams = ic->nb_streams;
-	//读取一部分视音频数据并且获得一些相关的信息
-	is->session.io.begin(IoOperation::Probing,
-		std::chrono::duration_cast<std::chrono::milliseconds>(is->session.source.network.analyzeDuration));
-	err = avformat_find_stream_info(ic, opts);
-	is->session.io.end();
-
-	//     for (i = 0; i < orig_nb_streams; i++)
-	//         av_dict_free(&opts[i]);
-	//     av_freep(&opts);
-
-	if (err < 0) {
-		av_log(NULL, AV_LOG_WARNING,
-			"%s: could not find codec parameters\n", is->session.filename);
-		is->session.readResult.store(err, std::memory_order_release);
-		is->session.readError.store(MapAvError(err, IsRealtimeSource(ClassifyMediaSource(is->session.source.location))), std::memory_order_release);
-		ret = err;
-		goto fail;
-	}
-
-	if (ic->pb)
-		ic->pb->eof_reached = 0;
-
-	is->video.max_frame_duration = (ic->iformat->flags & AVFMT_TS_DISCONT) ? 10.0 : 3600.0;
-
-	is->session.realtime = is_realtime(ic);
-	is->session.mediaInfo = BuildMediaInfo(is->session.source, ic);
-	is->session.unlimitedBuffer = UseUnlimitedBuffer(is->session.source, is->session.realtime != 0);
-	SigMediaInfo(is->session.mediaInfo);
-
-	// 发送视频总时长信号，单位为秒
-	SigVideoTotalSeconds(is->session.mediaInfo.duration ? static_cast<int>(is->session.mediaInfo.duration->count() / 1000) : 0);
-
-	// 根据用户指定的流 specifier 来设置每种媒体类型的流索引。 
-	// specifier 是一个流选择表达式（stream specifier），
-	// 比如 "a:0" 表示第一个音频流，"v" 表示所有视频流，"s" 表示所有字幕流等。
-	for (i = 0; i < ic->nb_streams; i++) {
-		AVStream* st = ic->streams[i];
-		enum AVMediaType type = st->codecpar->codec_type;
-		st->discard = AVDISCARD_ALL;
-		if (type >= 0 && wanted_stream_spec[type] && st_index[type] == -1)
-			if (avformat_match_stream_specifier(ic, st, wanted_stream_spec[type]) > 0)
-				st_index[type] = i;
-	}
-	// 如果用户指定了流 specifier，但没有找到匹配的流，就会输出错误日志并将对应的流索引设置为 INT_MAX。
-	for (i = 0; i < AVMEDIA_TYPE_NB; i++) {
-		if (wanted_stream_spec[(AVMediaType)i] && st_index[(AVMediaType)i] == -1) {
-			av_log(NULL, AV_LOG_ERROR, "Stream specifier %s does not match any %s stream\n", wanted_stream_spec[(AVMediaType)i], av_get_media_type_string((AVMediaType)i));
-			st_index[(AVMediaType)i] = INT_MAX;
-		}
-	}
-
-	//获得视频、音频、字幕的流索引
-	// 根据前面得到的流索引，使用 av_find_best_stream 函数来找到每种媒体类型的最佳流索引。
-	// 如果前面找到了，就会使用前面的流，否则就会根据媒体类型来寻找最佳流索引。
-	st_index[AVMEDIA_TYPE_VIDEO] =
-		av_find_best_stream(ic, AVMEDIA_TYPE_VIDEO,
-			st_index[AVMEDIA_TYPE_VIDEO], -1, NULL, 0);
-
-	st_index[AVMEDIA_TYPE_AUDIO] =
-		av_find_best_stream(ic, AVMEDIA_TYPE_AUDIO,
-			st_index[AVMEDIA_TYPE_AUDIO],
-			st_index[AVMEDIA_TYPE_VIDEO],
-			NULL, 0);
-
-	st_index[AVMEDIA_TYPE_SUBTITLE] =
-		av_find_best_stream(ic, AVMEDIA_TYPE_SUBTITLE,
-			st_index[AVMEDIA_TYPE_SUBTITLE],
-			(st_index[AVMEDIA_TYPE_AUDIO] >= 0 ?
-				st_index[AVMEDIA_TYPE_AUDIO] :
-				st_index[AVMEDIA_TYPE_VIDEO]),
-			NULL, 0);
-
-	//if (st_index[AVMEDIA_TYPE_VIDEO] >= 0) {
-	//	AVStream* st = ic->streams[st_index[AVMEDIA_TYPE_VIDEO]];
-	//	AVCodecParameters* codecpar = st->codecpar;
-	//	AVRational sar = av_guess_sample_aspect_ratio(ic, st, NULL);
-	//}
-
-	/* open the streams */
-	//打开音频流
-	if (st_index[AVMEDIA_TYPE_AUDIO] >= 0) {
-		stream_component_open(is, st_index[AVMEDIA_TYPE_AUDIO]);
-	}
-
-	//打开视频流
-	ret = -1;
-	if (st_index[AVMEDIA_TYPE_VIDEO] >= 0) {
-		ret = stream_component_open(is, st_index[AVMEDIA_TYPE_VIDEO]);
-	}
-
-	//打开字幕流
-	if (st_index[AVMEDIA_TYPE_SUBTITLE] >= 0) {
-		stream_component_open(is, st_index[AVMEDIA_TYPE_SUBTITLE]);
-	}
-
-	if (is->video.video_stream < 0 && is->audio.audio_stream < 0) {
-		av_log(NULL, AV_LOG_FATAL, "Failed to open file '%s' or configure filtergraph\n",
-			is->session.filename);
-		ret = -1;
-		goto fail;
-	}
-	SigPlaybackStatus(PlaybackStatus{PlaybackState::Playing, PlaybackError::None, 0, is->session.source.network.maxReconnectAttempts, {}, RedactMediaLocation(is->session.source.location)});
-
-	//读取视频数据
-	for (;;) {
-		if (is->session.abort_request.load(std::memory_order_acquire))
-			break;
-		const auto paused = is->session.paused.load(std::memory_order_acquire);
-		if (paused != is->session.last_paused) {
-			is->session.last_paused = paused;
-			if (paused)
-				is->session.read_pause_return = av_read_pause(ic);
-			else
-				av_read_play(ic);
-		}
-		//if (m_bSpeedChanged) {
-		//	std::shared_lock<std::shared_mutex> lock(m_speedMutex);
-		//	is->sound_touch.setSampleRate(ic->sample_rate);
-		//	is->sound_touch.setChannels(2); // 立体声
-		//	is->sound_touch.setTempoChange(0.0f); // 保持原始速度
-		//	is->sound_touch.setPitchSemiTones(0.0f); // 保持原始音调
-		//	m_bSpeedChanged = false;
-		//}
-		int64_t seekTarget = 0;
-		int64_t seekRelative = 0;
-		int seekFlags = 0;
-		bool hasSeekRequest = false;
-		{
-			std::lock_guard<std::mutex> seekLock(is->session.seek_mutex);
-			if (is->session.seek_req) {
-				seekTarget = is->session.seek_pos;
-				seekRelative = is->session.seek_rel;
-				seekFlags = is->session.seek_flags;
-				is->session.seek_req = false;
-				hasSeekRequest = true;
-			}
-		}
-		if (hasSeekRequest) {
-			const int64_t seekMin = seekRelative > 0 ? seekTarget - seekRelative + 2 : INT64_MIN;
-			const int64_t seekMax = seekRelative < 0 ? seekTarget - seekRelative - 2 : INT64_MAX;
-			// FIXME the +-2 is due to rounding being not done in the correct direction in generation
-			//      of the seek_pos/seek_rel variables
-
-			ret = avformat_seek_file(is->session.ic, -1, seekMin, seekTarget, seekMax, seekFlags);
-			if (ret < 0) {
-				av_log(NULL, AV_LOG_ERROR,
-					"%s: error while seeking\n", is->session.ic->url);
-			}
-			else {
-				if (is->audio.audio_stream >= 0)
-					packet_queue_flush(&is->audio.audioq);
-				if (is->subtitle.subtitle_stream >= 0)
-					packet_queue_flush(&is->subtitle.subtitleq);
-				if (is->video.video_stream >= 0)
-					packet_queue_flush(&is->video.videoq);
-				if (seekFlags & AVSEEK_FLAG_BYTE)
-					is->clocks.extclk.set(NAN, 0);
-				else
-					is->clocks.extclk.set(seekTarget / static_cast<double>(AV_TIME_BASE), 0);
-			}
-			is->session.queue_attachments_req = 1;
-			is->session.eof = 0;
-			if (paused)
-				step_to_next_frame();
-		}
-		if (is->session.queue_attachments_req) {
-			if (is->video.video_st && is->video.video_st->disposition & AV_DISPOSITION_ATTACHED_PIC) {
-				if ((ret = av_packet_ref(pkt, &is->video.video_st->attached_pic)) < 0)
-					goto fail;
-				packet_queue_put(&is->video.videoq, pkt);
-				packet_queue_put_nullpacket(&is->video.videoq, pkt, is->video.video_stream);
-			}
-			is->session.queue_attachments_req = 0;
-		}
-
-		/* if the queue are full, no need to read more */
-		if (!is->session.unlimitedBuffer &&
-			(is->audio.audioq.size.load(std::memory_order_relaxed)
-				+ is->video.videoq.size.load(std::memory_order_relaxed)
-				+ is->subtitle.subtitleq.size.load(std::memory_order_relaxed) > MAX_QUEUE_SIZE
-				|| (stream_has_enough_packets(is->audio.audio_st, is->audio.audio_stream, &is->audio.audioq) &&
-					stream_has_enough_packets(is->video.video_st, is->video.video_stream, &is->video.videoq) &&
-					stream_has_enough_packets(is->subtitle.subtitle_st, is->subtitle.subtitle_stream, &is->subtitle.subtitleq)))) {
-			/* wait 10 ms */
-			SDL_LockMutex(is->session.read_wait_mutex);
-			SDL_CondWaitTimeout(is->session.continue_read_thread, is->session.read_wait_mutex, 10);
-			SDL_UnlockMutex(is->session.read_wait_mutex);
-			continue;
-		}
-		if (!paused &&
-			(!is->audio.audio_st || (is->audio.aud_decoder.finished == is->audio.audioq.serial.load(std::memory_order_acquire) && is->audio.sampq.nb_remaining() == 0)) &&
-			(!is->video.video_st || (is->video.vid_decoder.finished == is->video.videoq.serial.load(std::memory_order_acquire) && is->video.pictq.nb_remaining() == 0))) {
-			const auto loopPolicy = m_loopPolicy.load(std::memory_order_acquire);
-			if (loopPolicy == VideoLoopPolicy::LOOP_ALL) {
-				//播放结束
-				m_bPlayLoop.store(false, std::memory_order_release);
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
-				SigPlayNextOne();
-				continue;
-			}
-			else if (loopPolicy == VideoLoopPolicy::LOOP_SINGLE) {
-				// 重新播放
-				stream_seek(0, 0);
-			}
-			else if (loopPolicy == VideoLoopPolicy::LOOP_RANDOM) {
-				m_bPlayLoop.store(false, std::memory_order_release);
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
-				SigRandomPlayOne();
-				continue;
-			}
-			else {
-				// 先暂停播放循环，再退出
-				SigStop();
-				continue;
-			}
-		}
-		//按帧读取
-		is->session.io.begin(IoOperation::Reading, is->session.source.network.readTimeout);
-		ret = av_read_frame(ic, pkt);
-		is->session.io.end();
-		if (ret < 0) {
-			is->session.readResult.store(ret, std::memory_order_release);
-			is->session.readError.store(MapAvError(ret, is->session.realtime != 0), std::memory_order_release);
-			if ((ret == AVERROR_EOF || avio_feof(ic->pb)) && !is->session.eof) {
-				if (is->video.video_stream >= 0)
-					packet_queue_put_nullpacket(&is->video.videoq, pkt, is->video.video_stream);
-				if (is->audio.audio_stream >= 0)
-					packet_queue_put_nullpacket(&is->audio.audioq, pkt, is->audio.audio_stream);
-				if (is->subtitle.subtitle_stream >= 0)
-					packet_queue_put_nullpacket(&is->subtitle.subtitleq, pkt, is->subtitle.subtitle_stream);
-				is->session.eof = 1;
-			}
-			if (ic->pb && ic->pb->error)
-				break;
-			SDL_LockMutex(is->session.read_wait_mutex);
-			SDL_CondWaitTimeout(is->session.continue_read_thread, is->session.read_wait_mutex, 10);
-			SDL_UnlockMutex(is->session.read_wait_mutex);
-			continue;
-		}
-		else {
-			is->session.eof = 0;
-		}
-		/* check if packet is in play range specified by user, then queue, otherwise discard */
-		stream_start_time = ic->streams[pkt->stream_index]->start_time;
-		pkt_ts = pkt->pts == AV_NOPTS_VALUE ? pkt->dts : pkt->pts;
-		pkt_in_play_range = AV_NOPTS_VALUE == AV_NOPTS_VALUE ||
-			(pkt_ts - (stream_start_time != AV_NOPTS_VALUE ? stream_start_time : 0)) *
-			av_q2d(ic->streams[pkt->stream_index]->time_base) -
-			(double)(0 != AV_NOPTS_VALUE ? 0 : 0) / 1000000
-			<= ((double)AV_NOPTS_VALUE / 1000000);
-		//按数据帧的类型存放至对应队列
-		if (pkt->stream_index == is->audio.audio_stream && pkt_in_play_range) {
-			packet_queue_put(&is->audio.audioq, pkt);
-		}
-		else if (pkt->stream_index == is->video.video_stream && pkt_in_play_range
-			&& !(is->video.video_st->disposition & AV_DISPOSITION_ATTACHED_PIC)) {
-			packet_queue_put(&is->video.videoq, pkt);
-		}
-		else if (pkt->stream_index == is->subtitle.subtitle_stream && pkt_in_play_range) {
-			packet_queue_put(&is->subtitle.subtitleq, pkt);
-		}
-		else {
-			av_packet_unref(pkt);
-		}
-	}
-
-	ret = 0;
-fail:
-	if (ic && !is->session.ic)
-		avformat_close_input(&ic);
-	// 通知 LoopThread 线程读取结束
-	if (ret != 0)
-	{
-		const auto error = is->session.readError.load(std::memory_order_acquire);
-		SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, error, 0, is->session.source.network.maxReconnectAttempts, {}, RedactMediaLocation(is->session.source.location)});
-		m_bPlayLoop.store(false, std::memory_order_release);
-	}
-	if (is->session.read_wait_mutex) {
-		SDL_DestroyMutex(is->session.read_wait_mutex);
-		is->session.read_wait_mutex = nullptr;
-	}
-	return;
-}
-
 VideoState* VideoCtl::stream_open(const char* filename)
 {
 	return stream_open(MediaSource{filename ? filename : ""});
@@ -1296,7 +914,9 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 
 	is->clocks.av_sync_type = AV_SYNC_AUDIO_MASTER;
 	//构建读取线程
-	is->session.read_tid = std::thread(&VideoCtl::ReadThread, this, is);
+	is->session.read_tid = std::thread([this, is] {
+		m_streamReader.Run(is);
+	});
 
 	return is;
 
@@ -1719,6 +1339,42 @@ void VideoCtl::OnCycleSubtitleTrack()
 VideoCtl::VideoCtl() :
 	m_CurStream(nullptr),
 	m_bPlayLoop(false),
+	m_streamReader(StreamReaderCallbacks{
+		[this](VideoState* state, int streamIndex) {
+			return stream_component_open(state, streamIndex);
+		},
+		[this](const PlaybackStatus& status) {
+			SigPlaybackStatus(status);
+		},
+		[this](int seconds) {
+			SigVideoTotalSeconds(seconds);
+		},
+		[this](const MediaInfo& info) {
+			SigMediaInfo(info);
+		},
+		[this] {
+			m_bPlayLoop.store(false, std::memory_order_release);
+		},
+		[this] {
+			const auto loopPolicy = m_loopPolicy.load(std::memory_order_acquire);
+			if (loopPolicy == VideoLoopPolicy::LOOP_ALL) {
+				m_bPlayLoop.store(false, std::memory_order_release);
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				SigPlayNextOne();
+			}
+			else if (loopPolicy == VideoLoopPolicy::LOOP_SINGLE) {
+				stream_seek(0, 0);
+			}
+			else if (loopPolicy == VideoLoopPolicy::LOOP_RANDOM) {
+				m_bPlayLoop.store(false, std::memory_order_release);
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				SigRandomPlayOne();
+			}
+			else {
+				SigStop();
+			}
+		},
+	}),
 	m_sdlAudio_dev(0)
 {
 	m_mediaSession.setCloseCallback([this](VideoState* state) {

@@ -24,6 +24,7 @@
 #include "reconnect_controller.h"
 #include "renderer_dispatcher.h"
 #include "signal.h"
+#include "stream_reader.h"
 #include "video_frame_converter.h"
 
 #ifndef CONFIG_AVFILTER
@@ -123,9 +124,6 @@ private:
 
 	int audio_open(void* opaque, AVChannelLayout* wanted_channel_layout, int wanted_sample_rate, struct AudioParams* audio_hw_params);
 	int stream_component_open(VideoState* is, int stream_index);
-	static int stream_has_enough_packets(AVStream* st, int stream_id, PacketQueue* queue);  // 纯操作，设为static
-	static int is_realtime(AVFormatContext* s);  // 纯操作，设为static
-	void ReadThread(VideoState* CurStream);
 	void LoopThread();
 	VideoState* stream_open(const MediaSource& source);
 	VideoState* stream_open(const char* filename);
@@ -154,6 +152,7 @@ private:
 	std::mutex m_playbackMutex;
 	ReconnectController m_reconnectController;
 	MediaSession m_mediaSession;
+	StreamReader m_streamReader;
 
 	bool m_bAutorotate = true;
 

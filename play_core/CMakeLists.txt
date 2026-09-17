@@ -13,6 +13,7 @@ add_library(play_core STATIC
     playback_runtime.cpp
     reconnect_controller.cpp
     renderer_dispatcher.cpp
+    stream_reader.cpp
     video_frame_converter.cpp
     videoctl.cpp
     soundtouch_wrap.cpp
