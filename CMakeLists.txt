@@ -197,6 +197,16 @@ target_link_libraries(reconnect_controller_tests PRIVATE
 
 add_test(NAME reconnect_controller_tests COMMAND reconnect_controller_tests)
 
+add_executable(filter_configurator_tests
+    tests/filter_configurator_tests.cpp
+)
+
+target_link_libraries(filter_configurator_tests PRIVATE
+    play_core
+)
+
+add_test(NAME filter_configurator_tests COMMAND filter_configurator_tests)
+
 add_executable(show_widget_tests
     tests/show_widget_tests.cpp
 )

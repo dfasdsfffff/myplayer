@@ -156,12 +156,6 @@ private:
 	void stream_toggle_pause();  // 移除参数，使用m_CurStream
 	void toggle_pause();  // 移除参数，使用m_CurStream
 	void step_to_next_frame();  // 移除参数，使用m_CurStream
-public:
-	static int configure_filtergraph(AVFilterGraph* graph, const char* filtergraph,
-		AVFilterContext* source_ctx, AVFilterContext* sink_ctx);  // 纯配置，设为static
-	int configure_video_filters(AVFilterGraph* graph, VideoState* is, const char* vfilters, AVFrame* frame);
-	int configure_audio_filters(VideoState* is, const char* mAfilters, int force_output_format);
-
 private:
 
 	std::atomic_bool m_bPlayLoop{ false }; //刷新循环标志
