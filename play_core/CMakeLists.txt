@@ -9,6 +9,7 @@ add_library(play_core STATIC
     playback_controller.cpp
     playback_controller_videoctl.cpp
     playback_runtime.cpp
+    reconnect_controller.cpp
     renderer_dispatcher.cpp
     video_frame_converter.cpp
     videoctl.cpp

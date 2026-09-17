@@ -187,6 +187,16 @@ target_link_libraries(network_playback_tests PRIVATE
 
 add_test(NAME network_playback_tests COMMAND network_playback_tests)
 
+add_executable(reconnect_controller_tests
+    tests/reconnect_controller_tests.cpp
+)
+
+target_link_libraries(reconnect_controller_tests PRIVATE
+    play_core
+)
+
+add_test(NAME reconnect_controller_tests COMMAND reconnect_controller_tests)
+
 add_executable(show_widget_tests
     tests/show_widget_tests.cpp
 )

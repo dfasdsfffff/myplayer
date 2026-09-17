@@ -21,6 +21,7 @@
 #include "enums.h"
 #include "media_source.h"
 #include "media_session.h"
+#include "reconnect_controller.h"
 #include "renderer_dispatcher.h"
 #include "signal.h"
 #include "video_frame_converter.h"
@@ -165,9 +166,7 @@ private:
 
 	std::atomic_bool m_bPlayLoop{ false }; //刷新循环标志
 	std::mutex m_playbackMutex;
-	std::mutex m_reconnectMutex;
-	std::condition_variable m_reconnectCv;
-	std::atomic_bool m_reconnectCancelled{false};
+	ReconnectController m_reconnectController;
 	MediaSession m_mediaSession;
 
 	bool m_bAutorotate = true;

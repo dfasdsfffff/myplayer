@@ -2091,10 +2091,11 @@ void VideoCtl::LoopThread()
 
 		const auto source = exitStream->session.source;
 		const auto error = exitStream->session.readError.load(std::memory_order_acquire);
-		const bool canReconnect = source.network.reconnect && ShouldReconnect(error)
-			&& reconnectAttempt < source.network.maxReconnectAttempts
-			&& !exitStream->session.abort_request.load(std::memory_order_acquire)
-			&& !m_reconnectCancelled.load(std::memory_order_acquire);
+		const bool canReconnect = m_reconnectController.canRetry(
+			source,
+			error,
+			reconnectAttempt,
+			exitStream->session.abort_request.load(std::memory_order_acquire));
 		if (!canReconnect)
 			break;
 
@@ -2109,13 +2110,7 @@ void VideoCtl::LoopThread()
 		}
 		stream_close(exitStream);
 
-		{
-			std::unique_lock<std::mutex> waitLock(m_reconnectMutex);
-			m_reconnectCv.wait_for(waitLock, delay, [this] {
-				return m_reconnectCancelled.load(std::memory_order_acquire);
-			});
-		}
-		if (m_reconnectCancelled.load(std::memory_order_acquire))
+		if (!m_reconnectController.wait(delay))
 			return;
 
 		VideoState* reopened = stream_open(source);
@@ -2123,18 +2118,13 @@ void VideoCtl::LoopThread()
 			SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, PlaybackError::Unknown, reconnectAttempt, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
 			return;
 		}
-		bool reconnectCancelled = false;
-		{
-			std::lock_guard<std::mutex> reconnectLock(m_reconnectMutex);
-			reconnectCancelled = m_reconnectCancelled.load(std::memory_order_acquire);
-			if (!reconnectCancelled) {
-				std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
-				m_mediaSession.reset(reopened);
-				m_CurStream = m_mediaSession.get();
-				m_bPlayLoop.store(true, std::memory_order_release);
-			}
-		}
-		if (reconnectCancelled) {
+		const bool installed = m_reconnectController.runIfNotCancelled([&] {
+			std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
+			m_mediaSession.reset(reopened);
+			m_CurStream = m_mediaSession.get();
+			m_bPlayLoop.store(true, std::memory_order_release);
+		});
+		if (!installed) {
 			stream_close(reopened);
 			return;
 		}
@@ -2307,12 +2297,8 @@ void VideoCtl::OnPause()
 
 void VideoCtl::requestStop()
 {
-	{
-		std::lock_guard<std::mutex> reconnectLock(m_reconnectMutex);
-		m_bPlayLoop.store(false, std::memory_order_release);
-		m_reconnectCancelled.store(true, std::memory_order_release);
-	}
-	m_reconnectCv.notify_all();
+	m_reconnectController.cancel();
+	m_bPlayLoop.store(false, std::memory_order_release);
 
 	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream)
@@ -2465,8 +2451,7 @@ bool VideoCtl::StartPlay(const MediaSource& source)
         m_tPlayLoopThread.join();
     }
 	{
-		std::lock_guard<std::mutex> reconnectLock(m_reconnectMutex);
-		m_reconnectCancelled.store(false, std::memory_order_release);
+		m_reconnectController.reset();
 		m_bPlayLoop.store(true, std::memory_order_release);
 	}
 	SigPlaybackStatus(PlaybackStatus{PlaybackState::Opening, PlaybackError::None, 0, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
