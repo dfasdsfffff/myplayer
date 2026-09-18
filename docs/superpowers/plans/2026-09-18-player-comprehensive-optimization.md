@@ -436,6 +436,8 @@ git commit -m "fix: publish coherent playback clocks"
 
 ### Task 10: Synchronize Track Replacement and Packet Routing
 
+Completed: `f2e383c`, focused `track_switching_tests` and full Debug CTest passed 23/23 on 2026-09-18; manual multi-track GUI validation remains a release-QA checklist item because this workspace has no suitable fixture.
+
 **Files:**
 
 - Modify: `play_core/video_state.h`
@@ -450,7 +452,7 @@ git commit -m "fix: publish coherent playback clocks"
 - [x] Ensure decoder/audio device teardown completes before publishing replacement pointers. Do not hold the track lock while blocking on unrelated network reads.
 - [x] Make stream index fields private to a small `TrackStateSnapshot` API or atomic where only the index is required. Eliminate unguarded reads found by `rg "audio_stream|video_stream|subtitle_stream" play_core`.
 - [x] Run focused/full tests and a manual rapid audio/subtitle cycle while playing and stopping. Focused `track_switching_tests` and the complete Debug CTest suite passed 23/23 on 2026-09-18; manual multi-track GUI validation remains a release-QA checklist item because this workspace has no suitable fixture.
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add play_core/video_state.h play_core/videoctl.cpp play_core/stream_reader.cpp play_core/media_sync.cpp tests/track_switching_tests.cpp CMakeLists.txt
@@ -458,6 +460,8 @@ git commit -m "fix: synchronize media track replacement"
 ```
 
 ### Task 11: Lifecycle Stress and Queue Encapsulation
+
+Completed: `d97cbb4`, Debug build passed; CTest passed 24/24, including 1,000 concurrent packet-queue put/get/flush/snapshot/abort cycles and repeated invalid-open/stop-and-wait runtime cycles.
 
 **Files:**
 
@@ -469,7 +473,7 @@ git commit -m "fix: synchronize media track replacement"
 - Create: `tests/playback_lifecycle_stress_tests.cpp`
 - Modify: `CMakeLists.txt`
 
-- [ ] Add read-only queue snapshots:
+- [x] Add read-only queue snapshots:
 
 ```cpp
 struct PacketQueueSnapshot { int packets; int bytes; int64_t duration; int serial; bool aborted; };
@@ -478,11 +482,11 @@ struct FrameQueueSnapshot { int remaining; int serial; bool aborted; };
 FrameQueueSnapshot FrameQueue::snapshot() const;
 ```
 
-- [ ] Write failing tests for concurrent put/get/abort/flush/snapshot and repeated `PlaybackRuntime::Create`, invalid-open, stop-and-wait, and destroy cycles. Use deterministic invalid/open cancellation paths here; generated valid-media integration coverage is added separately in Task 19.
-- [ ] Make queue storage and counters private. Replace direct field reads with atomic getters or mutex-protected snapshots. Keep FFmpeg packet ownership unchanged.
-- [ ] Add explicit stop ordering assertions: cancel I/O, wake waits, stop audio callback/render worker, abort queues, join reader/decoders/play loop, then destroy state.
-- [ ] Run the stress test for at least 1,000 short iterations in a non-default `STRESS_TESTS` CTest label, then run the normal full suite.
-- [ ] Commit:
+- [x] Write failing tests for concurrent put/get/abort/flush/snapshot and repeated `PlaybackRuntime::Create`, invalid-open, stop-and-wait, and destroy cycles. Use deterministic invalid/open cancellation paths here; generated valid-media integration coverage is added separately in Task 19.
+- [x] Make queue storage and counters private. Replace direct field reads with atomic getters or mutex-protected snapshots. Keep FFmpeg packet ownership unchanged.
+- [x] Add explicit stop ordering assertions: cancel I/O, wake waits, stop audio callback/render worker, abort queues, join reader/decoders/play loop, then destroy state.
+- [x] Run the stress test for at least 1,000 short iterations in a non-default `STRESS_TESTS` CTest label, then run the normal full suite.
+- [x] Commit:
 
 ```powershell
 git add play_core/packet_queue.* play_core/frame_queue.* play_core tests/playback_lifecycle_stress_tests.cpp CMakeLists.txt
