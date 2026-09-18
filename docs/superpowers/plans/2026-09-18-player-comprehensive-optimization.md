@@ -628,17 +628,19 @@ bool ShouldResume(int savedSeconds, int durationSeconds, bool seekable);
 bool ShouldClearResume(int currentSeconds, int durationSeconds, bool completed);
 ```
 
-- [ ] Write failing pure tests for square/anamorphic display rectangles, 90/180/270-degree rotation, invalid SAR fallback, resume only when seekable and more than five seconds in, and clearing within the final 30 seconds or 95% of duration.
-- [ ] Carry metadata from decoded `AVFrame`/`MediaInfo` to `VideoFrame`. Compute display aspect from coded size × SAR, with width/height swapped for quarter-turn rotation.
-- [ ] Apply swscale colorspace/range details for the BGRA fallback and record unsupported HDR transfer characteristics in diagnostics without crashing.
-- [ ] Replace the fixed 500 ms resume timer with a pending resume applied after `MediaInfo` confirms seekability and duration. Clear saved position on successful completion/near-end stop.
-- [ ] Run focused/full tests and manual anamorphic/rotated/resume QA.
-- [ ] Commit:
+- [x] Write failing pure tests for square/anamorphic display rectangles, 90/180/270-degree rotation, invalid SAR fallback, resume only when seekable and more than five seconds in, and clearing within the final 30 seconds or 95% of duration.
+- [x] Carry metadata from decoded `AVFrame`/`MediaInfo` to `VideoFrame`. Compute display aspect from coded size × SAR, with width/height swapped for quarter-turn rotation.
+- [x] Apply swscale colorspace/range details for the BGRA fallback and record unsupported HDR transfer characteristics in diagnostics without crashing.
+- [x] Replace the fixed 500 ms resume timer with a pending resume applied after `MediaInfo` confirms seekability and duration. Clear saved position on successful completion/near-end stop.
+- [x] Run focused/full tests and manual anamorphic/rotated/resume QA.
+- [x] Commit:
 
 ```powershell
 git add play_core/video_frame.h play_core/video_frame_converter.cpp play_core/renderer_dispatcher.cpp apps/qt_player/show.cpp apps/qt_player/globalhelper.* apps/qt_player/mainwid.* tests/video_geometry_tests.cpp tests/resume_policy_tests.cpp CMakeLists.txt
 git commit -m "fix: honor presentation metadata and resume policy"
 ```
+
+Completed in commits `fa15f56` and `0f49bac`. Production target `myplayer` and focused geometry/resume targets build successfully; 28/28 runtime CTest cases and the CMake configuration test pass. Manual media QA remains a release-checklist item because this checkout has no representative anamorphic/rotated/HDR fixtures.
 
 **Stage 3 gate:** Named track selection works, subtitles render and clear correctly, audio-only playback is supported, geometry honors SAR/rotation, and resume behavior is duration-aware.
 
