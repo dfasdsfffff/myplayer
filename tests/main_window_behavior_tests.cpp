@@ -79,6 +79,12 @@ int main(int argc, char* argv[])
     if (!Expect(menu, "main window exposes its context menu"))
         return 1;
 
+    QMenu* openMenu = FindSubMenu(menu, QStringLiteral("打开"));
+    if (!Expect(openMenu && FindTopLevelAction(openMenu, QStringLiteral("加载字幕...")) &&
+                    FindTopLevelAction(openMenu, QStringLiteral("卸载字幕")),
+            "open menu exposes subtitle load and unload actions"))
+        return 1;
+
     int audioMenus = 0;
     int subtitleMenus = 0;
     for (QAction* action : menu->actions())

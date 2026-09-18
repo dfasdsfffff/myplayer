@@ -88,6 +88,8 @@ private:
     void OnShowAbout();
     void OpenFile();
     void OpenNetworkStream();
+    void OpenSubtitleFile();
+    void UnloadSubtitleFile();
     void OnPlayFile(QString strFileName);
     void OnOpenRecentFile();
     void OnClearRecentFiles();

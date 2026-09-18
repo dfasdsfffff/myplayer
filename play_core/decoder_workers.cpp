@@ -1,5 +1,7 @@
 #include "decoder_workers.h"
 
+#include "subtitle_dispatcher.h"
+
 #include "filter_configurator.h"
 #include "media_sync.h"
 
@@ -301,22 +303,25 @@ int DecoderWorkers::Subtitle(void* opaque)
         if (!(sp = state->subtitle.subpq.peek_writable()))
             return 0;
 
-        if ((got_subtitle = state->subtitle.sub_decoder.decode_frame(NULL, &sp->sub)) < 0)
+        AVSubtitle subtitle{};
+        if ((got_subtitle = state->subtitle.sub_decoder.decode_frame(NULL, &subtitle)) < 0)
             break;
 
         pts = 0;
 
-        if (got_subtitle && sp->sub.format == 0) {
-            if (sp->sub.pts != AV_NOPTS_VALUE)
-                pts = sp->sub.pts / (double)AV_TIME_BASE;
-            sp->pts = pts;
+        if (got_subtitle && subtitle.format == 0) {
+            if (subtitle.pts != AV_NOPTS_VALUE)
+                pts = subtitle.pts / (double)AV_TIME_BASE;
+            sp->subtitle = SubtitleDispatcher::Copy(subtitle, pts);
+            avsubtitle_free(&subtitle);
+            sp->pts = sp->subtitle->startSeconds;
             sp->serial = state->subtitle.sub_decoder.pkt_serial;
             sp->width = state->subtitle.sub_decoder.avctx->width;
             sp->height = state->subtitle.sub_decoder.avctx->height;
             state->subtitle.subpq.push();
         }
         else if (got_subtitle) {
-            avsubtitle_free(&sp->sub);
+            avsubtitle_free(&subtitle);
         }
     }
     return 0;

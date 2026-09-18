@@ -16,6 +16,7 @@ add_library(play_core STATIC
     reconnect_controller.cpp
     renderer_dispatcher.cpp
     stream_reader.cpp
+    subtitle_dispatcher.cpp
     video_frame_converter.cpp
     videoctl.cpp
     soundtouch_wrap.cpp

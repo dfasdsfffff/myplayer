@@ -9,11 +9,14 @@
 #include "av_compat.h"
 #include "av_constants.h"
 #include "packet_queue.h"
+#include "subtitle_frame.h"
+
+#include <memory>
 
 //解码后的帧
 typedef struct Frame {
 	AVFrame* frame = nullptr;
-	AVSubtitle sub = {};
+	std::shared_ptr<const SubtitleFrame> subtitle;
 	int serial = 0;
 	double pts = 0.0;           /* presentation timestamp for the frame */
 	double duration = 0.0;      /* estimated duration of the frame */

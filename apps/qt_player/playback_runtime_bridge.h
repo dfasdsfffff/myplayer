@@ -8,6 +8,7 @@
 
 #include "media_source.h"
 #include "signal.h"
+#include "subtitle_frame.h"
 #include "video_frame.h"
 
 class PlaybackRuntime;
@@ -29,6 +30,7 @@ signals:
 	void SigPlayMsg(const QString& strMsg);
 	void SigFrameDimensionsChanged(int nFrameWidth, int nFrameHeight);
 	void SigVideoFrame(std::shared_ptr<VideoFrame> frame);
+	void SigSubtitleFrame(std::shared_ptr<const SubtitleFrame> frame);
 	void SigVideoTotalSeconds(int nSeconds);
 	void SigVideoPlaySeconds(int nSeconds);
 	void SigVideoVolume(double dPercent);

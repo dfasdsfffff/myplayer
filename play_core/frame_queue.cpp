@@ -15,7 +15,7 @@ void FrameQueue::unref_item(Frame* vp)
 {
 	if (vp->frame)
 		av_frame_unref(vp->frame);
-	avsubtitle_free(&vp->sub);
+	vp->subtitle.reset();
 }
 
 //帧队列初始化（绑定数据包队列，初始化最大值）

@@ -15,6 +15,7 @@
         "swscale"
       ]
     },
+    "libass",
     "sdl2",
     {
       "name": "soundtouch",

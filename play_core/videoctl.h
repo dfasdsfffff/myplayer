@@ -26,6 +26,7 @@
 #include "renderer_dispatcher.h"
 #include "signal.h"
 #include "stream_reader.h"
+#include "subtitle_frame.h"
 #include "video_frame_converter.h"
 
 #ifndef CONFIG_AVFILTER
@@ -65,6 +66,7 @@ public:
 	Signal<const std::string&>  SigPlayMsg;
 	Signal<int, int>     SigFrameDimensionsChanged;
 	Signal<std::shared_ptr<VideoFrame>> SigVideoFrame;
+	Signal<std::shared_ptr<const SubtitleFrame>> SigSubtitleFrame;
 	Signal<int>          SigVideoTotalSeconds;
 	Signal<int>          SigVideoPlaySeconds;
 	Signal<double>       SigVideoVolume;
@@ -123,6 +125,8 @@ private:
 
 	void video_display();  // 移除参数，使用m_CurStream
 	void emit_video_frame(VideoState* is);
+	void emit_subtitle_frame(VideoState* is);
+	void clear_active_subtitle();
 	void do_exit();  // 移除参数，使用m_CurStream
 	void stream_component_close(VideoState* is, int stream_index);  // 保留参数，内部使用
 	void stream_close(VideoState* is);  // 保留参数，清理函数
@@ -166,6 +170,7 @@ private:
 	float m_fPlaybackSpeed = 1;       // 当前的播放速度，默认为1倍速
 
 	VideoFrameConverter m_frameConverter;
+	std::shared_ptr<const SubtitleFrame> m_activeSubtitleFrame;
 
 	// 由 RuntimeManager 记录的全局初始化引用，避免失败回滚破坏计数
 	bool m_hasSdlInitRef = false;

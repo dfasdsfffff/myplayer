@@ -20,6 +20,7 @@
 
 #include "globalhelper.h"
 #include "playback_controller.h"
+#include "subtitle_renderer.h"
 
 std::mutex g_show_rect_mutex;
 
@@ -47,6 +48,7 @@ Show::Show(QWidget *parent) : QWidget(parent),
 
     m_nLastFrameWidth = 0; ///< 记录视频宽高
     m_nLastFrameHeight = 0;
+    m_subtitleRenderer = std::make_unique<SubtitleRenderer>();
 
     m_stActionGroup.addAction("全屏");
     m_stActionGroup.addAction("暂停");
@@ -92,6 +94,42 @@ void Show::OnVideoFrame(std::shared_ptr<VideoFrame> frame)
     ClearAudioOnlyIndicator();
     m_currentFrame = std::move(frame);
     RenderCurrentFrame();
+}
+
+void Show::OnSubtitleFrame(std::shared_ptr<const SubtitleFrame> frame)
+{
+    if (m_subtitleRenderer)
+        m_subtitleRenderer->setFrame(std::move(frame));
+    RenderCurrentFrame();
+}
+
+void Show::OnVideoPlaySeconds(int seconds)
+{
+    m_playbackSeconds = seconds;
+}
+
+bool Show::LoadExternalSubtitleFile(const QString& fileName)
+{
+    if (!m_subtitleRenderer)
+        return false;
+    const bool loaded = m_subtitleRenderer->loadExternalFile(fileName.toStdString());
+    if (loaded)
+        RenderCurrentFrame();
+    return loaded;
+}
+
+bool Show::UnloadExternalSubtitleFile()
+{
+    if (!m_subtitleRenderer || !m_subtitleRenderer->hasExternalSubtitle())
+        return false;
+    m_subtitleRenderer->clearExternalFile();
+    RenderCurrentFrame();
+    return true;
+}
+
+bool Show::HasExternalSubtitle() const
+{
+    return m_subtitleRenderer && m_subtitleRenderer->hasExternalSubtitle();
 }
 
 void Show::ChangeShow()
@@ -230,6 +268,8 @@ void Show::RenderCurrentFrame()
     SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
     SDL_RenderClear(m_sdlRenderer);
     SDL_RenderCopy(m_sdlRenderer, m_sdlTexture, nullptr, nullptr);
+    if (m_subtitleRenderer)
+        m_subtitleRenderer->render(m_sdlRenderer, frameSize, m_playbackSeconds);
     SDL_RenderPresent(m_sdlRenderer);
 }
 
@@ -319,6 +359,8 @@ void Show::OnPlay(QString strFile)
 void Show::OnStopFinished()
 {
     m_currentFrame.reset();
+    if (m_subtitleRenderer)
+        m_subtitleRenderer->clear();
     ClearAudioOnlyIndicator();
     ClearVideoSurface();
     update();

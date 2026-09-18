@@ -259,6 +259,7 @@ bool MainWid::ConnectSignalSlots()
 	// PlaybackRuntime→UI 方向：通过 bridge 转发（bridge 已保证主线程投递，无需 Qt::QueuedConnection）
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoTotalSeconds, ui->CtrlBarWid, &CtrlBar::OnVideoTotalSeconds);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, ui->CtrlBarWid, &CtrlBar::OnVideoPlaySeconds);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, ui->ShowWid, &Show::OnVideoPlaySeconds);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, this, &MainWid::OnVideoPlaySeconds);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoVolume, ui->CtrlBarWid, &CtrlBar::OnVideopVolume);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPauseStat, ui->CtrlBarWid, &CtrlBar::OnPauseStat);
@@ -266,6 +267,7 @@ bool MainWid::ConnectSignalSlots()
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, ui->ShowWid, &Show::OnStopFinished);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigFrameDimensionsChanged, ui->ShowWid, &Show::OnFrameDimensionsChanged);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoFrame, ui->ShowWid, &Show::OnVideoFrame);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigSubtitleFrame, ui->ShowWid, &Show::OnSubtitleFrame);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, &m_stTitle, &Title::OnStopFinished);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStartPlay, &m_stTitle, &Title::OnPlay);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPlaybackStatus, this, &MainWid::OnPlaybackStatus);
@@ -701,6 +703,19 @@ void MainWid::OpenNetworkStream()
 	m_stPlaylist.OnAddFileAndPlay(location);
 }
 
+void MainWid::OpenSubtitleFile()
+{
+	const QString fileName = QFileDialog::getOpenFileName(this, tr("加载字幕"), QDir::homePath(),
+		SubtitleOpenDialogFilter());
+	if (!fileName.isEmpty() && !ui->ShowWid->LoadExternalSubtitleFile(fileName))
+		QMessageBox::warning(this, tr("加载字幕"), tr("无法加载所选字幕文件。"));
+}
+
+void MainWid::UnloadSubtitleFile()
+{
+	ui->ShowWid->UnloadExternalSubtitleFile();
+}
+
 void MainWid::OnPlayFile(QString strFileName)
 {
 	++m_playbackGeneration;
@@ -952,6 +967,10 @@ void MainWid::ConnectMenuAction(QAction* action, const QString& actionText, cons
 
 	if (functionName == "OpenFile")
 		connect(action, &QAction::triggered, this, &MainWid::OpenFile);
+	else if (functionName == "OpenSubtitleFile")
+		connect(action, &QAction::triggered, this, &MainWid::OpenSubtitleFile);
+	else if (functionName == "UnloadSubtitleFile")
+		connect(action, &QAction::triggered, this, &MainWid::UnloadSubtitleFile);
 	else if (functionName == "OpenNetworkStream")
 		connect(action, &QAction::triggered, this, &MainWid::OpenNetworkStream);
 	else if (functionName == "PlayOrPause")

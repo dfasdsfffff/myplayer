@@ -55,6 +55,15 @@ void PlaybackRuntimeBridge::attach(PlaybackRuntime* runtime)
         }, Qt::QueuedConnection);
     }));
 
+    m_connections.emplace_back(runtime->SigSubtitleFrame.connect([self](std::shared_ptr<const SubtitleFrame> frame) {
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self.data(), [self, frame = std::move(frame)]() {
+            if (auto bridge = self.data())
+                emit bridge->SigSubtitleFrame(frame);
+        }, Qt::QueuedConnection);
+    }));
+
     m_connections.emplace_back(runtime->SigVideoTotalSeconds.connect([self](int s) {
         if (!self)
             return;

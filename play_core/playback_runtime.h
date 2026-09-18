@@ -2,6 +2,7 @@
 
 #include "playback_controller.h"
 #include "signal.h"
+#include "subtitle_frame.h"
 #include "video_frame.h"
 
 #include <memory>
@@ -24,6 +25,7 @@ public:
     Signal<const std::string&> SigPlayMsg;
     Signal<int, int> SigFrameDimensionsChanged;
     Signal<std::shared_ptr<VideoFrame>> SigVideoFrame;
+    Signal<std::shared_ptr<const SubtitleFrame>> SigSubtitleFrame;
     Signal<int> SigVideoTotalSeconds;
     Signal<int> SigVideoPlaySeconds;
     Signal<double> SigVideoVolume;

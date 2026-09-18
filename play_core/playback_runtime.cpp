@@ -45,6 +45,9 @@ void PlaybackRuntime::connectSignals()
     m_connections.emplace_back(m_videoCtl->SigVideoFrame.connect([this](std::shared_ptr<VideoFrame> frame) {
         SigVideoFrame(std::move(frame));
     }));
+    m_connections.emplace_back(m_videoCtl->SigSubtitleFrame.connect([this](std::shared_ptr<const SubtitleFrame> frame) {
+        SigSubtitleFrame(std::move(frame));
+    }));
     m_connections.emplace_back(m_videoCtl->SigVideoTotalSeconds.connect([this](int seconds) {
         SigVideoTotalSeconds(seconds);
     }));

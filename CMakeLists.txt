@@ -35,6 +35,8 @@ find_package(FFMPEG REQUIRED)
 find_package(SDL2 CONFIG REQUIRED)
 find_package(SoundTouch CONFIG REQUIRED)
 if(MYPLAYER_BUILD_QT_APP)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBASS REQUIRED IMPORTED_TARGET libass)
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 endif()
 
@@ -68,6 +70,7 @@ set(HEADER_FILES
     ${PLAYERDEMO_QT_APP_DIR}/resource.h
     ${PLAYERDEMO_QT_APP_DIR}/settingwid.h
     ${PLAYERDEMO_QT_APP_DIR}/show.h
+    ${PLAYERDEMO_QT_APP_DIR}/subtitle_renderer.h
     ${PLAYERDEMO_QT_APP_DIR}/title.h
     ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.h
 )
@@ -87,6 +90,7 @@ set(SOURCE_FILES
     ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
     ${PLAYERDEMO_QT_APP_DIR}/settingwid.cpp
     ${PLAYERDEMO_QT_APP_DIR}/show.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/subtitle_renderer.cpp
     ${PLAYERDEMO_QT_APP_DIR}/title.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playback_status_presenter.cpp
@@ -130,6 +134,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    PkgConfig::LIBASS
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -421,6 +426,37 @@ target_link_libraries(media_info_tests PRIVATE
 
 add_test(NAME media_info_tests COMMAND media_info_tests)
 
+add_executable(subtitle_dispatcher_tests
+    tests/subtitle_dispatcher_tests.cpp
+)
+
+target_link_libraries(subtitle_dispatcher_tests PRIVATE
+    play_core
+)
+
+add_test(NAME subtitle_dispatcher_tests COMMAND subtitle_dispatcher_tests)
+
+add_executable(subtitle_renderer_tests
+    tests/subtitle_renderer_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/subtitle_renderer.cpp
+)
+
+target_include_directories(subtitle_renderer_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+    ${PROJECT_SOURCE_DIR}/play_core
+)
+
+target_link_libraries(subtitle_renderer_tests PRIVATE
+    Qt6::Core
+    SDL2::SDL2
+    PkgConfig::LIBASS
+)
+
+add_test(NAME subtitle_renderer_tests COMMAND subtitle_renderer_tests)
+set_tests_properties(subtitle_renderer_tests PROPERTIES
+    ENVIRONMENT "SDL_VIDEODRIVER=dummy"
+)
+
 add_executable(playback_lifecycle_stress_tests
     tests/playback_lifecycle_stress_tests.cpp
 )
@@ -556,6 +592,7 @@ target_link_libraries(main_window_behavior_tests PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    PkgConfig::LIBASS
 )
 if(WIN32)
     add_custom_command(TARGET main_window_behavior_tests POST_BUILD

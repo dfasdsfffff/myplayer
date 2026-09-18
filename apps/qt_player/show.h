@@ -25,6 +25,8 @@
 #include "video_frame.h"
 
 class PlaybackController;
+class SubtitleRenderer;
+struct SubtitleFrame;
 
 namespace Ui {
 class Show;
@@ -100,6 +102,11 @@ public:
      */
     void OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight);
     void OnVideoFrame(std::shared_ptr<VideoFrame> frame);
+    void OnSubtitleFrame(std::shared_ptr<const SubtitleFrame> frame);
+    void OnVideoPlaySeconds(int seconds);
+    bool LoadExternalSubtitleFile(const QString& fileName);
+    bool UnloadExternalSubtitleFile();
+    bool HasExternalSubtitle() const;
 private:
 	/**
 	 * @brief	显示信息
@@ -144,11 +151,13 @@ private:
     int m_nLastFrameWidth; ///< 记录视频宽高
     int m_nLastFrameHeight;
     std::shared_ptr<VideoFrame> m_currentFrame;
+    std::unique_ptr<SubtitleRenderer> m_subtitleRenderer;
     SDL_Window* m_sdlWindow = nullptr;
     SDL_Renderer* m_sdlRenderer = nullptr;
     SDL_Texture* m_sdlTexture = nullptr;
     bool m_sdlVideoInitialized = false;
     QSize m_sdlTextureSize;
+    double m_playbackSeconds = 0.0;
 
     QTimer timerShowCursor;
 

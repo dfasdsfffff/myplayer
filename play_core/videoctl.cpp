@@ -316,8 +316,9 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 						sp2 = NULL;
 
 					if (sp->serial != is->subtitle.subtitleq.serial()
-						|| (is->clocks.vidclk.get() > (sp->pts + ((float)sp->sub.end_display_time / 1000)))
-						|| (sp2 && is->clocks.vidclk.get() > (sp2->pts + ((float)sp2->sub.start_display_time / 1000))))
+						|| !sp->subtitle
+						|| (is->clocks.vidclk.get() > sp->subtitle->endSeconds)
+						|| (sp2 && sp2->subtitle && is->clocks.vidclk.get() > sp2->subtitle->startSeconds))
 					{
 						is->subtitle.subpq.next();
 					}
@@ -337,6 +338,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 		/* display picture */
 		if (is->session.force_refresh && is->video.pictq.hasShown())
 			video_display();
+		emit_subtitle_frame(is);
 	}
 	is->session.force_refresh = 0;
 
@@ -707,6 +709,7 @@ void VideoCtl::applyTrackCommand(VideoState* state, const TrackCommand& command)
 	}
 	if (!command.streamIndex) {
 		if (mediaType == AVMEDIA_TYPE_SUBTITLE && state->subtitle.subtitle_stream >= 0) {
+			clear_active_subtitle();
 			stream_component_close(state, state->subtitle.subtitle_stream);
 			state->session.last_subtitle_stream = -1;
 		}
@@ -720,8 +723,11 @@ void VideoCtl::applyTrackCommand(VideoState* state, const TrackCommand& command)
 	const int current = mediaType == AVMEDIA_TYPE_AUDIO ? state->audio.audio_stream : state->subtitle.subtitle_stream;
 	if (current == *command.streamIndex)
 		return;
-	if (current >= 0)
+	if (current >= 0) {
+		if (mediaType == AVMEDIA_TYPE_SUBTITLE)
+			clear_active_subtitle();
 		stream_component_close(state, current);
+	}
 	stream_component_open(state, *command.streamIndex);
 }
 
@@ -732,6 +738,7 @@ void VideoCtl::applyPlaybackCommands()
 		toggle_pause();
 
 	if (commands.seek) {
+		clear_active_subtitle();
 		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
 		if (m_CurStream)
 			stream_seek(commands.seek->position, commands.seek->relative);
@@ -970,6 +977,35 @@ void VideoCtl::emit_video_frame(VideoState* is)
 	m_rendererDispatcher.dispatchFrame(frame);
 }
 
+void VideoCtl::emit_subtitle_frame(VideoState* is)
+{
+	if (!is)
+		return;
+
+	std::shared_ptr<const SubtitleFrame> frame;
+	if (is->subtitle.subtitle_st && is->subtitle.subpq.nb_remaining() > 0) {
+		Frame* current = is->subtitle.subpq.peek();
+		if (current && current->subtitle) {
+			const double clock = MediaSync::get_master_clock(is);
+			if (clock >= current->subtitle->startSeconds && clock <= current->subtitle->endSeconds)
+				frame = current->subtitle;
+		}
+	}
+
+	if (frame != m_activeSubtitleFrame) {
+		m_activeSubtitleFrame = std::move(frame);
+		SigSubtitleFrame(m_activeSubtitleFrame);
+	}
+}
+
+void VideoCtl::clear_active_subtitle()
+{
+	if (!m_activeSubtitleFrame)
+		return;
+	m_activeSubtitleFrame.reset();
+	SigSubtitleFrame(std::shared_ptr<const SubtitleFrame>{});
+}
+
 void VideoCtl::do_exit()
 {
 	VideoState* is = nullptr;
@@ -982,6 +1018,10 @@ void VideoCtl::do_exit()
 	if (!is) return;
 
 	stream_close(is);
+	if (m_activeSubtitleFrame) {
+		m_activeSubtitleFrame.reset();
+		SigSubtitleFrame(std::shared_ptr<const SubtitleFrame>{});
+	}
 	SigStopFinished();
 }
 

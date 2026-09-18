@@ -1,6 +1,8 @@
 {
     "打开": {
         "打开文件...": "OpenFile/Ctrl+O",
+        "加载字幕...": "OpenSubtitleFile/Ctrl+Shift+O",
+        "卸载字幕": "UnloadSubtitleFile/",
         "打开链接...": "OpenNetworkStream/Ctrl+U"
     },
     "播放": {
