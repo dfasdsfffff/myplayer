@@ -24,6 +24,8 @@ std::shared_ptr<VideoFrame> VideoFrameConverter::convert(const AVFrame* source)
 		? source->sample_aspect_ratio : AVRational{1, 1};
 	frame->colorSpace = source->colorspace;
 	frame->colorRange = source->color_range;
+	frame->unsupportedHdrTransfer = source->color_trc == AVCOL_TRC_SMPTE2084
+		|| source->color_trc == AVCOL_TRC_ARIB_STD_B67;
 	frame->rotationDegrees = 0.0;
 	if (const AVFrameSideData* displayMatrix = av_frame_get_side_data(source, AV_FRAME_DATA_DISPLAYMATRIX))
 		frame->rotationDegrees = -av_display_rotation_get(reinterpret_cast<const int32_t*>(displayMatrix->data));

@@ -52,5 +52,6 @@ struct VideoFrame
 	double rotationDegrees = 0.0;
 	AVColorSpace colorSpace = AVCOL_SPC_UNSPECIFIED;
 	AVColorRange colorRange = AVCOL_RANGE_UNSPECIFIED;
+	bool unsupportedHdrTransfer = false;
 	std::vector<uint8_t> bgra;
 };

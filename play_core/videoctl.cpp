@@ -973,6 +973,8 @@ void VideoCtl::emit_video_frame(VideoState* is)
 		av_log(NULL, AV_LOG_ERROR, "Cannot convert video frame\n");
 		return;
 	}
+	if (frame->unsupportedHdrTransfer && !m_reportedHdrFallback.exchange(true, std::memory_order_acq_rel))
+		SigPlayMsg("HDR transfer characteristics are unsupported; using BGRA software fallback");
 
 	m_rendererDispatcher.dispatchFrame(frame);
 }
@@ -1243,6 +1245,7 @@ bool VideoCtl::StartPlay(const MediaSource& source)
     }
 	{
 		m_reconnectController.reset();
+		m_reportedHdrFallback.store(false, std::memory_order_release);
 		m_bPlayLoop.store(true, std::memory_order_release);
 	}
 	SigPlaybackStatus(PlaybackStatus{PlaybackState::Opening, PlaybackError::None, 0, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});

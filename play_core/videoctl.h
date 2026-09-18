@@ -171,6 +171,7 @@ private:
 
 	VideoFrameConverter m_frameConverter;
 	std::shared_ptr<const SubtitleFrame> m_activeSubtitleFrame;
+	std::atomic_bool m_reportedHdrFallback{false};
 
 	// 由 RuntimeManager 记录的全局初始化引用，避免失败回滚破坏计数
 	bool m_hasSdlInitRef = false;
