@@ -39,12 +39,12 @@ void check_external_clock_speed(VideoState* is)
 {
     if ((is->video.video_stream >= 0 && is->video.videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES) ||
         (is->audio.audio_stream >= 0 && is->audio.audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES)) {
-        is->clocks.extclk.set_speed(FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->clocks.extclk.speed - EXTERNAL_CLOCK_SPEED_STEP));
+		is->clocks.extclk.set_speed(FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->clocks.extclk.speed() - EXTERNAL_CLOCK_SPEED_STEP));
     } else if ((is->video.video_stream < 0 || is->video.videoq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES) &&
         (is->audio.audio_stream < 0 || is->audio.audioq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES)) {
-        is->clocks.extclk.set_speed(FFMIN(EXTERNAL_CLOCK_SPEED_MAX, is->clocks.extclk.speed + EXTERNAL_CLOCK_SPEED_STEP));
+		is->clocks.extclk.set_speed(FFMIN(EXTERNAL_CLOCK_SPEED_MAX, is->clocks.extclk.speed() + EXTERNAL_CLOCK_SPEED_STEP));
     } else {
-        double speed = is->clocks.extclk.speed;
+		double speed = is->clocks.extclk.speed();
         if (speed != 1.0)
             is->clocks.extclk.set_speed(speed + EXTERNAL_CLOCK_SPEED_STEP * (1.0 - speed) / fabs(1.0 - speed));
     }

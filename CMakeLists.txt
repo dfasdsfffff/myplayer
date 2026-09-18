@@ -391,6 +391,16 @@ target_link_libraries(playback_command_mailbox_tests PRIVATE
 
 add_test(NAME playback_command_mailbox_tests COMMAND playback_command_mailbox_tests)
 
+add_executable(clock_concurrency_tests
+    tests/clock_concurrency_tests.cpp
+)
+
+target_link_libraries(clock_concurrency_tests PRIVATE
+    play_core
+)
+
+add_test(NAME clock_concurrency_tests COMMAND clock_concurrency_tests)
+
 add_executable(network_playback_tests
     tests/network_playback_tests.cpp
 )

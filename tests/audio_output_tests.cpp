@@ -27,7 +27,7 @@ std::unique_ptr<VideoState> MakeState()
     state->subtitle.subtitleq.init();
     state->clocks.vidclk.init(&state->video.videoq.serial);
     state->clocks.audclk.init(&state->audio.audioq.serial);
-    state->clocks.extclk.init(&state->clocks.extclk.serial);
+    state->clocks.extclk.init(state->clocks.extclk.serialStorage());
     state->audio.audio_src.freq = 48000;
     state->audio.audio_diff_threshold = 0.001;
     state->audio.audio_diff_avg_coef = 0.0;

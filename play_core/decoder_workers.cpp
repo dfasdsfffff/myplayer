@@ -65,7 +65,7 @@ int DecoderWorkers::GetVideoFrame(VideoState* state, AVFrame* frame)
                 double diff = dpts - MediaSync::get_master_clock(state);
                 if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD &&
                     diff - state->video.frame_last_filter_delay < 0 &&
-                    state->video.vid_decoder.pkt_serial == state->clocks.vidclk.serial.load(std::memory_order_acquire) &&
+					state->video.vid_decoder.pkt_serial == state->clocks.vidclk.serial() &&
                     state->video.videoq.nb_packets) {
                     state->video.frame_drops_early++;
                     av_frame_unref(frame);

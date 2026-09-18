@@ -182,7 +182,7 @@ int main()
     {
         auto syncState = std::make_unique<VideoState>();
         syncState->clocks.av_sync_type = AV_SYNC_AUDIO_MASTER;
-        syncState->clocks.extclk.init(&syncState->clocks.extclk.serial);
+    syncState->clocks.extclk.init(syncState->clocks.extclk.serialStorage());
         syncState->video.max_frame_duration = 10.0;
         if (!Expect(MediaSync::get_master_sync_type(syncState.get()) == AV_SYNC_EXTERNAL_CLOCK,
                 "missing audio stream should fall back to external clock"))

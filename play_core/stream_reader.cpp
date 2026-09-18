@@ -27,18 +27,16 @@ int DecodeInterruptCallback(void* context)
 void TogglePause(VideoState* state)
 {
     if (state->session.paused) {
-        state->video.frame_timer += av_gettime_relative() / 1000000.0 - state->clocks.vidclk.last_updated;
-        if (state->session.read_pause_return != AVERROR(ENOSYS))
-            state->clocks.vidclk.paused = 0;
-        state->clocks.vidclk.set(state->clocks.vidclk.get(),
-            state->clocks.vidclk.serial.load(std::memory_order_acquire));
-    }
-    state->clocks.extclk.set(state->clocks.extclk.get(),
-        state->clocks.extclk.serial.load(std::memory_order_acquire));
-    const int paused = !state->session.paused.load(std::memory_order_acquire);
-    state->clocks.audclk.paused = paused;
-    state->clocks.vidclk.paused = paused;
-    state->clocks.extclk.paused = paused;
+		state->video.frame_timer += av_gettime_relative() / 1000000.0 - state->clocks.vidclk.lastUpdated();
+		if (state->session.read_pause_return != AVERROR(ENOSYS))
+			state->clocks.vidclk.setPaused(false);
+		state->clocks.vidclk.set(state->clocks.vidclk.get(), state->clocks.vidclk.serial());
+	}
+	state->clocks.extclk.set(state->clocks.extclk.get(), state->clocks.extclk.serial());
+	const int paused = !state->session.paused.load(std::memory_order_acquire);
+	state->clocks.audclk.setPaused(paused != 0);
+	state->clocks.vidclk.setPaused(paused != 0);
+	state->clocks.extclk.setPaused(paused != 0);
     state->session.paused.store(paused, std::memory_order_release);
 }
 

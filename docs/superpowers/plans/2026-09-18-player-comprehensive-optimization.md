@@ -400,6 +400,8 @@ git commit -m "refactor: serialize playback control commands"
 
 ### Task 9: Coherent Thread-Safe Clock
 
+Completed: `610da4d`, sequence-protected clock snapshots and migrated accessors passed the concurrent clock test, Debug build, and CTest 22/22; the configured Windows build has no ThreadSanitizer job available locally.
+
 **Files:**
 
 - Modify: `play_core/clock.h`
@@ -421,11 +423,11 @@ double Clock::lastUpdated() const noexcept;
 double Clock::speed() const noexcept;
 ```
 
-- [ ] Write a failing multithreaded test with one writer updating monotonically increasing clock values and multiple readers calling `snapshot()`/`get()`. Assert snapshots are internally consistent and ThreadSanitizer reports no race where available.
-- [ ] Replace public plain clock-field access with private atomic snapshot storage. Use atomic scalar fields plus a sequence counter and a writer mutex so readers never observe a torn update; do not place a contended mutex in `get()`.
-- [ ] Migrate every direct access in `MediaSync`, `VideoCtl`, `StreamReader`, `DecoderWorkers`, and `AudioOutput` to methods. Keep queue serial validation.
-- [ ] Run focused/full tests and the sanitizer job. Review all `audclk.`, `vidclk.`, and `extclk.` references with `rg` to confirm no direct mutable field remains.
-- [ ] Commit:
+- [x] Write a failing multithreaded test with one writer updating monotonically increasing clock values and multiple readers calling `snapshot()`/`get()`. Assert snapshots are internally consistent and ThreadSanitizer reports no race where available.
+- [x] Replace public plain clock-field access with private atomic snapshot storage. Use atomic scalar fields plus a sequence counter and a writer mutex so readers never observe a torn update; do not place a contended mutex in `get()`.
+- [x] Migrate every direct access in `MediaSync`, `VideoCtl`, `StreamReader`, `DecoderWorkers`, and `AudioOutput` to methods. Keep queue serial validation.
+- [x] Run focused/full tests and the sanitizer job. Review all `audclk.`, `vidclk.`, and `extclk.` references with `rg` to confirm no direct mutable field remains.
+- [x] Commit:
 
 ```powershell
 git add play_core/clock.* play_core/media_sync.cpp play_core/videoctl.cpp play_core/stream_reader.cpp play_core/audio_output.cpp tests/clock_concurrency_tests.cpp CMakeLists.txt

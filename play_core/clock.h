@@ -9,25 +9,45 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <mutex>
 
 #include "av_compat.h"
 #include "av_constants.h"
 
+struct ClockSnapshot {
+	double pts = NAN;
+	double ptsDrift = NAN;
+	double lastUpdated = 0.0;
+	double speed = 1.0;
+	int serial = -1;
+	bool paused = false;
+};
+
 class Clock {
 public:
 	void init(const std::atomic<int>* queue_serial);
-	double get() const;
+	double get() const noexcept;
+	ClockSnapshot snapshot() const noexcept;
 	void set(double pts, int serial);
 	void set_at(double pts, int serial, double time);
 	void set_speed(double speed);
+	void setPaused(bool paused);
+	double lastUpdated() const noexcept;
+	double speed() const noexcept;
+	int serial() const noexcept;
+	const std::atomic<int>* serialStorage() const noexcept;
 	void sync_to_slave(const Clock& slave);
 
-public:
-	double pts = 0.0;           /* clock base */
-	double pts_drift = 0.0;     /* clock base minus time at which we updated the clock */
-	double last_updated = 0.0;
-	double speed = 1.0;
-	std::atomic<int> serial{-1}; /* clock is based on a packet with this serial */
-	int paused = 0;
-	const std::atomic<int>* queue_serial = nullptr; /* current packet queue generation */
+	private:
+	void writeSnapshot(const ClockSnapshot& value);
+
+	std::atomic<double> m_pts{NAN};
+	std::atomic<double> m_ptsDrift{NAN};
+	std::atomic<double> m_lastUpdated{0.0};
+	std::atomic<double> m_speed{1.0};
+	std::atomic<int> m_serial{-1};
+	std::atomic<bool> m_paused{false};
+	std::atomic<const std::atomic<int>*> m_queueSerial{nullptr};
+	mutable std::mutex m_writeMutex;
+	std::atomic<uint64_t> m_sequence{0};
 };

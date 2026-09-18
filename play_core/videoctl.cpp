@@ -184,19 +184,19 @@ void VideoCtl::stream_toggle_pause()
 	if (!m_CurStream) return;
 
 	if (m_CurStream->session.paused) {
-		m_CurStream->video.frame_timer += av_gettime_relative() / 1000000.0 - m_CurStream->clocks.vidclk.last_updated;
+		m_CurStream->video.frame_timer += av_gettime_relative() / 1000000.0 - m_CurStream->clocks.vidclk.lastUpdated();
 		if (m_CurStream->session.read_pause_return != AVERROR(ENOSYS)) {
-			m_CurStream->clocks.vidclk.paused = 0;
+			m_CurStream->clocks.vidclk.setPaused(false);
 		}
 		m_CurStream->clocks.vidclk.set(m_CurStream->clocks.vidclk.get(),
-			m_CurStream->clocks.vidclk.serial.load(std::memory_order_acquire));
+			m_CurStream->clocks.vidclk.serial());
 	}
 	m_CurStream->clocks.extclk.set(m_CurStream->clocks.extclk.get(),
-		m_CurStream->clocks.extclk.serial.load(std::memory_order_acquire));
+		m_CurStream->clocks.extclk.serial());
 	const int paused = !m_CurStream->session.paused.load(std::memory_order_acquire);
-	m_CurStream->clocks.audclk.paused = paused;
-	m_CurStream->clocks.vidclk.paused = paused;
-	m_CurStream->clocks.extclk.paused = paused;
+	m_CurStream->clocks.audclk.setPaused(paused != 0);
+	m_CurStream->clocks.vidclk.setPaused(paused != 0);
+	m_CurStream->clocks.extclk.setPaused(paused != 0);
 	m_CurStream->session.paused.store(paused, std::memory_order_release);
 }
 
@@ -308,8 +308,8 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 						sp2 = NULL;
 
 					if (sp->serial != is->subtitle.subtitleq.serial.load(std::memory_order_acquire)
-						|| (is->clocks.vidclk.pts > (sp->pts + ((float)sp->sub.end_display_time / 1000)))
-						|| (sp2 && is->clocks.vidclk.pts > (sp2->pts + ((float)sp2->sub.start_display_time / 1000))))
+						|| (is->clocks.vidclk.get() > (sp->pts + ((float)sp->sub.end_display_time / 1000)))
+						|| (sp2 && is->clocks.vidclk.get() > (sp2->pts + ((float)sp2->sub.start_display_time / 1000))))
 					{
 						is->subtitle.subpq.next();
 					}
@@ -563,7 +563,7 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 	//视频、音频 时钟
 	is->clocks.vidclk.init(&is->video.videoq.serial);
 	is->clocks.audclk.init(&is->audio.audioq.serial);
-	is->clocks.extclk.init(&is->clocks.extclk.serial);
+	is->clocks.extclk.init(is->clocks.extclk.serialStorage());
 	is->audio.audio_clock_serial = -1;
 	is->audio.audio_volume.store(sdlVolume, std::memory_order_release);
 
