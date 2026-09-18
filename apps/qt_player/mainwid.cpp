@@ -80,7 +80,8 @@ MainWid::MainWid(QMainWindow* parent) :
 	m_stPlaylist(this),
 	m_stTitle(this),
 	m_bMoveDrag(false),
-	m_stActFullscreen(this)
+	m_stActFullscreen(this),
+	m_stCtrlBarHideTimer(new QTimer(this))
 {
 	ui->setupUi(this);
 	//无边框、无系统菜单、 任务栏点击最小化
@@ -97,6 +98,10 @@ MainWid::MainWid(QMainWindow* parent) :
 	m_bFullScreenPlay = false;
 
 	m_stCtrlBarAnimationTimer.setInterval(FULLSCREEN_CTRLBAR_HIDE_DELAY);
+	m_stCtrlBarHideTimer->setObjectName(QStringLiteral("ctrlBarHideTimer"));
+	m_stCtrlBarHideTimer->setInterval(FULLSCREEN_CTRLBAR_HIDE_DELAY);
+	m_stCtrlBarHideTimer->setSingleShot(true);
+	connect(m_stCtrlBarHideTimer, &QTimer::timeout, this, &MainWid::OnCtrlBarHideTimeOut);
 	m_playbackPositionSaveTimer.setInterval(30000);
 	m_playbackPositionSaveTimer.setSingleShot(false);
 	connect(&m_playbackPositionSaveTimer, &QTimer::timeout, this, &MainWid::FlushPlaybackPosition);
@@ -447,6 +452,8 @@ void MainWid::OnFullScreenPlay()
 	else
 	{
 		m_bFullScreenPlay = false;
+		m_stCtrlBarHideTimer->stop();
+		m_bFullscreenCtrlBarShow = false;
 		m_stActFullscreen.setChecked(false);
 
 		m_stCtrlbarAnimationShow->stop(); //快速切换时，动画还没结束导致控制面板消失
@@ -611,6 +618,8 @@ bool MainWid::eventFilter(QObject* watched, QEvent* event)
 		// 检查鼠标是否在控制面板区域
 		if (m_stCtrlBarAnimationShow.contains(globalPos))
 		{
+			m_stCtrlBarHideTimer->stop();
+			m_bFullscreenCtrlBarShow = true;
 			// 鼠标在控制栏附近，显示控制栏
 			if (!ui->CtrlBarWid->geometry().contains(globalPos))
 			{
@@ -618,13 +627,11 @@ bool MainWid::eventFilter(QObject* watched, QEvent* event)
 				ui->CtrlBarWid->raise();
 				m_stCtrlbarAnimationShow->start();
 				m_stCtrlbarAnimationHide->stop();
-				stCtrlBarHideTimer.stop();
 				QApplication::restoreOverrideCursor();
 			}
 			else
 			{
 				// 鼠标在控制面板上，保持显示
-				m_bFullscreenCtrlBarShow = true;
 				QApplication::restoreOverrideCursor();
 			}
 		}
@@ -634,7 +641,7 @@ bool MainWid::eventFilter(QObject* watched, QEvent* event)
 			if (m_bFullscreenCtrlBarShow)
 			{
 				m_bFullscreenCtrlBarShow = false;
-				stCtrlBarHideTimer.singleShot(FULLSCREEN_CTRLBAR_HIDE_DELAY, this, &MainWid::OnCtrlBarHideTimeOut);
+				m_stCtrlBarHideTimer->start();
 			}
 		}
 	}
@@ -644,7 +651,7 @@ bool MainWid::eventFilter(QObject* watched, QEvent* event)
 		if (m_bFullscreenCtrlBarShow)
 		{
 			m_bFullscreenCtrlBarShow = false;
-			stCtrlBarHideTimer.singleShot(FULLSCREEN_CTRLBAR_HIDE_DELAY, this, &MainWid::OnCtrlBarHideTimeOut);
+			m_stCtrlBarHideTimer->start();
 		}
 	}
 
@@ -905,20 +912,26 @@ void MainWid::ConnectMenuAction(QAction* action, const QString& actionText, cons
 
 	if (functionName == "OpenFile")
 		connect(action, &QAction::triggered, this, &MainWid::OpenFile);
-	else if (hotKey == "Ctrl+U")
+	else if (functionName == "OpenNetworkStream")
 		connect(action, &QAction::triggered, this, &MainWid::OpenNetworkStream);
-	else if (functionName == "OnCloseBtnClicked")
+	else if (functionName == "PlayOrPause")
+		connect(action, &QAction::triggered, this, [this]() { m_playbackController->pause(); });
+	else if (functionName == "Stop")
+		connect(action, &QAction::triggered, this, [this]() { m_playbackController->stop(); });
+	else if (functionName == "Previous")
+		connect(action, &QAction::triggered, &m_stPlaylist, &Playlist::OnBackwardPlay);
+	else if (functionName == "Next")
+		connect(action, &QAction::triggered, &m_stPlaylist, &Playlist::OnForwardPlay);
+	else if (functionName == "Exit")
 		connect(action, &QAction::triggered, this, &MainWid::OnCloseBtnClicked);
-	else if (hotKey == "F1")
+	else if (functionName == "ShowAbout")
 		connect(action, &QAction::triggered, this, &MainWid::OnShowAbout);
-	else if (hotKey == "F5")
+	else if (functionName == "ShowSettings")
 		connect(action, &QAction::triggered, this, &MainWid::OnShowSettingWid);
-	else if (hotKey == "F6")
+	else if (functionName == "ShowPlaylist")
 		connect(action, &QAction::triggered, this, &MainWid::OnShowOrHidePlaylist);
-	else if (hotKey == "Enter" || hotKey == "Ctrl+Enter")
+	else if (functionName == "ToggleFullscreen")
 		connect(action, &QAction::triggered, this, &MainWid::OnFullScreenPlay);
-	else if (hotKey == "Alt+F4")
-		connect(action, &QAction::triggered, this, &MainWid::OnCloseBtnClicked);
 	else
 		action->setEnabled(false);
 }

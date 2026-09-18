@@ -24,7 +24,6 @@ CtrlBar::CtrlBar(QWidget* parent) :
 {
 	ui->setupUi(this);
 
-	m_dLastVolumePercent = 1.0;
 }
 
 CtrlBar::~CtrlBar()
@@ -60,6 +59,7 @@ bool CtrlBar::Init()
 	GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/sequentia-play.svg"));
 
 	m_curLoopPolicy = VideoLoopPolicy::LOOP_ALL;
+	ui->CycleSettingBtn->setToolTip("循环模式：列表循环");
 
 	ui->PlaylistCtrlBtn->setToolTip("播放列表");
 	ui->SettingBtn->setToolTip("设置");
@@ -180,6 +180,7 @@ void CtrlBar::OnPauseStat(bool bPaused)
 
 void CtrlBar::OnStopFinished()
 {
+	m_nTotalPlaySeconds = 0;
 	ui->PlaySlider->setValue(0);
 	QTime StopTime(0, 0, 0);
 	ui->VideoTotalTimeTimeEdit->setTime(StopTime);
@@ -261,7 +262,7 @@ void CtrlBar::OnCycleSettingBtnClicked()
 		break;
 	case VideoLoopPolicy::LOOP_RANDOM:
 		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/shuffle-play.svg"));
-		ui->CycleSettingBtn->setToolTip("循环模式：单首循环");
+		ui->CycleSettingBtn->setToolTip("循环模式：随机播放");
 		break;
 	}
 	emit SigPlayLoopPolicyChanged(m_curLoopPolicy);

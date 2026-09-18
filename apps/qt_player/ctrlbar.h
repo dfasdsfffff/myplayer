@@ -81,7 +81,7 @@ signals:
 private:
     Ui::CtrlBar *ui;
 	VideoLoopPolicy m_curLoopPolicy = VideoLoopPolicy::LOOP_NONE;
-    int m_nTotalPlaySeconds;
-    double m_dLastVolumePercent;
+    int m_nTotalPlaySeconds = 0;
+    double m_dLastVolumePercent = 1.0;
 };
 

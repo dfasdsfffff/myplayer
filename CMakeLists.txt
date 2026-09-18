@@ -487,6 +487,41 @@ set_tests_properties(show_widget_tests PROPERTIES
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
 
+set(MAIN_WINDOW_TEST_SOURCES ${SOURCE_FILES})
+list(REMOVE_ITEM MAIN_WINDOW_TEST_SOURCES ${PLAYERDEMO_QT_APP_DIR}/main.cpp)
+add_executable(main_window_behavior_tests
+    tests/main_window_behavior_tests.cpp
+    ${MAIN_WINDOW_TEST_SOURCES}
+    ${HEADER_FILES}
+    ${UI_FILES}
+    ${QRC_FILES}
+)
+target_include_directories(main_window_behavior_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+    ${PROJECT_SOURCE_DIR}/play_core
+)
+target_link_libraries(main_window_behavior_tests PRIVATE
+    play_core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+)
+if(WIN32)
+    add_custom_command(TARGET main_window_behavior_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:main_window_behavior_tests>
+            $<TARGET_FILE_DIR:main_window_behavior_tests>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${MYPLAYER_QT_ROOT}/plugins/platforms"
+            "$<TARGET_FILE_DIR:main_window_behavior_tests>/platforms"
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+add_test(NAME main_window_behavior_tests COMMAND main_window_behavior_tests)
+set_tests_properties(main_window_behavior_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
+)
+
 foreach(test_target IN ITEMS
         playback_settings_tests
         media_location_privacy_tests
@@ -504,7 +539,8 @@ foreach(test_target IN ITEMS
         decoder_workers_tests
         stream_reader_tests
         audio_output_tests
-        show_widget_tests)
+        show_widget_tests
+        main_window_behavior_tests)
     if(TARGET ${test_target})
         myplayer_enable_warnings(${test_target})
         myplayer_enable_sanitizers(${test_target})

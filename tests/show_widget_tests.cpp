@@ -58,9 +58,8 @@ int main()
     if (!Expect(mainWidH.find("OpenNetworkStream") != std::string::npos,
             "main window should expose an open network stream action"))
         return 1;
-    if (!Expect(mainWidCpp.find("Ctrl+U") != std::string::npos
-                && mainWidCpp.find("OpenNetworkStream") != std::string::npos,
-            "Ctrl+U menu action should open a network stream"))
+    if (!Expect(mainWidCpp.find("functionName == \"OpenNetworkStream\"") != std::string::npos,
+            "network stream menu action should connect by its declared function"))
         return 1;
     if (!Expect(mainWidCpp.find("m_stPlaylist.OnAddFileAndPlay(location)") != std::string::npos,
             "open network stream should add the URL to the playlist and play it"))

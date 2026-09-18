@@ -128,14 +128,14 @@ private:
 
     bool m_bFullScreenPlay; ///< 全屏播放标志
 
-    QPropertyAnimation *m_stCtrlbarAnimationShow; //全屏时控制面板浮动显示
-    QPropertyAnimation *m_stCtrlbarAnimationHide; //全屏时控制面板浮动显示
+    QPropertyAnimation *m_stCtrlbarAnimationShow = nullptr; //全屏时控制面板浮动显示
+    QPropertyAnimation *m_stCtrlbarAnimationHide = nullptr; //全屏时控制面板浮动显示
     QRect m_stCtrlBarAnimationShow;//控制面板显示区域
     QRect m_stCtrlBarAnimationHide;//控制面板隐藏区域
 
     QTimer m_stCtrlBarAnimationTimer;
-    bool m_bFullscreenCtrlBarShow;
-    QTimer stCtrlBarHideTimer;
+    bool m_bFullscreenCtrlBarShow = false;
+    QTimer* m_stCtrlBarHideTimer;
 
     Playlist m_stPlaylist;
     Title m_stTitle;
