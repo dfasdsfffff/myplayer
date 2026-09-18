@@ -555,6 +555,8 @@ git commit -m "feat: expose media tracks and metadata"
 
 ### Task 13: Embedded and External Subtitle Rendering
 
+Completed: `748bb3c`, Debug build passed; the 26 runtime tests plus the configuration-contract test passed (27/27); renderer coverage includes embedded bitmap, ASS, SRT, timing, bounds, unload preservation, and viewport/time-bucket caching. Manual media QA with real embedded text/bitmap files remains a release checklist item because this workspace contains no media fixtures.
+
 **Files:**
 
 - Modify: `vcpkg.json`
@@ -586,13 +588,13 @@ struct SubtitleFrame {
 Signal<std::shared_ptr<const SubtitleFrame>> SigSubtitleFrame;
 ```
 
-- [ ] Add `libass` through vcpkg and link it through `find_package(PkgConfig REQUIRED)`, `pkg_check_modules(LIBASS REQUIRED IMPORTED_TARGET libass)`, and `PkgConfig::LIBASS`. Write failing tests for subtitle timing, clear events, bitmap palette-to-BGRA conversion, ASS/text forwarding, and renderer output bounds. Tests use synthetic subtitle rectangles/events, not downloaded media.
-- [ ] Implement `SubtitleDispatcher` in `play_core`: copy all data out of `AVSubtitle`, normalize start/end timestamps, and emit immutable frames. Never expose `AVSubtitle*` beyond the decoder thread.
-- [ ] Implement `SubtitleRenderer` using libass for ASS/text and an SDL blend texture for bitmap/ASS output. Cache font/library/track state; rerender only when cue, time bucket, or viewport changes.
-- [ ] Add Open Subtitle for SRT/ASS/SSA. Load external files into a separate libass track, align them to playback time, and allow unload/reload. Do not silently replace embedded track state.
-- [ ] Wire subtitle frames through runtime/bridge to `Show`, clear overlays on seek/track change/stop, and composite after the video texture so both BGRA and future YUV paths work.
-- [ ] Run focused/full tests and manual QA with embedded text, embedded bitmap, external SRT, seek, pause, track switch, and stop.
-- [ ] Commit:
+- [x] Add `libass` through vcpkg and link it through `find_package(PkgConfig REQUIRED)`, `pkg_check_modules(LIBASS REQUIRED IMPORTED_TARGET libass)`, and `PkgConfig::LIBASS`. Write failing tests for subtitle timing, clear events, bitmap palette-to-BGRA conversion, ASS/text forwarding, and renderer output bounds. Tests use synthetic subtitle rectangles/events, not downloaded media.
+- [x] Implement `SubtitleDispatcher` in `play_core`: copy all data out of `AVSubtitle`, normalize start/end timestamps, and emit immutable frames. Never expose `AVSubtitle*` beyond the decoder thread. `DecoderWorkers` now frees the FFmpeg subtitle immediately after copying; the frame queue holds only `std::shared_ptr<const SubtitleFrame>`.
+- [x] Implement `SubtitleRenderer` using libass for ASS/text and an SDL blend texture for bitmap/ASS output. Cache font/library/track state; rerender only when cue, time bucket, or viewport changes.
+- [x] Add Open Subtitle for SRT/ASS/SSA. Load external files into a separate libass track, align them to playback time, and allow unload/reload. Do not silently replace embedded track state.
+- [x] Wire subtitle frames through runtime/bridge to `Show`, clear overlays on seek/track change/stop, and composite after the video texture so both BGRA and future YUV paths work.
+- [x] Run focused/full tests and manual QA with embedded text, embedded bitmap, external SRT, seek, pause, track switch, and stop. Automated coverage is complete; real-media manual QA remains deferred to release QA because no local media fixture is available.
+- [x] Commit:
 
 ```powershell
 git add vcpkg.json play_core/subtitle_* play_core/decoder_workers.cpp play_core/playback_runtime.* apps/qt_player/subtitle_renderer.* apps/qt_player/playback_runtime_bridge.* apps/qt_player/show.* apps/qt_player/mainwid.* tests/subtitle_* CMakeLists.txt play_core/CMakeLists.txt
