@@ -666,6 +666,7 @@ the_end:
 
 void VideoCtl::refresh_loop_wait_event(VideoState* is) {
 	double remaining_time = REFRESH_RATE;
+	applyPlaybackCommands();
 	if (is && is->session.stop_refresh_loop.exchange(false, std::memory_order_acq_rel)) {
 		m_bPlayLoop.store(false, std::memory_order_release);
 		return;
@@ -674,6 +675,61 @@ void VideoCtl::refresh_loop_wait_event(VideoState* is) {
 		video_refresh(is, &remaining_time);
 	if (remaining_time > 0.0)
 		av_usleep(static_cast<int64_t>(remaining_time * 1000000.0));
+}
+
+void VideoCtl::notifyPlaybackCommand()
+{
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (m_CurStream && m_CurStream->session.continue_read_thread)
+		SDL_CondSignal(m_CurStream->session.continue_read_thread);
+}
+
+void VideoCtl::applyTrackCommand(VideoState* state, const TrackCommand& command)
+{
+	if (!state || !state->session.ic)
+		return;
+
+	const int mediaType = command.kind == TrackKind::Audio ? AVMEDIA_TYPE_AUDIO : AVMEDIA_TYPE_SUBTITLE;
+	if (command.cycle) {
+		stream_cycle_channel(state, mediaType);
+		return;
+	}
+	if (!command.streamIndex || *command.streamIndex < 0 ||
+		*command.streamIndex >= static_cast<int>(state->session.ic->nb_streams) ||
+		state->session.ic->streams[*command.streamIndex]->codecpar->codec_type != mediaType)
+		return;
+
+	const int current = mediaType == AVMEDIA_TYPE_AUDIO ? state->audio.audio_stream : state->subtitle.subtitle_stream;
+	if (current == *command.streamIndex)
+		return;
+	if (current >= 0)
+		stream_component_close(state, current);
+	stream_component_open(state, *command.streamIndex);
+}
+
+void VideoCtl::applyPlaybackCommands()
+{
+	const PlaybackCommands commands = m_commandMailbox.take();
+	if (commands.pauseToggleCount % 2 != 0)
+		toggle_pause();
+
+	if (commands.seek) {
+		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+		if (m_CurStream)
+			stream_seek(commands.seek->position, commands.seek->relative);
+	}
+
+	if (!commands.tracks.empty()) {
+		std::unique_lock<std::shared_mutex> lock(m_streamMutex);
+		for (const auto& command : commands.tracks)
+			applyTrackCommand(m_CurStream, command);
+	}
+
+	if (commands.pauseToggleCount % 2 != 0) {
+		std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+		if (m_CurStream)
+			SigPauseStat(m_CurStream->session.paused != 0);
+	}
 }
 
 void VideoCtl::seek_chapter(VideoState* is, int incr)
@@ -745,6 +801,7 @@ void VideoCtl::LoopThread()
 		SigPlaybackStatus(PlaybackStatus{PlaybackState::Reconnecting, error, reconnectAttempt, source.network.maxReconnectAttempts, delay, RedactMediaLocation(source.location)});
 
 		{
+			m_commandMailbox.clear();
 			std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 			exitStream = m_mediaSession.release();
 			m_CurStream = nullptr;
@@ -778,32 +835,28 @@ void VideoCtl::LoopThread()
 
 void VideoCtl::OnPlaySeek(double dPercent)
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
-	{
-		return;
-	}
-	if (!m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo))
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream || !m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo))
 		return;
 	int64_t ts = dPercent * m_CurStream->session.ic->duration;
 	if (m_CurStream->session.ic->start_time != AV_NOPTS_VALUE)
 		ts += m_CurStream->session.ic->start_time;
-	stream_seek(ts, 0);
+	lock.unlock();
+	m_commandMailbox.postSeek({ts, 0, 0});
+	notifyPlaybackCommand();
 }
 
 void VideoCtl::OnPlaySeekSeconds(int seconds)
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
-	{
-		return;
-	}
-	if (!m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo))
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream || !m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo))
 		return;
 	int64_t ts = static_cast<int64_t>(seconds) * AV_TIME_BASE;
 	if (m_CurStream->session.ic->start_time != AV_NOPTS_VALUE)
 		ts += m_CurStream->session.ic->start_time;
-	stream_seek(ts, 0);
+	lock.unlock();
+	m_commandMailbox.postSeek({ts, 0, 0});
+	notifyPlaybackCommand();
 }
 
 void VideoCtl::OnPlayVolume(double dPercent)
@@ -818,11 +871,9 @@ void VideoCtl::OnPlayVolume(double dPercent)
 
 void VideoCtl::OnSeekForward()
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
-	{
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream || !m_CurStream->session.ic)
 		return;
-	}
 	double incr = 5.0;
 	double pos = MediaSync::get_master_clock(m_CurStream);
 	if (std::isnan(pos))
@@ -830,16 +881,16 @@ void VideoCtl::OnSeekForward()
 	pos += incr;
 	if (m_CurStream->session.ic->start_time != AV_NOPTS_VALUE && pos < m_CurStream->session.ic->start_time / (double)AV_TIME_BASE)
 		pos = m_CurStream->session.ic->start_time / (double)AV_TIME_BASE;
-	stream_seek((int64_t)(pos * AV_TIME_BASE), (int64_t)(incr * AV_TIME_BASE));
+	lock.unlock();
+	m_commandMailbox.postSeek({static_cast<int64_t>(pos * AV_TIME_BASE), static_cast<int64_t>(incr * AV_TIME_BASE), 0});
+	notifyPlaybackCommand();
 }
 
 void VideoCtl::OnSeekBack()
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
-	{
+	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
+	if (!m_CurStream || !m_CurStream->session.ic)
 		return;
-	}
 	double incr = -5.0;
 	double pos = MediaSync::get_master_clock(m_CurStream);
 	if (std::isnan(pos))
@@ -847,7 +898,9 @@ void VideoCtl::OnSeekBack()
 	pos += incr;
 	if (m_CurStream->session.ic->start_time != AV_NOPTS_VALUE && pos < m_CurStream->session.ic->start_time / (double)AV_TIME_BASE)
 		pos = m_CurStream->session.ic->start_time / (double)AV_TIME_BASE;
-	stream_seek((int64_t)(pos * AV_TIME_BASE), (int64_t)(incr * AV_TIME_BASE));
+	lock.unlock();
+	m_commandMailbox.postSeek({static_cast<int64_t>(pos * AV_TIME_BASE), static_cast<int64_t>(incr * AV_TIME_BASE), 0});
+	notifyPlaybackCommand();
 }
 
 void VideoCtl::UpdateVolume(int sign, double step)
@@ -926,18 +979,13 @@ void VideoCtl::OnSubVolume()
 
 void VideoCtl::OnPause()
 {
-	toggle_pause();
-	std::shared_lock<std::shared_mutex> lock(m_streamMutex);
-	if (m_CurStream == nullptr)
-	{
-
-		return;
-	}
-	SigPauseStat(m_CurStream->session.paused != 0);
+	m_commandMailbox.postPauseToggle();
+	notifyPlaybackCommand();
 }
 
 void VideoCtl::requestStop()
 {
+	m_commandMailbox.clear();
 	m_reconnectController.cancel();
 	m_bPlayLoop.store(false, std::memory_order_release);
 
@@ -980,18 +1028,14 @@ void VideoCtl::OnStopAndWait()
 
 void VideoCtl::OnCycleAudioTrack()
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (!m_CurStream)
-		return;
-	stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_AUDIO);
+	m_commandMailbox.postTrack({TrackKind::Audio, std::nullopt, true});
+	notifyPlaybackCommand();
 }
 
 void VideoCtl::OnCycleSubtitleTrack()
 {
-	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
-	if (!m_CurStream)
-		return;
-	stream_cycle_channel(m_CurStream, AVMEDIA_TYPE_SUBTITLE);
+	m_commandMailbox.postTrack({TrackKind::Subtitle, std::nullopt, true});
+	notifyPlaybackCommand();
 }
 
 VideoCtl::VideoCtl() :

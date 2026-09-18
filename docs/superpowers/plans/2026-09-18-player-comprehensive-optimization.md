@@ -350,6 +350,8 @@ git commit -m "fix: finish player menu and fullscreen controls"
 
 ### Task 8: Playback Command Mailbox
 
+Completed: `f964fc3`, Debug build passed and CTest passed 21/21, including the 500-iteration concurrent mailbox stress case.
+
 **Files:**
 
 - Create: `play_core/playback_command_mailbox.h`
@@ -383,13 +385,13 @@ public:
 };
 ```
 
-- [ ] Write failing tests for concurrent producers, pause-toggle parity, latest-seek-wins coalescing, ordered track commands, `take()` clearing, and stop-time `clear()`.
-- [ ] Implement the mailbox with one mutex. It stores commands only; it never touches `VideoState`.
-- [ ] Change UI-facing pause, seek, and track methods to post commands and signal the appropriate condition variable. The Qt thread must no longer call `stream_toggle_pause`, write seek fields, or close/open stream components.
-- [ ] Consume pause and track commands in the playback loop. Consume seek commands in `StreamReader` before `av_read_frame`. Preserve current controller methods as compatibility wrappers.
-- [ ] Clear pending commands during `StartPlay`, stop, reconnect session replacement, and destruction so commands cannot leak into a new media session.
-- [ ] Run focused/full tests plus a 500-iteration producer stress test.
-- [ ] Commit:
+- [x] Write failing tests for concurrent producers, pause-toggle parity, latest-seek-wins coalescing, ordered track commands, `take()` clearing, and stop-time `clear()`.
+- [x] Implement the mailbox with one mutex. It stores commands only; it never touches `VideoState`.
+- [x] Change UI-facing pause, seek, and track methods to post commands and signal the appropriate condition variable. The Qt thread must no longer call `stream_toggle_pause`, write seek fields, or close/open stream components.
+- [x] Consume pause and track commands in the playback loop. Seek requests are applied to the session mailbox consumed by `StreamReader` before `av_read_frame`. Preserve current controller methods as compatibility wrappers.
+- [x] Clear pending commands during `StartPlay`, stop, reconnect session replacement, and destruction so commands cannot leak into a new media session.
+- [x] Run focused/full tests plus a 500-iteration producer stress test.
+- [x] Commit:
 
 ```powershell
 git add play_core/playback_command_mailbox.* play_core/videoctl.* play_core/stream_reader.* play_core/CMakeLists.txt tests/playback_command_mailbox_tests.cpp CMakeLists.txt

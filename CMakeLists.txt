@@ -381,6 +381,16 @@ target_link_libraries(play_core_refactor_tests PRIVATE
 
 add_test(NAME play_core_refactor_tests COMMAND play_core_refactor_tests)
 
+add_executable(playback_command_mailbox_tests
+    tests/playback_command_mailbox_tests.cpp
+)
+
+target_link_libraries(playback_command_mailbox_tests PRIVATE
+    play_core
+)
+
+add_test(NAME playback_command_mailbox_tests COMMAND playback_command_mailbox_tests)
+
 add_executable(network_playback_tests
     tests/network_playback_tests.cpp
 )

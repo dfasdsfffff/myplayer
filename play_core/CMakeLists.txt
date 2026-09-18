@@ -9,6 +9,7 @@ add_library(play_core STATIC
     media_session.cpp
     network_input.cpp
     packet_queue.cpp
+    playback_command_mailbox.cpp
     playback_controller.cpp
     playback_controller_videoctl.cpp
     playback_runtime.cpp

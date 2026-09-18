@@ -21,6 +21,7 @@
 #include "enums.h"
 #include "media_source.h"
 #include "media_session.h"
+#include "playback_command_mailbox.h"
 #include "reconnect_controller.h"
 #include "renderer_dispatcher.h"
 #include "signal.h"
@@ -129,6 +130,9 @@ private:
 	void stream_toggle_pause();  // 移除参数，使用m_CurStream
 	void toggle_pause();  // 移除参数，使用m_CurStream
 	void step_to_next_frame();  // 移除参数，使用m_CurStream
+	void applyPlaybackCommands();
+	void notifyPlaybackCommand();
+	void applyTrackCommand(VideoState* state, const TrackCommand& command);
 private:
 
 	std::atomic_bool m_bPlayLoop{ false }; //刷新循环标志
@@ -151,6 +155,7 @@ private:
 
 	//播放刷新循环线程
 	std::thread m_tPlayLoopThread;
+	PlaybackCommandMailbox m_commandMailbox;
 
 	RendererDispatcher m_rendererDispatcher;
 
