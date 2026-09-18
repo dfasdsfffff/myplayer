@@ -233,13 +233,13 @@ bool MayPersistMediaLocation(const QString& location);
 QString SafeMediaLocationForDisplay(const QString& location);
 ```
 
-- [ ] Write failing tests covering URL userinfo, `token`, `access_token`, `auth`, `key`, `signature`, `sig`, and case-insensitive query keys. Public HTTP/RTSP URLs and local paths must remain persistable.
-- [ ] Change the production config root to `QStandardPaths::AppConfigLocation`. If no new config exists and the legacy application-directory INI exists, copy it once, load it, and record a migration version.
-- [ ] Before `beginWriteArray("playlist")` and `beginWriteArray("recent_files")`, remove the old group so deleted entries do not remain in the INI. Filter non-persistable URLs while preserving them in the current in-memory playlist.
-- [ ] Use `SafeMediaLocationForDisplay` for playlist text/tooltips and UI status. Change `StreamReader::PrintError` and codec-probing logs to log `RedactMediaLocation` instead of the raw filename/URL.
-- [ ] When exporting a playlist containing sensitive URLs, show a confirmation explaining they will be omitted; write only persistable entries. Unit-test the filtered output.
-- [ ] Run focused/full tests and inspect a temporary INI to confirm stale array entries and secret URLs are absent.
-- [ ] Commit:
+- [x] Write failing tests covering URL userinfo, `token`, `access_token`, `auth`, `key`, `signature`, `sig`, and case-insensitive query keys. Public HTTP/RTSP URLs and local paths must remain persistable.
+- [x] Change the production config root to `QStandardPaths::AppConfigLocation`. If no new config exists and the legacy application-directory INI exists, copy it once, load it, and record a migration version.
+- [x] Before `beginWriteArray("playlist")` and `beginWriteArray("recent_files")`, remove the old group so deleted entries do not remain in the INI. Filter non-persistable URLs while preserving them in the current in-memory playlist.
+- [x] Use `SafeMediaLocationForDisplay` for playlist text/tooltips and UI status. Change `StreamReader::PrintError` and codec-probing logs to log `RedactMediaLocation` instead of the raw filename/URL.
+- [x] When exporting a playlist containing sensitive URLs, show a confirmation explaining they will be omitted; write only persistable entries. Unit-test the filtered output.
+- [x] Run focused/full tests and inspect a temporary INI to confirm stale array entries and secret URLs are absent. Debug build passed; full CTest passed 17/17; `git diff --check` passed.
+- [x] Commit: `1be59ad fix: protect persisted media locations`, corrected by `acf52d8 fix: retain raw media locations safely` after task review.
 
 ```powershell
 git add apps/qt_player/media_location_privacy.* apps/qt_player/globalhelper.cpp apps/qt_player/playlist.cpp apps/qt_player/playlistfile.cpp play_core/stream_reader.cpp tests/media_location_privacy_tests.cpp CMakeLists.txt
