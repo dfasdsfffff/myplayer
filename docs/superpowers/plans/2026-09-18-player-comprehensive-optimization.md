@@ -315,6 +315,8 @@ git commit -m "fix: keep playlist navigation stable"
 
 ### Task 7: Menu Cleanup and Cancellable Full-Screen Controls
 
+Completed: `9197fe4`, offscreen menu/full-screen behavior test passed; Debug build passed; CTest passed 20/20; the fullscreen test enters an offscreen window, schedules hiding, and confirms returning to controls cancels it.
+
 **Files:**
 
 - Modify: `apps/qt_player/res/menu.json`
@@ -324,12 +326,12 @@ git commit -m "fix: keep playlist navigation stable"
 - Create: `tests/main_window_behavior_tests.cpp`
 - Modify: `CMakeLists.txt`
 
-- [ ] Add an offscreen Qt test that asserts every visible top-level menu action is enabled or owns a non-empty submenu, Audio/Subtitle appear once, and a pending full-screen hide is cancelled when the pointer returns to the control area.
-- [ ] Reduce `menu.json` to implemented actions: open file/link, recent files, playback controls, playlist, settings, audio tracks, subtitles, full screen, about, and exit. Remove capture/TV/DVD/Blu-ray/skin/filter placeholders.
-- [ ] Configure `stCtrlBarHideTimer` as a single-shot member, connect it once, and replace calls to static `QTimer::singleShot` with `start(FULLSCREEN_CTRLBAR_HIDE_DELAY)`. Stop it on mouse return and full-screen exit.
-- [ ] Fix the random-loop tooltip and initialize all control-bar state, including total duration, explicitly.
-- [ ] Run focused/full tests and a full-screen smoke test.
-- [ ] Commit:
+- [x] Add an offscreen Qt test that asserts every visible top-level menu action is enabled or owns a non-empty submenu, Audio/Subtitle appear once, and a pending full-screen hide is cancelled when the pointer returns to the control area.
+- [x] Reduce `menu.json` to implemented actions: open file/link, recent files, playback controls, playlist, settings, audio tracks, subtitles, full screen, about, and exit. Remove capture/TV/DVD/Blu-ray/skin/filter placeholders.
+- [x] Configure `stCtrlBarHideTimer` as a single-shot member, connect it once, and replace calls to static `QTimer::singleShot` with `start(FULLSCREEN_CTRLBAR_HIDE_DELAY)`. Stop it on mouse return and full-screen exit.
+- [x] Fix the random-loop tooltip and initialize all control-bar state, including total duration, explicitly.
+- [x] Run focused/full tests and an offscreen full-screen smoke test.
+- [x] Commit:
 
 ```powershell
 git add apps/qt_player/res/menu.json apps/qt_player/mainwid.* apps/qt_player/ctrlbar.cpp tests/main_window_behavior_tests.cpp CMakeLists.txt
