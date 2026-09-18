@@ -221,11 +221,14 @@ void StreamReader::Run(VideoState* state)
     if (streamIndexes[AVMEDIA_TYPE_SUBTITLE] >= 0)
         m_callbacks.openComponent(state, streamIndexes[AVMEDIA_TYPE_SUBTITLE]);
 
-    if (state->video.video_stream < 0 && state->audio.audio_stream < 0) {
-        av_log(nullptr, AV_LOG_FATAL, "Failed to open file '%s' or configure filtergraph\n",
-            RedactMediaLocation(state->session.filename ? state->session.filename : "").c_str());
-        ret = -1;
-        goto fail;
+    {
+        std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
+        if (state->video.video_stream < 0 && state->audio.audio_stream < 0) {
+            av_log(nullptr, AV_LOG_FATAL, "Failed to open file '%s' or configure filtergraph\n",
+                RedactMediaLocation(state->session.filename ? state->session.filename : "").c_str());
+            ret = -1;
+            goto fail;
+        }
     }
     m_callbacks.publishStatus(PlaybackStatus{PlaybackState::Playing, PlaybackError::None, 0,
         state->session.source.network.maxReconnectAttempts, {},
@@ -265,6 +268,7 @@ void StreamReader::Run(VideoState* state)
                 av_log(nullptr, AV_LOG_ERROR,
                     "%s: error while seeking\n", RedactMediaLocation(state->session.ic->url ? state->session.ic->url : "").c_str());
             } else {
+                std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
                 if (state->audio.audio_stream >= 0)
                     packet_queue_flush(&state->audio.audioq);
                 if (state->subtitle.subtitle_stream >= 0)
@@ -282,6 +286,7 @@ void StreamReader::Run(VideoState* state)
                 StepToNextFrame(state);
         }
         if (state->session.queue_attachments_req) {
+            std::shared_lock<std::shared_mutex> attachmentTrackLock(state->session.trackMutex);
             if (state->video.video_st && state->video.video_st->disposition & AV_DISPOSITION_ATTACHED_PIC) {
                 if ((ret = av_packet_ref(packet, &state->video.video_st->attached_pic)) < 0)
                     goto fail;
@@ -291,6 +296,7 @@ void StreamReader::Run(VideoState* state)
             state->session.queue_attachments_req = 0;
         }
 
+        std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
         if (!state->session.unlimitedBuffer &&
             (state->audio.audioq.size.load(std::memory_order_relaxed)
                 + state->video.videoq.size.load(std::memory_order_relaxed)
@@ -298,30 +304,36 @@ void StreamReader::Run(VideoState* state)
                 || (HasEnoughPackets(state->audio.audio_st, state->audio.audio_stream, &state->audio.audioq) &&
                     HasEnoughPackets(state->video.video_st, state->video.video_stream, &state->video.videoq) &&
                     HasEnoughPackets(state->subtitle.subtitle_st, state->subtitle.subtitle_stream, &state->subtitle.subtitleq)))) {
+            trackLock.unlock();
             WaitForReadSignal(state);
             continue;
         }
         if (!paused &&
             (!state->audio.audio_st || (state->audio.aud_decoder.finished == state->audio.audioq.serial.load(std::memory_order_acquire) && state->audio.sampq.nb_remaining() == 0)) &&
             (!state->video.video_st || (state->video.vid_decoder.finished == state->video.videoq.serial.load(std::memory_order_acquire) && state->video.pictq.nb_remaining() == 0))) {
+            trackLock.unlock();
             m_callbacks.handleEndOfMedia();
             continue;
         }
 
+        trackLock.unlock();
         state->session.io.begin(IoOperation::Reading, state->session.source.network.readTimeout);
         ret = av_read_frame(inputContext, packet);
         state->session.io.end();
         if (ret < 0) {
             state->session.readResult.store(ret, std::memory_order_release);
             state->session.readError.store(MapAvError(ret, state->session.realtime != 0), std::memory_order_release);
-            if ((ret == AVERROR_EOF || avio_feof(inputContext->pb)) && !state->session.eof) {
-                if (state->video.video_stream >= 0)
-                    packet_queue_put_nullpacket(&state->video.videoq, packet, state->video.video_stream);
-                if (state->audio.audio_stream >= 0)
-                    packet_queue_put_nullpacket(&state->audio.audioq, packet, state->audio.audio_stream);
-                if (state->subtitle.subtitle_stream >= 0)
-                    packet_queue_put_nullpacket(&state->subtitle.subtitleq, packet, state->subtitle.subtitle_stream);
-                state->session.eof = 1;
+            {
+                std::shared_lock<std::shared_mutex> eofTrackLock(state->session.trackMutex);
+                if ((ret == AVERROR_EOF || avio_feof(inputContext->pb)) && !state->session.eof) {
+                    if (state->video.video_stream >= 0)
+                        packet_queue_put_nullpacket(&state->video.videoq, packet, state->video.video_stream);
+                    if (state->audio.audio_stream >= 0)
+                        packet_queue_put_nullpacket(&state->audio.audioq, packet, state->audio.audio_stream);
+                    if (state->subtitle.subtitle_stream >= 0)
+                        packet_queue_put_nullpacket(&state->subtitle.subtitleq, packet, state->subtitle.subtitle_stream);
+                    state->session.eof = 1;
+                }
             }
             if (inputContext->pb && inputContext->pb->error)
                 break;
@@ -338,6 +350,7 @@ void StreamReader::Run(VideoState* state)
             av_q2d(inputContext->streams[packet->stream_index]->time_base) -
             (double)(0 != AV_NOPTS_VALUE ? 0 : 0) / 1000000
             <= ((double)AV_NOPTS_VALUE / 1000000);
+        std::shared_lock<std::shared_mutex> routingTrackLock(state->session.trackMutex);
         if (packet->stream_index == state->audio.audio_stream && packetInPlayRange) {
             packet_queue_put(&state->audio.audioq, packet);
         } else if (packet->stream_index == state->video.video_stream && packetInPlayRange

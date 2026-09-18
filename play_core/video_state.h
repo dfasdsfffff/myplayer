@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <shared_mutex>
 
 #include "av_types.h"
 #include "decoder.h"
@@ -15,6 +16,7 @@ struct SessionState {
     AVInputFormat* iformat = nullptr;
     // 由读取线程、播放循环和 UI 控制线程并发访问，使用原子变量消除数据竞争
     std::atomic<int> abort_request{0};
+    std::shared_mutex trackMutex;
     int force_refresh = 0;
     std::atomic<int> paused{0};
     int last_paused = 0;
@@ -31,9 +33,9 @@ struct SessionState {
     int eof = 0;
     std::atomic_bool stop_refresh_loop{false};
     char* filename = nullptr;
-    int last_video_stream = 0;
-    int last_audio_stream = 0;
-    int last_subtitle_stream = 0;
+    std::atomic<int> last_video_stream{0};
+    std::atomic<int> last_audio_stream{0};
+    std::atomic<int> last_subtitle_stream{0};
     SDL_mutex* read_wait_mutex = nullptr;
     SDL_cond* continue_read_thread = nullptr;
     MediaSource source;
@@ -61,7 +63,7 @@ struct AudioState {
 
     FrameQueue sampq;
     Decoder aud_decoder;
-    int audio_stream = 0;
+    std::atomic<int> audio_stream{0};
     double audio_clock = 0;
     int audio_clock_serial = 0;
     double audio_diff_cum = 0;
@@ -100,7 +102,7 @@ struct VideoTrackState {
     double frame_timer = 0;
     double frame_last_returned_time = 0;
     double frame_last_filter_delay = 0;
-    int video_stream = 0;
+    std::atomic<int> video_stream{0};
     AVStream* video_st = nullptr;
     PacketQueue videoq;
     double max_frame_duration = 0;
@@ -116,7 +118,7 @@ struct SubtitleState {
 
     FrameQueue subpq;
     Decoder sub_decoder;
-    int subtitle_stream = 0;
+    std::atomic<int> subtitle_stream{0};
     AVStream* subtitle_st = nullptr;
     PacketQueue subtitleq;
     SwsContext* sub_convert_ctx = nullptr;

@@ -401,6 +401,16 @@ target_link_libraries(clock_concurrency_tests PRIVATE
 
 add_test(NAME clock_concurrency_tests COMMAND clock_concurrency_tests)
 
+add_executable(track_switching_tests
+    tests/track_switching_tests.cpp
+)
+
+target_link_libraries(track_switching_tests PRIVATE
+    play_core
+)
+
+add_test(NAME track_switching_tests COMMAND track_switching_tests)
+
 add_executable(network_playback_tests
     tests/network_playback_tests.cpp
 )

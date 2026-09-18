@@ -10,6 +10,7 @@ namespace MediaSync {
 
 int get_master_sync_type(VideoState* is)
 {
+    std::shared_lock<std::shared_mutex> trackLock(is->session.trackMutex);
     if (is->clocks.av_sync_type == AV_SYNC_VIDEO_MASTER) {
         if (is->video.video_st)
             return AV_SYNC_VIDEO_MASTER;
@@ -37,6 +38,7 @@ double get_master_clock(VideoState* is)
 
 void check_external_clock_speed(VideoState* is)
 {
+    std::shared_lock<std::shared_mutex> trackLock(is->session.trackMutex);
     if ((is->video.video_stream >= 0 && is->video.videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES) ||
         (is->audio.audio_stream >= 0 && is->audio.audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES)) {
 		is->clocks.extclk.set_speed(FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->clocks.extclk.speed() - EXTERNAL_CLOCK_SPEED_STEP));

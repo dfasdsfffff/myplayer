@@ -121,6 +121,7 @@ void VideoCtl::stream_close(VideoState* is)
 	if (is->session.read_tid.joinable())
 		is->session.read_tid.join();
 
+	std::unique_lock<std::shared_mutex> trackLock(is->session.trackMutex);
 	/* close each stream */
 	if (is->session.ic) {
 		if (is->audio.audio_stream >= 0)
@@ -686,7 +687,10 @@ void VideoCtl::notifyPlaybackCommand()
 
 void VideoCtl::applyTrackCommand(VideoState* state, const TrackCommand& command)
 {
-	if (!state || !state->session.ic)
+	if (!state)
+		return;
+	std::unique_lock<std::shared_mutex> trackLock(state->session.trackMutex);
+	if (!state->session.ic)
 		return;
 
 	const int mediaType = command.kind == TrackKind::Audio ? AVMEDIA_TYPE_AUDIO : AVMEDIA_TYPE_SUBTITLE;
@@ -1043,6 +1047,7 @@ VideoCtl::VideoCtl() :
 	m_bPlayLoop(false),
 	m_streamReader(StreamReaderCallbacks{
 		[this](VideoState* state, int streamIndex) {
+			std::unique_lock<std::shared_mutex> trackLock(state->session.trackMutex);
 			return stream_component_open(state, streamIndex);
 		},
 		[this](const PlaybackStatus& status) {

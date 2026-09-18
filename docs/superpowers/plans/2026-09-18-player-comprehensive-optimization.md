@@ -445,11 +445,11 @@ git commit -m "fix: publish coherent playback clocks"
 - Create: `tests/track_switching_tests.cpp`
 - Modify: `CMakeLists.txt`
 
-- [ ] Add a deterministic concurrency test with a fake packet-routing loop holding a shared track guard while another thread requests replacement. Assert replacement waits, then atomically publishes the new indices/pointers.
-- [ ] Add `std::shared_mutex trackMutex` to session/track state. Packet routing, EOF null-packet dispatch, queue sufficiency checks, and refresh snapshots take a shared lock only while copying stable indices/pointers. Track close/open takes the exclusive lock.
-- [ ] Ensure decoder/audio device teardown completes before publishing replacement pointers. Do not hold the track lock while blocking on unrelated network reads.
-- [ ] Make stream index fields private to a small `TrackStateSnapshot` API or atomic where only the index is required. Eliminate unguarded reads found by `rg "audio_stream|video_stream|subtitle_stream" play_core`.
-- [ ] Run focused/full tests and a manual rapid audio/subtitle cycle while playing and stopping.
+- [x] Add a deterministic concurrency test with a fake packet-routing loop holding a shared track guard while another thread requests replacement. Assert replacement waits, then atomically publishes the new indices/pointers.
+- [x] Add `std::shared_mutex trackMutex` to session/track state. Packet routing, EOF null-packet dispatch, queue sufficiency checks, and refresh snapshots take a shared lock only while copying stable indices/pointers. Track close/open takes the exclusive lock.
+- [x] Ensure decoder/audio device teardown completes before publishing replacement pointers. Do not hold the track lock while blocking on unrelated network reads.
+- [x] Make stream index fields private to a small `TrackStateSnapshot` API or atomic where only the index is required. Eliminate unguarded reads found by `rg "audio_stream|video_stream|subtitle_stream" play_core`.
+- [x] Run focused/full tests and a manual rapid audio/subtitle cycle while playing and stopping. Focused `track_switching_tests` and the complete Debug CTest suite passed 23/23 on 2026-09-18; manual multi-track GUI validation remains a release-QA checklist item because this workspace has no suitable fixture.
 - [ ] Commit:
 
 ```powershell
