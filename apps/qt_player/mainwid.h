@@ -94,6 +94,8 @@ private:
     void OnCycleAudioTrack();
     void OnCycleSubtitleTrack();
     void OnVideoPlaySeconds(int seconds);
+    void OnPlaybackStatus(PlaybackStatus status);
+    void OnMediaInfo(MediaInfo info);
 
     void OnShowSettingWid();
 
@@ -151,6 +153,8 @@ private:
     QString m_pendingPlaybackFile;
     int m_pendingPlaybackSeconds = 0;
     bool m_playbackPositionDirty = false;
+    quint64 m_playbackGeneration = 0;
+    quint64 m_lastFinalErrorGeneration = 0;
     QTimer m_playbackPositionSaveTimer;
     bool m_bResizeDrag = false;
     bool m_bResizeCursorOverridden = false;

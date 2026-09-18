@@ -44,6 +44,7 @@ public:
     void OnVideopVolume(double dPercent);
     void OnPauseStat(bool bPaused);
     void OnStopFinished();
+    void SetSeekEnabled(bool enabled);
 private:
     void OnPlaySliderValueChanged();
     void OnVolumeSliderValueChanged();
@@ -81,5 +82,4 @@ private:
     int m_nTotalPlaySeconds;
     double m_dLastVolumePercent;
 };
-
 

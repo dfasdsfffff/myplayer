@@ -169,6 +169,12 @@ void CtrlBar::OnStopFinished()
 	ui->PlayOrPauseBtn->setToolTip("播放");
 }
 
+void CtrlBar::SetSeekEnabled(bool enabled)
+{
+	ui->PlaySlider->setEnabled(enabled);
+	ui->PlaySlider->setToolTip(enabled ? "拖动以定位" : "直播或不可定位媒体不支持定位");
+}
+
 void CtrlBar::OnPlaySliderValueChanged()
 {
 	// 计算当前播放进度百分比，并发出信号通知播放器调整播放位置

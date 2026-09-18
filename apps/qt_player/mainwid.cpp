@@ -43,6 +43,7 @@
 #include "globalhelper.h"
 #include "playback_controller.h"
 #include "playback_runtime.h"
+#include "playback_status_presenter.h"
 #include "enums.h"
 #include "playlistfile.h"
 
@@ -258,6 +259,14 @@ bool MainWid::ConnectSignalSlots()
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoFrame, ui->ShowWid, &Show::OnVideoFrame);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, &m_stTitle, &Title::OnStopFinished);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStartPlay, &m_stTitle, &Title::OnPlay);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPlaybackStatus, this, &MainWid::OnPlaybackStatus);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigMediaInfo, this, &MainWid::OnMediaInfo);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPlayMsg, this, [this](const QString& message) {
+		if (!message.contains("://") && !message.contains("token", Qt::CaseInsensitive))
+			statusBar()->showMessage(message);
+		else
+			statusBar()->showMessage("播放器报告了已隐藏的诊断信息");
+	});
 	// 播放完成，自动播放下一首
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPlayNextOne, &m_stPlaylist, &Playlist::OnForwardPlay);
 	//
@@ -683,6 +692,7 @@ void MainWid::OpenNetworkStream()
 
 void MainWid::OnPlayFile(QString strFileName)
 {
+	++m_playbackGeneration;
 	FlushPlaybackPosition();
 
 	if (IsNetworkMediaLocation(strFileName))
@@ -709,6 +719,25 @@ void MainWid::OnPlayFile(QString strFileName)
 				m_playbackController->seekSeconds(resumeSeconds);
 		});
 	}
+}
+
+void MainWid::OnPlaybackStatus(PlaybackStatus status)
+{
+	const StatusPresentation presentation = PresentPlaybackStatus(status);
+	statusBar()->showMessage(presentation.text);
+
+	if (presentation.kind != StatusPresentationKind::FinalError ||
+		m_lastFinalErrorGeneration == m_playbackGeneration) {
+		return;
+	}
+
+	m_lastFinalErrorGeneration = m_playbackGeneration;
+	QMessageBox::warning(this, "播放失败", presentation.text);
+}
+
+void MainWid::OnMediaInfo(MediaInfo info)
+{
+	ui->CtrlBarWid->SetSeekEnabled(info.seekable && !info.live);
 }
 
 void MainWid::OnOpenRecentFile()

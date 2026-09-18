@@ -83,6 +83,7 @@ set(SOURCE_FILES
     ${PLAYERDEMO_QT_APP_DIR}/show.cpp
     ${PLAYERDEMO_QT_APP_DIR}/title.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playback_status_presenter.cpp
 )
 
 set(UI_FILES
@@ -161,6 +162,22 @@ target_include_directories(playback_settings_tests PRIVATE
 add_test(NAME playback_settings_tests COMMAND playback_settings_tests)
 
 if(MYPLAYER_BUILD_QT_APP)
+add_executable(playback_status_presenter_tests
+    tests/playback_status_presenter_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playback_status_presenter.cpp
+)
+
+target_include_directories(playback_status_presenter_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+)
+
+target_link_libraries(playback_status_presenter_tests PRIVATE
+    play_core
+    Qt6::Core
+)
+
+add_test(NAME playback_status_presenter_tests COMMAND playback_status_presenter_tests)
+
 add_executable(playlistfile_tests
     tests/playlistfile_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
@@ -305,6 +322,7 @@ set_tests_properties(show_widget_tests PROPERTIES
 
 foreach(test_target IN ITEMS
         playback_settings_tests
+        playback_status_presenter_tests
         playlistfile_tests
         play_core_refactor_tests
         network_playback_tests
