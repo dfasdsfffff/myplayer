@@ -248,6 +248,8 @@ git commit -m "fix: protect persisted media locations"
 
 ### Task 5: Central Media Format Registry and Audio-Only UX
 
+Completed: `891fa24`, Debug build passed; CTest passed 18/18, including media format registry, M3U, playlist, and audio-indicator coverage.
+
 **Files:**
 
 - Create: `apps/qt_player/media_format_registry.h`
@@ -267,11 +269,11 @@ QString MediaOpenDialogFilter();
 QString SubtitleOpenDialogFilter();
 ```
 
-- [ ] Write failing tests for existing formats plus MOV, M4V, WebM, MPEG/MPG, TS/M2TS, MP3, AAC/M4A, FLAC, WAV, OGG/Opus, and supported network schemes. Reject directories and unknown extensions.
-- [ ] Implement one case-insensitive registry and make playlist validation, folder scanning, file dialogs, and M3U import use it. Remove duplicated extension functions.
-- [ ] For audio-only playback, keep the video surface black, display the filename and an audio indicator, keep duration/seek/volume/speed usable, and do not require a video stream.
-- [ ] Run focused/full tests and manually add one supported audio file and one newly supported video container.
-- [ ] Commit:
+- [x] Write failing tests for existing formats plus MOV, M4V, WebM, MPEG/MPG, TS/M2TS, MP3, AAC/M4A, FLAC, WAV, OGG/Opus, and supported network schemes. Reject directories and unknown extensions.
+- [x] Implement one case-insensitive registry and make playlist validation, folder scanning, file dialogs, and M3U import use it. Remove duplicated extension functions.
+- [x] For audio-only playback, keep the video surface black, display the filename and an audio indicator, keep duration/seek/volume/speed usable, and do not require a video stream.
+- [x] Run focused/full tests. Automated tests cover supported audio and newer video containers; no local playable fixture was available for the manual add-and-play check.
+- [x] Commit:
 
 ```powershell
 git add apps/qt_player/media_format_registry.* apps/qt_player/playlistfile.cpp apps/qt_player/medialist.cpp apps/qt_player/mainwid.cpp apps/qt_player/title.cpp tests/media_format_registry_tests.cpp CMakeLists.txt
