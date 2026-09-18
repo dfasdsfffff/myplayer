@@ -22,9 +22,12 @@ QString GlobalHelper::GetConfigFilePath()
     QDir().mkpath(configDir);
 	static const QString path = [] {
         const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-        const QString configFile = QDir(configDir).filePath(PLAYER_CONFIG);
-        const QString legacyFile = QDir(QCoreApplication::applicationDirPath()).filePath("config/" + PLAYER_CONFIG);
+		const QString configFile = QDir(configDir).filePath(PLAYER_CONFIG);
+		const QString legacyFile = QDir(QCoreApplication::applicationDirPath()).filePath("config/" + PLAYER_CONFIG);
 		if (!QFile::exists(configFile) && QFile::exists(legacyFile)) {
+			if (!QFile::copy(legacyFile, configFile))
+				return configFile;
+
 			QSettings legacy(legacyFile, QSettings::IniFormat);
 			QSettings migrated(configFile, QSettings::IniFormat);
 			for (const QString& key : legacy.allKeys()) {

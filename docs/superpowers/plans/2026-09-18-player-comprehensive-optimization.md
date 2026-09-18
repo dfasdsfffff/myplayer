@@ -45,6 +45,8 @@ Expected baseline at plan creation: Debug build succeeds and 10/10 tests pass. L
 - [ ] If baseline verification fails, stop plan execution and diagnose the failure with `superpowers:systematic-debugging`; do not hide it inside the next task.
 - [ ] Execute one task through its commit and update this plan. Continue only while context and verification evidence remain reliable.
 
+Session note (2026-09-18): baseline execution is blocked before Task 8. `globalhelper_privacy_tests` fails at the migration assertion (`legacy preferences must migrate to AppConfigLocation`) on the current tree, so Task 4's migration behavior is not verified despite its checked substeps. `cmake_configuration_tests` also fails in this environment because vcpkg cannot write `D:\ProgramData\vcpkg` and the nested MSBuild probe reports access denied. The aggregate CTest run reached all 20 registered tests but left the configuration-test process alive; no implementation changes were retained from this diagnostic session.
+
 ## Dependency Order
 
 Execute Tasks 1 through 20 in numeric order. Later tasks deliberately consume contracts introduced earlier (preferences, command mailbox, synchronized tracks, media metadata, subtitle events, and bounded frame delivery). Do not parallelize tasks that modify `VideoCtl`, `VideoState`, `MainWid`, `Show`, the root `CMakeLists.txt`, or this plan. A session may prepare review notes for a later task, but it must not implement that task before all earlier stage gates pass.
@@ -213,6 +215,8 @@ git commit -m "feat: implement persistent player settings"
 ```
 
 ### Task 4: Standard Config Location, Migration, and Secret-Safe Persistence
+
+Completed: `10550de`, migration now creates the destination INI before privacy-filtered rewrite; Debug build passed and CTest passed 20/20.
 
 **Files:**
 
