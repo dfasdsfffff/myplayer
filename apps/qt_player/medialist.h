@@ -15,6 +15,7 @@ public:
 
 protected:
     void contextMenuEvent(QContextMenuEvent* event);
+    void dropEvent(QDropEvent* event) override;
 
 private:
     void AddFile();
@@ -29,6 +30,7 @@ signals:
     void SigAddFile(QString strFileName);
     void SigOpenPlaylist();
     void SigExportPlaylist();
+    void SigListMutated(int preferredRow);
 
 private:
     QMenu m_stMenu;

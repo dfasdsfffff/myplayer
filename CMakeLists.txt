@@ -227,6 +227,37 @@ endif()
 add_test(NAME playlist_privacy_tests COMMAND playlist_privacy_tests)
 set_tests_properties(playlist_privacy_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+add_executable(playlist_navigation_tests
+    tests/playlist_navigation_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/medialist.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playlist.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playlist.ui
+    ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
+)
+
+target_include_directories(playlist_navigation_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+    ${PROJECT_SOURCE_DIR}/play_core
+)
+
+target_link_libraries(playlist_navigation_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+if(WIN32)
+    add_custom_command(TARGET playlist_navigation_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:playlist_navigation_tests>
+            $<TARGET_FILE_DIR:playlist_navigation_tests>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${MYPLAYER_QT_ROOT}/plugins/platforms"
+            "$<TARGET_FILE_DIR:playlist_navigation_tests>/platforms"
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+add_test(NAME playlist_navigation_tests COMMAND playlist_navigation_tests)
+set_tests_properties(playlist_navigation_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 add_executable(app_preferences_tests
     tests/app_preferences_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/app_preferences.cpp

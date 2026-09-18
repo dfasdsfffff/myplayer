@@ -60,6 +60,10 @@ public:
     void OnForwardPlay();
 	void OnRandomPlay();
 
+    QString currentLocation() const;
+    int rowForLocation(const QString& location) const;
+    QString adjacentLocation(int direction) const;
+
     /* 在这里定义dock的初始大小 */
     QSize sizeHint() const
     {
@@ -98,11 +102,12 @@ private slots:
 	void on_List_itemDoubleClicked(QListWidgetItem *item);
     void OnOpenPlaylist();
     void OnExportPlaylist();
+    void OnListMutated(int preferredRow);
 
 private:
     Ui::Playlist *ui;
 
-    int m_nCurrentPlayListIndex;
+    QString m_currentLocation;
 };
 
 

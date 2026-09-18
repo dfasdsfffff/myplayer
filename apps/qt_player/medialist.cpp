@@ -6,6 +6,8 @@
 #include <QFileInfo>
 #include <QMessageBox>
 
+#include <algorithm>
+
 #include "medialist.h"
 #include "media_format_registry.h"
 #include "playlistfile.h"
@@ -71,6 +73,12 @@ void MediaList::contextMenuEvent(QContextMenuEvent* event)
     event->accept();
 }
 
+void MediaList::dropEvent(QDropEvent* event)
+{
+    QListWidget::dropEvent(event);
+    emit SigListMutated(currentRow());
+}
+
 void MediaList::AddFile()
 {
     QStringList listFileName = QFileDialog::getOpenFileNames(this, "Open files", QDir::homePath(),
@@ -110,23 +118,41 @@ void MediaList::RemoveFile()
     const QList<QListWidgetItem*> selected = selectedItems();
     if (selected.isEmpty())
     {
-        delete takeItem(currentRow());
+        const int removedRow = currentRow();
+        if (removedRow >= 0)
+        {
+            delete takeItem(removedRow);
+            emit SigListMutated(removedRow);
+        }
         return;
     }
 
+    int firstRemovedRow = count();
     for (QListWidgetItem* item : selected)
+    {
+        firstRemovedRow = std::min(firstRemovedRow, row(item));
         delete takeItem(row(item));
+    }
+    emit SigListMutated(firstRemovedRow);
 }
 
 void MediaList::RemoveMissingFiles()
 {
+    int firstRemovedRow = count();
+    bool removedAny = false;
     for (int i = count() - 1; i >= 0; --i)
     {
         QListWidgetItem* item = this->item(i);
         const QString location = item->data(Qt::UserRole).toString();
         if (!PlaylistFile::IsNetworkStream(location) && !QFileInfo::exists(location))
+        {
+            firstRemovedRow = std::min(firstRemovedRow, i);
             delete takeItem(i);
+            removedAny = true;
+        }
     }
+    if (removedAny)
+        emit SigListMutated(firstRemovedRow);
 }
 
 void MediaList::ClearListWithConfirm()
@@ -136,5 +162,8 @@ void MediaList::ClearListWithConfirm()
 
     const auto result = QMessageBox::question(this, "Clear list", "Clear the playlist?");
     if (result == QMessageBox::Yes)
+    {
         clear();
+        emit SigListMutated(0);
+    }
 }

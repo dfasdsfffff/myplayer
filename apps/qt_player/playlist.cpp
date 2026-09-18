@@ -18,8 +18,7 @@
 
 Playlist::Playlist(QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::Playlist),
-    m_nCurrentPlayListIndex(0)
+    ui(new Ui::Playlist)
 {
     ui->setupUi(this);
 	
@@ -91,6 +90,8 @@ bool Playlist::ConnectSignalSlots()
     listRet.append(bRet);
     bRet = connect(ui->List, &MediaList::SigExportPlaylist, this, &Playlist::OnExportPlaylist);
     listRet.append(bRet);
+    bRet = connect(ui->List, &MediaList::SigListMutated, this, &Playlist::OnListMutated);
+    listRet.append(bRet);
 
 	for (bool bReturn : listRet)
 	{
@@ -105,9 +106,58 @@ bool Playlist::ConnectSignalSlots()
 
 void Playlist::on_List_itemDoubleClicked(QListWidgetItem *item)
 {
-	emit SigPlay(item->data(Qt::UserRole).toString());
-    m_nCurrentPlayListIndex = ui->List->row(item);
-    ui->List->setCurrentRow(m_nCurrentPlayListIndex);
+    if (!item)
+        return;
+
+    m_currentLocation = item->data(Qt::UserRole).toString();
+	emit SigPlay(m_currentLocation);
+    ui->List->setCurrentRow(ui->List->row(item));
+}
+
+QString Playlist::currentLocation() const
+{
+    return m_currentLocation;
+}
+
+int Playlist::rowForLocation(const QString& location) const
+{
+    QListWidgetItem* item = FindItemByLocation(location);
+    return item ? ui->List->row(item) : -1;
+}
+
+QString Playlist::adjacentLocation(int direction) const
+{
+    const int count = ui->List->count();
+    if (count == 0 || (direction != -1 && direction != 1))
+        return {};
+
+    int currentRow = rowForLocation(m_currentLocation);
+    if (currentRow < 0)
+        currentRow = std::clamp(ui->List->currentRow(), 0, count - 1);
+
+    const int adjacentRow = (currentRow + direction + count) % count;
+    return ui->List->item(adjacentRow)->data(Qt::UserRole).toString();
+}
+
+void Playlist::OnListMutated(int preferredRow)
+{
+    if (ui->List->count() == 0)
+    {
+        m_currentLocation.clear();
+        return;
+    }
+
+    const int currentRow = rowForLocation(m_currentLocation);
+    if (currentRow >= 0)
+    {
+        ui->List->setCurrentRow(currentRow);
+        return;
+    }
+
+    const int fallbackRow = std::clamp(preferredRow, 0, ui->List->count() - 1);
+    QListWidgetItem* fallback = ui->List->item(fallbackRow);
+    m_currentLocation = fallback->data(Qt::UserRole).toString();
+    ui->List->setCurrentRow(fallbackRow);
 }
 
 bool Playlist::GetPlaylistStatus()
@@ -208,40 +258,18 @@ QListWidgetItem* Playlist::AddFileItem(const QString& strFileName)
 
 void Playlist::OnBackwardPlay()
 {
-    if (ui->List->count() == 0)
+    const QString location = adjacentLocation(-1);
+    if (location.isEmpty())
         return;
-
-    if (m_nCurrentPlayListIndex == 0)
-    {
-        m_nCurrentPlayListIndex = ui->List->count() - 1;
-        on_List_itemDoubleClicked(ui->List->item(m_nCurrentPlayListIndex));
-        ui->List->setCurrentRow(m_nCurrentPlayListIndex);
-    }
-    else
-    {
-        m_nCurrentPlayListIndex--;
-        on_List_itemDoubleClicked(ui->List->item(m_nCurrentPlayListIndex));
-        ui->List->setCurrentRow(m_nCurrentPlayListIndex);
-    }
+    on_List_itemDoubleClicked(FindItemByLocation(location));
 }
 
 void Playlist::OnForwardPlay()
 {
-    if (ui->List->count() == 0)
+    const QString location = adjacentLocation(1);
+    if (location.isEmpty())
         return;
-
-    if (m_nCurrentPlayListIndex == ui->List->count() - 1)
-    {
-        m_nCurrentPlayListIndex = 0;
-        on_List_itemDoubleClicked(ui->List->item(m_nCurrentPlayListIndex));
-        ui->List->setCurrentRow(m_nCurrentPlayListIndex);
-    }
-    else
-    {
-        m_nCurrentPlayListIndex++;
-        on_List_itemDoubleClicked(ui->List->item(m_nCurrentPlayListIndex));
-        ui->List->setCurrentRow(m_nCurrentPlayListIndex);
-    }
+    on_List_itemDoubleClicked(FindItemByLocation(location));
 }
 
 void Playlist::OnRandomPlay()
@@ -252,8 +280,6 @@ void Playlist::OnRandomPlay()
     }
     int nRandomIndex = QRandomGenerator::global()->bounded(ui->List->count());
     on_List_itemDoubleClicked(ui->List->item(nRandomIndex));
-    m_nCurrentPlayListIndex = nRandomIndex;
-    ui->List->setCurrentRow(m_nCurrentPlayListIndex);
 }
 
 void Playlist::OnOpenPlaylist()
