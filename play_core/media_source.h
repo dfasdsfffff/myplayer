@@ -5,6 +5,12 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
+
+extern "C" {
+#include <libavutil/avutil.h>
+#include <libavutil/rational.h>
+}
 
 enum class RtspTransport {
     Tcp,
@@ -65,9 +71,24 @@ struct PlaybackStatus {
     std::string message;
 };
 
+struct TrackInfo {
+    int streamIndex{-1};
+    AVMediaType type{AVMEDIA_TYPE_UNKNOWN};
+    std::string language;
+    std::string title;
+    std::string codec;
+    bool isDefault{false};
+    bool isForced{false};
+};
+
 struct MediaInfo {
     bool networkSource{false};
     bool live{false};
     bool seekable{false};
     std::optional<std::chrono::milliseconds> duration;
+    std::vector<TrackInfo> tracks;
+    int width{0};
+    int height{0};
+    AVRational sampleAspectRatio{1, 1};
+    double rotationDegrees{0.0};
 };

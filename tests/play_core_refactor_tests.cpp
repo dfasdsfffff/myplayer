@@ -257,6 +257,9 @@ int main()
     VideoLoopPolicy lastLoopPolicy = LOOP_NONE;
     int cycleAudioTrackCount = 0;
     int cycleSubtitleTrackCount = 0;
+    int selectedAudioTrack = -1;
+    std::optional<int> selectedSubtitleTrack = 0;
+    int selectSubtitleTrackCount = 0;
     int addVolumeCount = 0;
     int subVolumeCount = 0;
 
@@ -277,6 +280,11 @@ int main()
         [&](VideoLoopPolicy policy) { lastLoopPolicy = policy; },
         [&]() { ++cycleAudioTrackCount; },
         [&]() { ++cycleSubtitleTrackCount; },
+        [&](int streamIndex) { selectedAudioTrack = streamIndex; },
+        [&](std::optional<int> streamIndex) {
+            selectedSubtitleTrack = streamIndex;
+            ++selectSubtitleTrackCount;
+        },
         [&]() { ++addVolumeCount; },
         [&]() { ++subVolumeCount; },
     });
@@ -305,6 +313,9 @@ int main()
     controller.setLoopPolicy(LOOP_SINGLE);
     controller.cycleAudioTrack();
     controller.cycleSubtitleTrack();
+    controller.selectAudioTrack(4);
+    controller.selectSubtitleTrack(7);
+    controller.selectSubtitleTrack(std::nullopt);
     controller.addVolume();
     controller.subVolume();
 
@@ -331,6 +342,11 @@ int main()
     if (!Expect(cycleAudioTrackCount == 1, "cycleAudioTrack should forward once"))
         return 1;
     if (!Expect(cycleSubtitleTrackCount == 1, "cycleSubtitleTrack should forward once"))
+        return 1;
+    if (!Expect(selectedAudioTrack == 4, "selectAudioTrack should forward the stream index"))
+        return 1;
+    if (!Expect(selectSubtitleTrackCount == 2 && !selectedSubtitleTrack,
+                "selectSubtitleTrack should forward selection and subtitle disable"))
         return 1;
     if (!Expect(addVolumeCount == 1, "addVolume should forward once"))
         return 1;

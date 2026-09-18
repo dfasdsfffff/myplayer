@@ -705,7 +705,14 @@ void VideoCtl::applyTrackCommand(VideoState* state, const TrackCommand& command)
 		stream_cycle_channel(state, mediaType);
 		return;
 	}
-	if (!command.streamIndex || *command.streamIndex < 0 ||
+	if (!command.streamIndex) {
+		if (mediaType == AVMEDIA_TYPE_SUBTITLE && state->subtitle.subtitle_stream >= 0) {
+			stream_component_close(state, state->subtitle.subtitle_stream);
+			state->session.last_subtitle_stream = -1;
+		}
+		return;
+	}
+	if (*command.streamIndex < 0 ||
 		*command.streamIndex >= static_cast<int>(state->session.ic->nb_streams) ||
 		state->session.ic->streams[*command.streamIndex]->codecpar->codec_type != mediaType)
 		return;
@@ -1046,6 +1053,18 @@ void VideoCtl::OnCycleAudioTrack()
 void VideoCtl::OnCycleSubtitleTrack()
 {
 	m_commandMailbox.postTrack({TrackKind::Subtitle, std::nullopt, true});
+	notifyPlaybackCommand();
+}
+
+void VideoCtl::OnSelectAudioTrack(int streamIndex)
+{
+	m_commandMailbox.postTrack({TrackKind::Audio, streamIndex, false});
+	notifyPlaybackCommand();
+}
+
+void VideoCtl::OnSelectSubtitleTrack(std::optional<int> streamIndex)
+{
+	m_commandMailbox.postTrack({TrackKind::Subtitle, streamIndex, false});
 	notifyPlaybackCommand();
 }
 

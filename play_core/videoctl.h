@@ -90,6 +90,8 @@ public:
 	void OnStopAndWait();
 	void OnCycleAudioTrack();
 	void OnCycleSubtitleTrack();
+	void OnSelectAudioTrack(int streamIndex);
+	void OnSelectSubtitleTrack(std::optional<int> streamIndex);
 
 private:
 	/**

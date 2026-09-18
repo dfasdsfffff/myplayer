@@ -9,6 +9,7 @@
 
 extern "C" {
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
 #include <libavutil/error.h>
 #include <libavutil/time.h>
 }
@@ -315,6 +316,30 @@ MediaInfo BuildMediaInfo(const MediaSource& source, AVFormatContext* formatConte
         if (formatContext->duration > 0 && !info.live)
             info.duration = std::chrono::milliseconds{formatContext->duration / 1000};
         info.seekable = !info.live && formatContext->pb && (formatContext->pb->seekable & AVIO_SEEKABLE_NORMAL);
+        for (unsigned int index = 0; index < formatContext->nb_streams; ++index) {
+            const AVStream* stream = formatContext->streams[index];
+            const AVCodecParameters* parameters = stream->codecpar;
+            if (parameters->codec_type == AVMEDIA_TYPE_VIDEO) {
+                info.width = parameters->width;
+                info.height = parameters->height;
+                if (stream->sample_aspect_ratio.num > 0 && stream->sample_aspect_ratio.den > 0)
+                    info.sampleAspectRatio = stream->sample_aspect_ratio;
+                continue;
+            }
+            if (parameters->codec_type != AVMEDIA_TYPE_AUDIO && parameters->codec_type != AVMEDIA_TYPE_SUBTITLE)
+                continue;
+            TrackInfo track;
+            track.streamIndex = static_cast<int>(index);
+            track.type = parameters->codec_type;
+            if (const AVDictionaryEntry* entry = av_dict_get(stream->metadata, "language", nullptr, 0))
+                track.language = entry->value;
+            if (const AVDictionaryEntry* entry = av_dict_get(stream->metadata, "title", nullptr, 0))
+                track.title = entry->value;
+            track.codec = avcodec_get_name(parameters->codec_id);
+            track.isDefault = (stream->disposition & AV_DISPOSITION_DEFAULT) != 0;
+            track.isForced = (stream->disposition & AV_DISPOSITION_FORCED) != 0;
+            info.tracks.push_back(std::move(track));
+        }
     } else {
         info.seekable = !info.live && !info.networkSource;
     }

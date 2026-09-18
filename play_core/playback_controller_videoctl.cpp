@@ -44,6 +44,12 @@ PlaybackController CreatePlaybackController(VideoCtl& ctl)
         [&ctl]() {
             ctl.OnCycleSubtitleTrack();
         },
+        [&ctl](int streamIndex) {
+            ctl.OnSelectAudioTrack(streamIndex);
+        },
+        [&ctl](std::optional<int> streamIndex) {
+            ctl.OnSelectSubtitleTrack(streamIndex);
+        },
         [&ctl]() {
             ctl.OnAddVolume();
         },

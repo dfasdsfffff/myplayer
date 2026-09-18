@@ -89,6 +89,18 @@ void PlaybackController::cycleSubtitleTrack()
         m_actions.cycleSubtitleTrack();
 }
 
+void PlaybackController::selectAudioTrack(int streamIndex)
+{
+    if (m_actions.selectAudioTrack)
+        m_actions.selectAudioTrack(streamIndex);
+}
+
+void PlaybackController::selectSubtitleTrack(std::optional<int> streamIndex)
+{
+    if (m_actions.selectSubtitleTrack)
+        m_actions.selectSubtitleTrack(streamIndex);
+}
+
 void PlaybackController::addVolume()
 {
     if (m_actions.addVolume)

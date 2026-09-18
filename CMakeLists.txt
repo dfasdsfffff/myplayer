@@ -411,6 +411,16 @@ target_link_libraries(track_switching_tests PRIVATE
 
 add_test(NAME track_switching_tests COMMAND track_switching_tests)
 
+add_executable(media_info_tests
+    tests/media_info_tests.cpp
+)
+
+target_link_libraries(media_info_tests PRIVATE
+    play_core
+)
+
+add_test(NAME media_info_tests COMMAND media_info_tests)
+
 add_executable(playback_lifecycle_stress_tests
     tests/playback_lifecycle_stress_tests.cpp
 )

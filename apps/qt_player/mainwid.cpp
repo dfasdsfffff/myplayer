@@ -758,6 +758,48 @@ void MainWid::OnPlaybackStatus(PlaybackStatus status)
 void MainWid::OnMediaInfo(MediaInfo info)
 {
 	ui->CtrlBarWid->SetSeekEnabled(info.seekable && !info.live);
+	if (!m_pAudioTracksMenu || !m_pSubtitleTracksMenu)
+		return;
+
+	m_pAudioTracksMenu->clear();
+	m_pSubtitleTracksMenu->clear();
+	auto addTrackAction = [this](QMenu* menu, const TrackInfo& track, bool subtitle) {
+		QString label = QString::fromUtf8(track.language.c_str());
+		const QString title = QString::fromUtf8(track.title.c_str());
+		const QString codec = QString::fromUtf8(track.codec.c_str());
+		if (!title.isEmpty())
+			label = label.isEmpty() ? title : label + " - " + title;
+		if (!codec.isEmpty())
+			label = label.isEmpty() ? codec : label + " (" + codec + ")";
+		if (label.isEmpty())
+			label = tr("流 #%1").arg(track.streamIndex);
+		QAction* action = menu->addAction(label);
+		action->setData(track.streamIndex);
+		action->setCheckable(true);
+		action->setChecked(track.isDefault);
+		connect(action, &QAction::triggered, this, [this, streamIndex = track.streamIndex, subtitle]() {
+			if (subtitle)
+				m_playbackController->selectSubtitleTrack(streamIndex);
+			else
+				m_playbackController->selectAudioTrack(streamIndex);
+		});
+	};
+
+	QAction* disableSubtitles = m_pSubtitleTracksMenu->addAction(tr("关闭字幕"));
+	disableSubtitles->setCheckable(true);
+	connect(disableSubtitles, &QAction::triggered, this, [this]() {
+		m_playbackController->selectSubtitleTrack(std::nullopt);
+	});
+	bool subtitleSelected = false;
+	for (const TrackInfo& track : info.tracks) {
+		if (track.type == AVMEDIA_TYPE_AUDIO)
+			addTrackAction(m_pAudioTracksMenu, track, false);
+		else if (track.type == AVMEDIA_TYPE_SUBTITLE) {
+			addTrackAction(m_pSubtitleTracksMenu, track, true);
+			subtitleSelected = subtitleSelected || track.isDefault;
+		}
+	}
+	disableSubtitles->setChecked(!subtitleSelected);
 }
 
 void MainWid::OnOpenRecentFile()
@@ -858,11 +900,9 @@ void MainWid::InitMenu()
 	m_pRecentFilesMenu = m_stMenu.addMenu("最近打开");
 	RefreshRecentFilesMenu();
 
-	QMenu* audioMenu = m_stMenu.addMenu("音轨");
-	audioMenu->addAction("切换音轨", this, &MainWid::OnCycleAudioTrack);
-
-	QMenu* subtitleMenu = m_stMenu.addMenu("字幕");
-	subtitleMenu->addAction("切换/关闭字幕", this, &MainWid::OnCycleSubtitleTrack);
+	m_pAudioTracksMenu = m_stMenu.addMenu("音轨");
+	m_pSubtitleTracksMenu = m_stMenu.addMenu("字幕");
+	OnMediaInfo(MediaInfo{});
 }
 
 void MainWid::MenuJsonParser(QJsonObject& json_obj, QMenu* menu)

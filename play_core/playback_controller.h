@@ -22,6 +22,8 @@ public:
         std::function<void(VideoLoopPolicy)> setLoopPolicy;
         std::function<void()> cycleAudioTrack;
         std::function<void()> cycleSubtitleTrack;
+        std::function<void(int)> selectAudioTrack;
+        std::function<void(std::optional<int>)> selectSubtitleTrack;
         std::function<void()> addVolume;
         std::function<void()> subVolume;
     };
@@ -42,6 +44,8 @@ public:
     void setLoopPolicy(VideoLoopPolicy policy);
     void cycleAudioTrack();
     void cycleSubtitleTrack();
+    void selectAudioTrack(int streamIndex);
+    void selectSubtitleTrack(std::optional<int> streamIndex);
     void addVolume();
     void subVolume();
 

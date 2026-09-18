@@ -50,6 +50,12 @@ QAction* FindTopLevelAction(QMenu* menu, const QString& text)
     return nullptr;
 }
 
+QMenu* FindSubMenu(QMenu* menu, const QString& text)
+{
+    QAction* action = FindTopLevelAction(menu, text);
+    return action ? action->menu() : nullptr;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -79,7 +85,9 @@ int main(int argc, char* argv[])
     {
         if (action->menu())
         {
-            if (!Expect(!action->menu()->actions().isEmpty(), "top-level submenus are non-empty"))
+            const QString text = action->text().section('\t', 0, 0);
+            if (!Expect(!action->menu()->actions().isEmpty() || text == QStringLiteral("音轨") || text == QStringLiteral("字幕"),
+                    "non-track top-level submenus are non-empty"))
                 return 1;
         }
         else if (!Expect(action->isEnabled(), "top-level leaf actions are enabled"))
@@ -92,6 +100,28 @@ int main(int argc, char* argv[])
         subtitleMenus += text == QStringLiteral("字幕");
     }
     if (!Expect(audioMenus == 1 && subtitleMenus == 1, "audio and subtitle menus appear exactly once"))
+        return 1;
+
+    auto* bridge = window.findChild<PlaybackRuntimeBridge*>();
+    QMenu* audioMenu = FindSubMenu(menu, QStringLiteral("音轨"));
+    QMenu* subtitleMenu = FindSubMenu(menu, QStringLiteral("字幕"));
+    if (!Expect(bridge && audioMenu && subtitleMenu, "track menus receive runtime media information"))
+        return 1;
+
+    MediaInfo mediaInfo;
+    mediaInfo.tracks = {
+        TrackInfo{3, AVMEDIA_TYPE_AUDIO, "eng", "English", "aac", true, false},
+        TrackInfo{8, AVMEDIA_TYPE_SUBTITLE, "zho", "中文字幕", "ass", false, false},
+    };
+    bridge->SigMediaInfo(mediaInfo);
+    app.processEvents();
+    if (!Expect(audioMenu->actions().size() == 1 && audioMenu->actions().front()->isCheckable() &&
+                    audioMenu->actions().front()->isChecked() && audioMenu->actions().front()->data() == 3,
+                "audio menu exposes checked stream-index action") ||
+        !Expect(subtitleMenu->actions().size() == 2 && subtitleMenu->actions().front()->text() == QStringLiteral("关闭字幕") &&
+                    subtitleMenu->actions().at(1)->text() == QStringLiteral("zho - 中文字幕 (ass)") &&
+                    subtitleMenu->actions().at(1)->isCheckable() && subtitleMenu->actions().at(1)->data() == 8,
+                "subtitle menu exposes disable and stream-index actions"))
         return 1;
 
     auto* ctrlBarState = window.findChild<CtrlBar*>(QStringLiteral("CtrlBarWid"));

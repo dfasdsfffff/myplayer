@@ -149,6 +149,8 @@ private:
 
     QMenu m_stMenu;
     QMenu* m_pRecentFilesMenu = nullptr;
+    QMenu* m_pAudioTracksMenu = nullptr;
+    QMenu* m_pSubtitleTracksMenu = nullptr;
     QAction m_stActFullscreen;
     QString m_currentPlayFile;
     int m_currentPlaySeconds = 0;
