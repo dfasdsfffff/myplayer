@@ -50,6 +50,11 @@ int main()
     if (!Expect(showCpp.find("QPalette::Window") != std::string::npos,
             "video surface should configure an explicit window background color"))
         return 1;
+    if (!Expect(showCpp.find("ShowAudioOnly") != std::string::npos
+                && showCpp.find("正在播放音频") != std::string::npos
+                && showCpp.find("ui->label->setText") != std::string::npos,
+            "audio-only playback should keep a black surface with a filename indicator"))
+        return 1;
     if (!Expect(mainWidH.find("OpenNetworkStream") != std::string::npos,
             "main window should expose an open network stream action"))
         return 1;

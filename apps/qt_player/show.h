@@ -87,6 +87,8 @@ public:
     */
     void OnPlay(QString strFile);
     void OnStopFinished();
+    void ShowAudioOnly(const QString& location);
+    void ClearAudioOnlyIndicator();
 
     /**
      * @brief	调整显示画面的宽高，使画面保持原比例
@@ -153,6 +155,7 @@ private:
     QMenu m_stMenu;
     QActionGroup m_stActionGroup;
     PlaybackController* m_playbackController = nullptr;
+    bool m_audioOnlyActive = false;
 };
 
 

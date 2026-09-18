@@ -53,10 +53,14 @@ int main(int argc, char* argv[])
     const QString first = dir.filePath("001. Project Overview.mp4");
     const QString second = dir.filePath("002. Demo Show.mp4");
     const QString third = dir.filePath("003. Relative Video.avi");
+    const QString audio = dir.filePath("004. Audio Track.m4a");
+    const QString newerContainer = dir.filePath("005. Newer Container.m4v");
 
     if (!Expect(TouchFile(first), "create first media file") ||
         !Expect(TouchFile(second), "create second media file") ||
-        !Expect(TouchFile(third), "create third media file"))
+        !Expect(TouchFile(third), "create third media file") ||
+        !Expect(TouchFile(audio), "create audio file") ||
+        !Expect(TouchFile(newerContainer), "create newer container file"))
         return 1;
 
     const QString standardM3u = dir.filePath("standard.m3u8");
@@ -71,15 +75,19 @@ int main(int argc, char* argv[])
             "#EXTINF:20,Second\n"
             "file:///" + QDir::toNativeSeparators(second).replace("\\", "/") + "\n"
             "#EXTINF:-1,Network\n" +
-            networkStream + "\n"),
+            networkStream + "\n"
+            "004. Audio Track.m4a\n"
+            "005. Newer Container.m4v\n"),
             "write standard m3u"))
         return 1;
 
     QStringList parsed = PlaylistFile::ReadM3u(standardM3u);
-    if (!Expect(parsed.size() == 3, "standard m3u should parse files and network streams") ||
+    if (!Expect(parsed.size() == 5, "standard m3u should parse audio, newer containers, and network streams") ||
         !Expect(parsed.at(0) == QFileInfo(first).canonicalFilePath(), "first standard path") ||
         !Expect(parsed.at(1) == QFileInfo(second).canonicalFilePath(), "second standard file url") ||
-        !Expect(parsed.at(2) == networkStream, "network stream path"))
+        !Expect(parsed.at(2) == networkStream, "network stream path") ||
+        !Expect(parsed.at(3) == QFileInfo(audio).canonicalFilePath(), "audio path") ||
+        !Expect(parsed.at(4) == QFileInfo(newerContainer).canonicalFilePath(), "newer container path"))
         return 1;
 
     const QString vlcM3u = dir.filePath("vlc.m3u");

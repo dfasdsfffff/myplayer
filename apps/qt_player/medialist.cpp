@@ -7,20 +7,8 @@
 #include <QMessageBox>
 
 #include "medialist.h"
+#include "media_format_registry.h"
 #include "playlistfile.h"
-
-namespace {
-bool IsSupportedMovieFile(const QString& fileName)
-{
-    return fileName.endsWith(".mkv", Qt::CaseInsensitive) ||
-        fileName.endsWith(".rmvb", Qt::CaseInsensitive) ||
-        fileName.endsWith(".mp4", Qt::CaseInsensitive) ||
-        fileName.endsWith(".avi", Qt::CaseInsensitive) ||
-        fileName.endsWith(".flv", Qt::CaseInsensitive) ||
-        fileName.endsWith(".wmv", Qt::CaseInsensitive) ||
-        fileName.endsWith(".3gp", Qt::CaseInsensitive);
-}
-}
 
 MediaList::MediaList(QWidget *parent)
     : QListWidget(parent),
@@ -86,7 +74,7 @@ void MediaList::contextMenuEvent(QContextMenuEvent* event)
 void MediaList::AddFile()
 {
     QStringList listFileName = QFileDialog::getOpenFileNames(this, "Open files", QDir::homePath(),
-        "Video files (*.mkv *.rmvb *.mp4 *.avi *.flv *.wmv *.3gp)");
+        MediaOpenDialogFilter());
 
     for (const QString& strFileName : listFileName)
         emit SigAddFile(strFileName);
@@ -102,7 +90,7 @@ void MediaList::AddFolder()
     while (it.hasNext())
     {
         const QString filePath = it.next();
-        if (IsSupportedMovieFile(filePath))
+        if (IsSupportedMediaLocation(filePath))
             emit SigAddFile(filePath);
     }
 }

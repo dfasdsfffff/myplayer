@@ -1,4 +1,5 @@
 #include "playlistfile.h"
+#include "media_format_registry.h"
 #include "media_location_privacy.h"
 
 #include <QDir>
@@ -11,21 +12,12 @@
 
 bool PlaylistFile::IsNetworkStream(const QString& location)
 {
-    const QUrl url(location);
-    const QString scheme = url.scheme().toLower();
-    return scheme == "http" || scheme == "https" || scheme == "rtsp" || scheme == "rtp" || scheme == "udp";
+    return IsSupportedNetworkMediaLocation(location);
 }
 
 bool PlaylistFile::IsSupportedMovie(const QString& fileName)
 {
-    return IsNetworkStream(fileName) ||
-        fileName.endsWith(".mkv", Qt::CaseInsensitive) ||
-        fileName.endsWith(".rmvb", Qt::CaseInsensitive) ||
-        fileName.endsWith(".mp4", Qt::CaseInsensitive) ||
-        fileName.endsWith(".avi", Qt::CaseInsensitive) ||
-        fileName.endsWith(".flv", Qt::CaseInsensitive) ||
-        fileName.endsWith(".wmv", Qt::CaseInsensitive) ||
-        fileName.endsWith(".3gp", Qt::CaseInsensitive);
+    return IsSupportedMediaLocation(fileName);
 }
 
 QStringList PlaylistFile::ReadM3u(const QString& playlistFileName)

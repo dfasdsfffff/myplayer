@@ -16,6 +16,7 @@
 #include <QFileDialog>
 
 #include "title.h"
+#include "media_format_registry.h"
 #include "ui_title.h"
 
 #include "globalhelper.h"
@@ -91,7 +92,7 @@ bool Title::InitUi()
 void Title::OpenFile()
 {
     QString strFileName = QFileDialog::getOpenFileName(this, "打开文件", QDir::homePath(), 
-        "视频文件(*.mkv *.rmvb *.mp4 *.avi *.flv *.wmv *.3gp)");
+        MediaOpenDialogFilter());
 
     emit SigOpenFile(strFileName);
 }

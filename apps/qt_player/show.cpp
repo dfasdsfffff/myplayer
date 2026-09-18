@@ -10,6 +10,7 @@
  */
 
 #include <QDebug>
+#include <QFileInfo>
 #include <QPalette>
 #include <mutex>
 #include <utility>
@@ -88,6 +89,7 @@ void Show::OnVideoFrame(std::shared_ptr<VideoFrame> frame)
     if (!frame || frame->bgra.empty() || frame->width <= 0 || frame->height <= 0)
         return;
 
+    ClearAudioOnlyIndicator();
     m_currentFrame = std::move(frame);
     RenderCurrentFrame();
 }
@@ -317,8 +319,29 @@ void Show::OnPlay(QString strFile)
 void Show::OnStopFinished()
 {
     m_currentFrame.reset();
+    ClearAudioOnlyIndicator();
     ClearVideoSurface();
     update();
+}
+
+void Show::ShowAudioOnly(const QString& location)
+{
+    m_currentFrame.reset();
+    m_nLastFrameWidth = 0;
+    m_nLastFrameHeight = 0;
+    m_audioOnlyActive = true;
+    DestroySdlRenderer();
+    ChangeShow();
+    ui->label->setText(QString("%1\n正在播放音频").arg(QFileInfo(location).fileName()));
+}
+
+void Show::ClearAudioOnlyIndicator()
+{
+    if (!m_audioOnlyActive)
+        return;
+
+    m_audioOnlyActive = false;
+    ui->label->clear();
 }
 
 void Show::OnTimerShowCursorUpdate()

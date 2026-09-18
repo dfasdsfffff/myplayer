@@ -60,6 +60,7 @@ set(HEADER_FILES
     ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.h
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.h
     ${PLAYERDEMO_QT_APP_DIR}/mainwid.h
+    ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.h
     ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.h
     ${PLAYERDEMO_QT_APP_DIR}/medialist.h
     ${PLAYERDEMO_QT_APP_DIR}/playlist.h
@@ -79,6 +80,7 @@ set(SOURCE_FILES
     ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.cpp
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
     ${PLAYERDEMO_QT_APP_DIR}/mainwid.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.cpp
     ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
     ${PLAYERDEMO_QT_APP_DIR}/medialist.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlist.cpp
@@ -197,6 +199,7 @@ add_executable(playlist_privacy_tests
     tests/playlist_privacy_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
     ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.cpp
     ${PLAYERDEMO_QT_APP_DIR}/medialist.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlist.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlist.ui
@@ -209,6 +212,18 @@ target_include_directories(playlist_privacy_tests PRIVATE
 )
 
 target_link_libraries(playlist_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+if(WIN32)
+    get_filename_component(MYPLAYER_QT_ROOT "${Qt6_DIR}/../../.." ABSOLUTE)
+    add_custom_command(TARGET playlist_privacy_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:playlist_privacy_tests>
+            $<TARGET_FILE_DIR:playlist_privacy_tests>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${MYPLAYER_QT_ROOT}/plugins/platforms"
+            "$<TARGET_FILE_DIR:playlist_privacy_tests>/platforms"
+        COMMAND_EXPAND_LISTS
+    )
+endif()
 add_test(NAME playlist_privacy_tests COMMAND playlist_privacy_tests)
 set_tests_properties(playlist_privacy_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
@@ -277,9 +292,30 @@ target_link_libraries(playback_status_presenter_tests PRIVATE
 
 add_test(NAME playback_status_presenter_tests COMMAND playback_status_presenter_tests)
 
+add_executable(media_format_registry_tests
+    tests/media_format_registry_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.cpp
+)
+
+target_include_directories(media_format_registry_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+)
+
+target_link_libraries(media_format_registry_tests PRIVATE Qt6::Core)
+if(WIN32)
+    add_custom_command(TARGET media_format_registry_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:media_format_registry_tests>
+            $<TARGET_FILE_DIR:media_format_registry_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+add_test(NAME media_format_registry_tests COMMAND media_format_registry_tests)
+
 add_executable(playlistfile_tests
     tests/playlistfile_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.cpp
     ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
 )
 
@@ -428,6 +464,7 @@ foreach(test_target IN ITEMS
         app_preferences_tests
         setting_widget_tests
         playback_status_presenter_tests
+        media_format_registry_tests
         playlistfile_tests
         play_core_refactor_tests
         network_playback_tests

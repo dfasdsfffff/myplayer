@@ -46,6 +46,7 @@
 #include "playback_runtime.h"
 #include "playback_status_presenter.h"
 #include "enums.h"
+#include "media_format_registry.h"
 #include "playlistfile.h"
 
 const int FULLSCREEN_CTRLBAR_HIDE_DELAY = 2000; // 控制面板隐藏延迟（毫秒）
@@ -68,7 +69,7 @@ static bool IsResizeEdge(int edges)
 
 static bool IsNetworkMediaLocation(const QString& location)
 {
-	return PlaylistFile::IsNetworkStream(location);
+    return IsSupportedNetworkMediaLocation(location);
 }
 
 MainWid::MainWid(QMainWindow* parent) :
@@ -673,7 +674,7 @@ void MainWid::OnShowAbout()
 void MainWid::OpenFile()
 {
 	QString strFileName = QFileDialog::getOpenFileName(this, "打开文件", QDir::homePath(),
-		"视频文件(*.mkv *.rmvb *.mp4 *.avi *.flv *.wmv *.3gp)");
+		MediaOpenDialogFilter());
 
 	if (!strFileName.isEmpty())
 		emit SigOpenFile(strFileName);
@@ -716,6 +717,10 @@ void MainWid::OnPlayFile(QString strFileName)
 	AddRecentFile(strFileName);
 	m_currentPlayFile = QFileInfo(strFileName).canonicalFilePath();
 	m_currentPlaySeconds = 0;
+	if (IsAudioOnlyMediaLocation(strFileName))
+		ui->ShowWid->ShowAudioOnly(strFileName);
+	else
+		ui->ShowWid->ClearAudioOnlyIndicator();
 	ui->ShowWid->OnPlay(strFileName);
 
 	const int resumeSeconds = GlobalHelper::GetPlaybackPosition(m_currentPlayFile);
