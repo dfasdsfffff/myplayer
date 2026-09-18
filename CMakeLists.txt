@@ -426,6 +426,26 @@ target_link_libraries(media_info_tests PRIVATE
 
 add_test(NAME media_info_tests COMMAND media_info_tests)
 
+add_executable(video_geometry_tests
+    tests/video_geometry_tests.cpp
+)
+
+target_link_libraries(video_geometry_tests PRIVATE
+    play_core
+)
+
+add_test(NAME video_geometry_tests COMMAND video_geometry_tests)
+
+add_executable(resume_policy_tests
+    tests/resume_policy_tests.cpp
+)
+
+target_link_libraries(resume_policy_tests PRIVATE
+    play_core
+)
+
+add_test(NAME resume_policy_tests COMMAND resume_policy_tests)
+
 add_executable(subtitle_dispatcher_tests
     tests/subtitle_dispatcher_tests.cpp
 )
@@ -620,6 +640,8 @@ foreach(test_target IN ITEMS
         playback_status_presenter_tests
         media_format_registry_tests
         playlistfile_tests
+        video_geometry_tests
+        resume_policy_tests
         play_core_refactor_tests
         network_playback_tests
         reconnect_controller_tests
@@ -628,6 +650,8 @@ foreach(test_target IN ITEMS
         stream_reader_tests
         audio_output_tests
         show_widget_tests
+        subtitle_dispatcher_tests
+        subtitle_renderer_tests
         main_window_behavior_tests)
     if(TARGET ${test_target})
         myplayer_enable_warnings(${test_target})

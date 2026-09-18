@@ -93,6 +93,7 @@ void Show::OnVideoFrame(std::shared_ptr<VideoFrame> frame)
 
     ClearAudioOnlyIndicator();
     m_currentFrame = std::move(frame);
+    ChangeShow();
     RenderCurrentFrame();
 }
 
@@ -142,24 +143,14 @@ void Show::ChangeShow()
     }
     else
     {
-        float aspect_ratio;
-        int width, height, x, y;
         int scr_width = this->width();
         int scr_height = this->height();
-
-        aspect_ratio = (float)m_nLastFrameWidth / (float)m_nLastFrameHeight;
-
-        height = scr_height;
-        width = lrint(height * aspect_ratio) & ~1;
-        if (width > scr_width)
-        {
-            width = scr_width;
-            height = lrint(width / aspect_ratio) & ~1;
-        }
-        x = (scr_width - width) / 2;
-        y = (scr_height - height) / 2;
-
-        ui->label->setGeometry(x, y, width, height);
+        const int frameWidth = m_currentFrame ? m_currentFrame->width : m_nLastFrameWidth;
+        const int frameHeight = m_currentFrame ? m_currentFrame->height : m_nLastFrameHeight;
+        const AVRational sar = m_currentFrame ? m_currentFrame->sampleAspectRatio : AVRational{1, 1};
+        const double rotation = m_currentFrame ? m_currentFrame->rotationDegrees : 0.0;
+        const VideoDisplayRect display = ComputeVideoDisplayRect(frameWidth, frameHeight, sar, rotation, scr_width, scr_height);
+        ui->label->setGeometry(display.x, display.y, display.width, display.height);
     }
 }
 

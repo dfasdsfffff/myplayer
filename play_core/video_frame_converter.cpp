@@ -20,6 +20,13 @@ std::shared_ptr<VideoFrame> VideoFrameConverter::convert(const AVFrame* source)
 	frame->width = source->width;
 	frame->height = source->height;
 	frame->bytesPerLine = frame->width * 4;
+	frame->sampleAspectRatio = (source->sample_aspect_ratio.num > 0 && source->sample_aspect_ratio.den > 0)
+		? source->sample_aspect_ratio : AVRational{1, 1};
+	frame->colorSpace = source->colorspace;
+	frame->colorRange = source->color_range;
+	frame->rotationDegrees = 0.0;
+	if (const AVFrameSideData* displayMatrix = av_frame_get_side_data(source, AV_FRAME_DATA_DISPLAYMATRIX))
+		frame->rotationDegrees = -av_display_rotation_get(reinterpret_cast<const int32_t*>(displayMatrix->data));
 	frame->bgra.resize(static_cast<std::size_t>(frame->bytesPerLine) * frame->height);
 
 	m_context = sws_getCachedContext(m_context,
@@ -27,6 +34,14 @@ std::shared_ptr<VideoFrame> VideoFrameConverter::convert(const AVFrame* source)
 		source->width, source->height, AV_PIX_FMT_BGRA,
 		SWS_BICUBIC, nullptr, nullptr, nullptr);
 	if (!m_context)
+		return nullptr;
+	const int* coefficients = sws_getCoefficients(SWS_CS_DEFAULT);
+	if (source->colorspace == AVCOL_SPC_BT709)
+		coefficients = sws_getCoefficients(SWS_CS_ITU709);
+	else if (source->colorspace == AVCOL_SPC_SMPTE170M || source->colorspace == AVCOL_SPC_SMPTE240M)
+		coefficients = sws_getCoefficients(SWS_CS_SMPTE170M);
+	const int sourceRange = source->color_range == AVCOL_RANGE_JPEG;
+	if (sws_setColorspaceDetails(m_context, coefficients, sourceRange, coefficients, 0, 0, 1 << 16, 1 << 16) < 0)
 		return nullptr;
 
 	uint8_t* destinationData[4] = { frame->bgra.data(), nullptr, nullptr, nullptr };

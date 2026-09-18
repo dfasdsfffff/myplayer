@@ -1,3 +1,5 @@
+#define SDL_MAIN_HANDLED
+
 #include "mainwid.h"
 #include "ctrlbar.h"
 

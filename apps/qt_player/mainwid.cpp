@@ -48,6 +48,7 @@
 #include "enums.h"
 #include "media_format_registry.h"
 #include "playlistfile.h"
+#include "playback_settings.h"
 
 const int FULLSCREEN_CTRLBAR_HIDE_DELAY = 2000; // 控制面板隐藏延迟（毫秒）
 const int CTRLBAR_ANIMATION_DURATION = 1000;    // 动画持续时间（毫秒）
@@ -258,6 +259,9 @@ bool MainWid::ConnectSignalSlots()
 
 	// PlaybackRuntime→UI 方向：通过 bridge 转发（bridge 已保证主线程投递，无需 Qt::QueuedConnection）
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoTotalSeconds, ui->CtrlBarWid, &CtrlBar::OnVideoTotalSeconds);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoTotalSeconds, this, [this](int seconds) {
+		m_currentDurationSeconds = seconds;
+	});
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, ui->CtrlBarWid, &CtrlBar::OnVideoPlaySeconds);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, ui->ShowWid, &Show::OnVideoPlaySeconds);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, this, &MainWid::OnVideoPlaySeconds);
@@ -268,6 +272,11 @@ bool MainWid::ConnectSignalSlots()
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigFrameDimensionsChanged, ui->ShowWid, &Show::OnFrameDimensionsChanged);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoFrame, ui->ShowWid, &Show::OnVideoFrame);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigSubtitleFrame, ui->ShowWid, &Show::OnSubtitleFrame);
+	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, this, [this]() {
+		if (ShouldClearResume(m_currentPlaySeconds, m_currentDurationSeconds, false) && !m_currentPlayFile.isEmpty())
+			GlobalHelper::SavePlaybackPosition(m_currentPlayFile, 0);
+		FlushPlaybackPosition();
+	});
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, &m_stTitle, &Title::OnStopFinished);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStartPlay, &m_stTitle, &Title::OnPlay);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPlaybackStatus, this, &MainWid::OnPlaybackStatus);
@@ -725,6 +734,9 @@ void MainWid::OnPlayFile(QString strFileName)
 	{
 		m_currentPlayFile.clear();
 		m_currentPlaySeconds = 0;
+		m_pendingResumeFile.clear();
+		m_pendingResumeSeconds = 0;
+		m_currentDurationSeconds = 0;
 		const QString location = strFileName;
 		MediaSource source{location.toStdString()};
 		source.network.maxReconnectAttempts = m_preferences.reconnectAttempts;
@@ -739,21 +751,15 @@ void MainWid::OnPlayFile(QString strFileName)
 	AddRecentFile(strFileName);
 	m_currentPlayFile = QFileInfo(strFileName).canonicalFilePath();
 	m_currentPlaySeconds = 0;
+	m_currentDurationSeconds = 0;
+	m_pendingResumeFile = m_currentPlayFile;
+	m_pendingResumeSeconds = m_preferences.resumePlayback ? GlobalHelper::GetPlaybackPosition(m_currentPlayFile) : 0;
 	if (IsAudioOnlyMediaLocation(strFileName))
 		ui->ShowWid->ShowAudioOnly(strFileName);
 	else
 		ui->ShowWid->ClearAudioOnlyIndicator();
 	ui->ShowWid->OnPlay(strFileName);
 
-	const int resumeSeconds = GlobalHelper::GetPlaybackPosition(m_currentPlayFile);
-	if (resumeSeconds > 5)
-	{
-		const QString resumeFile = m_currentPlayFile;
-		QTimer::singleShot(500, this, [this, resumeFile, resumeSeconds]() {
-			if (m_currentPlayFile == resumeFile)
-				m_playbackController->seekSeconds(resumeSeconds);
-		});
-	}
 }
 
 void MainWid::OnPlaybackStatus(PlaybackStatus status)
@@ -772,6 +778,14 @@ void MainWid::OnPlaybackStatus(PlaybackStatus status)
 
 void MainWid::OnMediaInfo(MediaInfo info)
 {
+	if (info.duration)
+		m_currentDurationSeconds = static_cast<int>(info.duration->count() / 1000);
+	if (m_pendingResumeSeconds > 0 && m_pendingResumeFile == m_currentPlayFile && info.seekable && !info.live &&
+		ShouldResume(m_pendingResumeSeconds, m_currentDurationSeconds, true)) {
+		const int resumeSeconds = m_pendingResumeSeconds;
+		m_pendingResumeSeconds = 0;
+		m_playbackController->seekSeconds(resumeSeconds);
+	}
 	ui->CtrlBarWid->SetSeekEnabled(info.seekable && !info.live);
 	if (!m_pAudioTracksMenu || !m_pSubtitleTracksMenu)
 		return;
@@ -855,6 +869,8 @@ void MainWid::OnVideoPlaySeconds(int seconds)
 		return;
 
 	m_currentPlaySeconds = seconds;
+	if (ShouldClearResume(seconds, m_currentDurationSeconds, false) && !m_currentPlayFile.isEmpty())
+		GlobalHelper::SavePlaybackPosition(m_currentPlayFile, 0);
 	if (!m_currentPlayFile.isEmpty() && seconds > 0 && seconds % 5 == 0)
 		MarkPlaybackPositionDirty();
 }

@@ -16,3 +16,17 @@ inline int ToSdlVolume(double normalizedVolume, int maximumVolume)
 }
 
 } // namespace PlaybackSettings
+
+inline bool ShouldResume(int savedSeconds, int durationSeconds, bool seekable)
+{
+	return seekable && durationSeconds > 0 && savedSeconds > 5 && savedSeconds < durationSeconds;
+}
+
+inline bool ShouldClearResume(int currentSeconds, int durationSeconds, bool completed)
+{
+	if (completed)
+		return true;
+	if (durationSeconds <= 0 || currentSeconds < 0)
+		return false;
+	return durationSeconds - currentSeconds <= 30 || currentSeconds * 100 >= durationSeconds * 95;
+}

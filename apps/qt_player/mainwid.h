@@ -158,6 +158,9 @@ private:
     int m_currentPlaySeconds = 0;
     QString m_pendingPlaybackFile;
     int m_pendingPlaybackSeconds = 0;
+    QString m_pendingResumeFile;
+    int m_pendingResumeSeconds = 0;
+    int m_currentDurationSeconds = 0;
     bool m_playbackPositionDirty = false;
     quint64 m_playbackGeneration = 0;
     quint64 m_lastFinalErrorGeneration = 0;
