@@ -55,6 +55,8 @@ Execute Tasks 1 through 20 in numeric order. Later tasks deliberately consume co
 
 ### Task 1: Standard Build Options, Qt Test Support, and CI
 
+Completed: `744ae16`, core-only configure contract passed without Qt discovery; Debug and Release builds passed; CTest passed 11/11.
+
 **Files:**
 
 - Modify: `CMakeLists.txt`
@@ -71,7 +73,7 @@ Execute Tasks 1 through 20 in numeric order. Later tasks deliberately consume co
 - Produces CMake options `MYPLAYER_BUILD_QT_APP`, `BUILD_TESTING`, `MYPLAYER_ENABLE_WARNINGS`, and `MYPLAYER_ENABLE_SANITIZERS`.
 - Later tasks depend on `Qt6::Test` being requested only when a Qt widget test target is enabled.
 
-- [ ] **Step 1: Add a configure-contract test script.**
+- [x] **Step 1: Add a configure-contract test script.**
 
 Create `tests/cmake_configuration_tests.cmake` that configures a nested build with the Qt app disabled and asserts the cache values:
 
@@ -87,7 +89,7 @@ endif()
 
 Register it as a CTest only in the normal top-level test build. Run it and verify it fails because the options do not exist and Qt is still required.
 
-- [ ] **Step 2: Add standard options and warning helper.**
+- [x] **Step 2: Add standard options and warning helper.**
 
 Use this contract in the top-level CMake:
 
@@ -100,11 +102,11 @@ option(MYPLAYER_ENABLE_SANITIZERS "Enable supported sanitizers" OFF)
 
 Guard Qt discovery, the application target, and Qt-dependent tests with `MYPLAYER_BUILD_QT_APP`. Guard every test target with `BUILD_TESTING`. `MyPlayerWarnings.cmake` must expose `myplayer_enable_warnings(target)` and use `/W4` on MSVC and `-Wall -Wextra -Wpedantic` elsewhere; do not enable warnings-as-errors until the repository builds warning-clean.
 
-- [ ] **Step 3: Add CI workflows.**
+- [x] **Step 3: Add CI workflows.**
 
 Windows CI configures through vcpkg, builds Debug and Release, and runs Debug CTest. Clang CI performs a core/test build with ASan+UBSan where dependencies are supported. Pin action major versions and the vcpkg baseline already present in `vcpkg.json`; do not duplicate dependency versions in workflow YAML.
 
-- [ ] **Step 4: Verify all build modes.**
+- [x] **Step 4: Verify all build modes.**
 
 ```powershell
 cmake --build build --config Debug
@@ -114,7 +116,7 @@ cmake --build build --config Release
 
 Also configure a fresh temporary core-only directory and confirm Qt is not searched when both app and testing are off.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```powershell
 git add CMakeLists.txt play_core/CMakeLists.txt CMakePresets.json cmake/MyPlayerWarnings.cmake tests/cmake_configuration_tests.cmake .github/workflows README.md
