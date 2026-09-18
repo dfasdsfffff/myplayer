@@ -3,10 +3,13 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <atomic>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
 #include "media_source.h"
+#include "latest_video_frame_mailbox.h"
 #include "signal.h"
 #include "subtitle_frame.h"
 #include "video_frame.h"
@@ -45,7 +48,13 @@ signals:
 
 private:
 	void detach();
+    void scheduleVideoFrameDelivery();
+    void drainLatestVideoFrame(uint64_t generation);
 
 	PlaybackRuntime* m_runtime = nullptr;
 	std::vector<sigslot::scoped_connection> m_connections;
+    LatestVideoFrameMailbox m_videoFrameMailbox;
+    std::atomic<uint64_t> m_videoFrameGeneration{0};
+    std::atomic<uint64_t> m_publishedVideoFrames{0};
+    std::atomic<uint64_t> m_presentedVideoFrames{0};
 };

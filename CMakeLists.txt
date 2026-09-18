@@ -61,6 +61,7 @@ set(HEADER_FILES
     ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.h
     ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.h
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.h
+    ${PLAYERDEMO_QT_APP_DIR}/latest_video_frame_mailbox.h
     ${PLAYERDEMO_QT_APP_DIR}/mainwid.h
     ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.h
     ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.h
@@ -82,6 +83,7 @@ set(SOURCE_FILES
     ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.cpp
     ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.cpp
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/latest_video_frame_mailbox.cpp
     ${PLAYERDEMO_QT_APP_DIR}/mainwid.cpp
     ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.cpp
     ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
@@ -477,6 +479,20 @@ set_tests_properties(subtitle_renderer_tests PROPERTIES
     ENVIRONMENT "SDL_VIDEODRIVER=dummy"
 )
 
+add_executable(latest_video_frame_mailbox_tests
+    tests/latest_video_frame_mailbox_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/latest_video_frame_mailbox.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.cpp
+)
+
+target_include_directories(latest_video_frame_mailbox_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+    ${PROJECT_SOURCE_DIR}/play_core
+)
+
+target_link_libraries(latest_video_frame_mailbox_tests PRIVATE play_core Qt6::Core)
+add_test(NAME latest_video_frame_mailbox_tests COMMAND latest_video_frame_mailbox_tests)
+
 add_executable(playback_lifecycle_stress_tests
     tests/playback_lifecycle_stress_tests.cpp
 )
@@ -652,6 +668,7 @@ foreach(test_target IN ITEMS
         show_widget_tests
         subtitle_dispatcher_tests
         subtitle_renderer_tests
+        latest_video_frame_mailbox_tests
         main_window_behavior_tests)
     if(TARGET ${test_target})
         myplayer_enable_warnings(${test_target})

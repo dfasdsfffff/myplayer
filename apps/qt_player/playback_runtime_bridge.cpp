@@ -2,6 +2,9 @@
 
 #include "playback_runtime.h"
 
+#include <QDebug>
+#include <QMetaObject>
+
 PlaybackRuntimeBridge::PlaybackRuntimeBridge(QObject* parent)
     : QObject(parent)
 {
@@ -14,8 +17,45 @@ PlaybackRuntimeBridge::~PlaybackRuntimeBridge()
 
 void PlaybackRuntimeBridge::detach()
 {
+    const uint64_t published = m_publishedVideoFrames.load(std::memory_order_relaxed);
+    if (published != 0) {
+        qDebug() << "Video frame delivery: published" << published
+                 << "presented" << m_presentedVideoFrames.load(std::memory_order_relaxed)
+                 << "coalesced" << m_videoFrameMailbox.coalescedFrames();
+    }
+    m_videoFrameGeneration.fetch_add(1, std::memory_order_acq_rel);
+    m_videoFrameMailbox.clear();
     m_connections.clear();
     m_runtime = nullptr;
+}
+
+void PlaybackRuntimeBridge::scheduleVideoFrameDelivery()
+{
+    if (!m_videoFrameMailbox.markDeliveryScheduled())
+        return;
+
+    const uint64_t generation = m_videoFrameGeneration.load(std::memory_order_acquire);
+    QPointer<PlaybackRuntimeBridge> self(this);
+    QMetaObject::invokeMethod(this, [self, generation]() {
+        if (auto bridge = self.data())
+            bridge->drainLatestVideoFrame(generation);
+    }, Qt::QueuedConnection);
+}
+
+void PlaybackRuntimeBridge::drainLatestVideoFrame(uint64_t generation)
+{
+    if (generation != m_videoFrameGeneration.load(std::memory_order_acquire))
+        return;
+
+    std::shared_ptr<VideoFrame> frame = m_videoFrameMailbox.takeLatest();
+    m_videoFrameMailbox.deliveryCompleted();
+    if (frame) {
+        m_presentedVideoFrames.fetch_add(1, std::memory_order_relaxed);
+        emit SigVideoFrame(std::move(frame));
+    }
+
+    if (m_videoFrameMailbox.hasPending())
+        scheduleVideoFrameDelivery();
 }
 
 void PlaybackRuntimeBridge::attach(PlaybackRuntime* runtime)
@@ -49,10 +89,10 @@ void PlaybackRuntimeBridge::attach(PlaybackRuntime* runtime)
     m_connections.emplace_back(runtime->SigVideoFrame.connect([self](std::shared_ptr<VideoFrame> frame) {
         if (!self || !frame || frame->bgra.empty())
             return;
-        QMetaObject::invokeMethod(self.data(), [self, frame]() {
-            if (auto bridge = self.data())
-                emit bridge->SigVideoFrame(frame);
-        }, Qt::QueuedConnection);
+        auto* bridge = self.data();
+        bridge->m_publishedVideoFrames.fetch_add(1, std::memory_order_relaxed);
+        bridge->m_videoFrameMailbox.publish(std::move(frame));
+        bridge->scheduleVideoFrameDelivery();
     }));
 
     m_connections.emplace_back(runtime->SigSubtitleFrame.connect([self](std::shared_ptr<const SubtitleFrame> frame) {
