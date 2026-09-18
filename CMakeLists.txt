@@ -6,6 +6,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(MYPLAYER_BUILD_QT_APP "Build the Qt Widgets player" ON)
+include(CTest)
+option(MYPLAYER_ENABLE_WARNINGS "Enable project warning flags" ON)
+option(MYPLAYER_ENABLE_SANITIZERS "Enable supported sanitizers" OFF)
+
+include(cmake/MyPlayerWarnings.cmake)
+
 option(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE "Use release Qt libraries for Debug builds" OFF)
 
 set(PLAYERDEMO_DEPS_ROOT "${PROJECT_SOURCE_DIR}/lib" CACHE PATH "Repository third-party source root")
@@ -27,16 +34,19 @@ endif()
 find_package(FFMPEG REQUIRED)
 find_package(SDL2 CONFIG REQUIRED)
 find_package(SoundTouch CONFIG REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+if(MYPLAYER_BUILD_QT_APP)
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+endif()
 
 add_subdirectory(play_core)
 
-if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)
-    message(STATUS "Mapping Qt debug config to release")
-    set_target_properties(Qt6::Core Qt6::Gui Qt6::Widgets PROPERTIES
-        MAP_IMPORTED_CONFIG_DEBUG "Release"
-    )
-endif()
+if(MYPLAYER_BUILD_QT_APP)
+    if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)
+        message(STATUS "Mapping Qt debug config to release")
+        set_target_properties(Qt6::Core Qt6::Gui Qt6::Widgets PROPERTIES
+            MAP_IMPORTED_CONFIG_DEBUG "Release"
+        )
+    endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -123,13 +133,22 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     OUTPUT_NAME_RELEASE "myplayer"
 )
 
-
+myplayer_enable_warnings(${PROJECT_NAME})
+myplayer_enable_sanitizers(${PROJECT_NAME})
 
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
 )
+endif()
 
-enable_testing()
+if(BUILD_TESTING)
+    add_test(NAME cmake_configuration_tests
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+            -DBINARY_DIR=${CMAKE_BINARY_DIR}/cmake-configuration-contract
+            -DTOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+            -P ${PROJECT_SOURCE_DIR}/tests/cmake_configuration_tests.cmake
+    )
 
 add_executable(playback_settings_tests
     tests/playback_settings_tests.cpp
@@ -141,6 +160,7 @@ target_include_directories(playback_settings_tests PRIVATE
 
 add_test(NAME playback_settings_tests COMMAND playback_settings_tests)
 
+if(MYPLAYER_BUILD_QT_APP)
 add_executable(playlistfile_tests
     tests/playlistfile_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
@@ -164,6 +184,7 @@ if(WIN32)
 endif()
 
 add_test(NAME playlistfile_tests COMMAND playlistfile_tests)
+endif()
 
 add_executable(play_core_refactor_tests
     tests/play_core_refactor_tests.cpp
@@ -281,3 +302,21 @@ add_test(NAME show_widget_tests COMMAND show_widget_tests)
 set_tests_properties(show_widget_tests PROPERTIES
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
+
+foreach(test_target IN ITEMS
+        playback_settings_tests
+        playlistfile_tests
+        play_core_refactor_tests
+        network_playback_tests
+        reconnect_controller_tests
+        filter_configurator_tests
+        decoder_workers_tests
+        stream_reader_tests
+        audio_output_tests
+        show_widget_tests)
+    if(TARGET ${test_target})
+        myplayer_enable_warnings(${test_target})
+        myplayer_enable_sanitizers(${test_target})
+    endif()
+endforeach()
+endif()

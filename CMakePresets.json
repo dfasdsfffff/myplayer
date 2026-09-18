@@ -16,7 +16,11 @@
       },
       "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "MYPLAYER_BUILD_QT_APP": "ON",
+        "BUILD_TESTING": "ON",
+        "MYPLAYER_ENABLE_WARNINGS": "ON",
+        "MYPLAYER_ENABLE_SANITIZERS": "OFF"
       }
     }
   ],

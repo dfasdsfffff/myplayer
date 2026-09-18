@@ -1,0 +1,30 @@
+name: Windows build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: lukka/run-vcpkg@v11
+      - id: qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.9.3
+          arch: win64_msvc2022_64
+      - name: Configure
+        shell: pwsh
+        run: >-
+          cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DPLAYERDEMO_QT_ROOT="${{ steps.qt.outputs.dir }}"
+      - name: Build Debug
+        run: cmake --build build --config Debug
+      - name: Test Debug
+        run: ctest --test-dir build -C Debug --output-on-failure
+      - name: Build Release
+        run: cmake --build build --config Release

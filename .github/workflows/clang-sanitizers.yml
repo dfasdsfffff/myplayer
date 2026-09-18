@@ -1,0 +1,24 @@
+name: Clang sanitizers
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core-sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/run-vcpkg@v11
+      - name: Configure core tests with ASan and UBSan
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DMYPLAYER_BUILD_QT_APP=OFF
+          -DBUILD_TESTING=ON
+          -DMYPLAYER_ENABLE_SANITIZERS=ON
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

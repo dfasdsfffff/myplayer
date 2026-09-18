@@ -36,6 +36,19 @@ cmake --build build --config Debug
 ctest --test-dir build -C Debug --output-on-failure
 ```
 
+The standard CMake options are:
+
+- `MYPLAYER_BUILD_QT_APP` — build the Qt Widgets application (default: `ON`).
+- `BUILD_TESTING` — build and register CTest targets (default: `ON`).
+- `MYPLAYER_ENABLE_WARNINGS` — enable project warning flags (default: `ON`).
+- `MYPLAYER_ENABLE_SANITIZERS` — enable supported Address/Undefined Behavior Sanitizers (default: `OFF`).
+
+For a Qt-free playback-core configuration, use:
+
+```powershell
+cmake -S . -B build-core -DMYPLAYER_BUILD_QT_APP=OFF -DBUILD_TESTING=OFF
+```
+
 Build outputs:
 
 ```text

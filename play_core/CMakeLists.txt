@@ -45,3 +45,6 @@ endif()
 if(MSVC)
     target_compile_options(play_core PRIVATE /utf-8)
 endif()
+
+myplayer_enable_warnings(play_core)
+myplayer_enable_sanitizers(play_core)
