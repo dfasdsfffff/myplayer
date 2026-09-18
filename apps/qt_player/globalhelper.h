@@ -66,6 +66,7 @@ public:
 	static void GetRecentFiles(QStringList& recentFiles);
 	static void SavePlaybackPosition(const QString& filePath, int seconds);
 	static int GetPlaybackPosition(const QString& filePath);
+	static QString PreferencesFilePath();
 
 	static QString GetAppVersion();
 

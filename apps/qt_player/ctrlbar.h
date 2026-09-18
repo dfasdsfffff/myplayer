@@ -11,6 +11,7 @@
 #pragma once
 
 #include "enums.h"
+#include "app_preferences.h"
 #include <QWidget>
 
 namespace Ui {
@@ -32,6 +33,7 @@ public:
 	 */
     bool Init();
     void ResetSpeed();
+    void ApplyPreferences(const AppPreferences& preferences);
 
     // 新增：获取当前状态（用于配置持久化）
     double GetVolume() const { return m_dLastVolumePercent; }

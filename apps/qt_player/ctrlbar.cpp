@@ -11,6 +11,7 @@
 #include <QDebug>
 #include <QTime>
 #include <QSettings>
+#include <QSignalBlocker>
 
 #include "ctrlbar.h"
 #include "ui_ctrlbar.h"
@@ -85,6 +86,24 @@ bool CtrlBar::Init()
 void CtrlBar::ResetSpeed()
 {
 	ui->SpeedCombo->setCurrentIndex(2); // 默认选择1.0x
+}
+
+void CtrlBar::ApplyPreferences(const AppPreferences& preferences)
+{
+    const AppPreferences sanitized = SanitizePreferences(preferences);
+    const QSignalBlocker speedBlocker(ui->SpeedCombo);
+    const QSignalBlocker volumeBlocker(ui->VolumeSlider);
+    ui->VolumeSlider->setValue(qRound(sanitized.volume * MAX_SLIDER_VALUE));
+    m_dLastVolumePercent = sanitized.volume;
+    m_curLoopPolicy = sanitized.loopPolicy;
+    const QString speedText = QString::number(sanitized.speed, 'f', 1) + "x";
+    const int speedIndex = ui->SpeedCombo->findText(speedText);
+    if (speedIndex >= 0)
+        ui->SpeedCombo->setCurrentIndex(speedIndex);
+    OnVideopVolume(sanitized.volume);
+    emit SigPlayVolume(sanitized.volume);
+    emit SigSpeedChanged(sanitized.speed);
+    emit SigPlayLoopPolicyChanged(sanitized.loopPolicy);
 }
 
 bool CtrlBar::ConnectSignalSlots()

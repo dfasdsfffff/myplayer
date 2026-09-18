@@ -22,6 +22,11 @@ QString GlobalHelper::GetConfigFilePath()
 	return path;
 }
 
+QString GlobalHelper::PreferencesFilePath()
+{
+    return GetConfigFilePath();
+}
+
 GlobalHelper::GlobalHelper()
 {
 

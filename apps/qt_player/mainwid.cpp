@@ -41,6 +41,7 @@
 #include "mainwid.h"
 #include "ui_mainwid.h"
 #include "globalhelper.h"
+#include "app_preferences.h"
 #include "playback_controller.h"
 #include "playback_runtime.h"
 #include "playback_status_presenter.h"
@@ -133,12 +134,6 @@ bool MainWid::Init()
 		restoreState(windowState);
 	}
 
-	// 加载播放设置（音量、循环模式、播放速度）
-	double volume = 1.0;
-	int loopPolicy = 0;
-	double speed = 1.0;
-	GlobalHelper::LoadPlaySettings(volume, loopPolicy, speed);
-
 	// 去除播放列表标题栏自带的边框
 	QWidget* em = new QWidget(this);
 	ui->PlaylistWid->setTitleBarWidget(em);
@@ -163,6 +158,9 @@ bool MainWid::Init()
 	{
 		return false;
 	}
+
+	m_preferences = LoadPreferences(GlobalHelper::PreferencesFilePath());
+	ApplyPreferences(m_preferences);
 
 
 	m_stCtrlbarAnimationShow = new QPropertyAnimation(ui->CtrlBarWid, "geometry");
@@ -238,6 +236,11 @@ bool MainWid::ConnectSignalSlots()
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowMenu, this, &MainWid::OnShowMenu);
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowSetting, this, &MainWid::OnShowSettingWid);
 	connect(ui->CtrlBarWid, &CtrlBar::SigSpeedChanged, this, &MainWid::OnSpeedChanged);
+	connect(&m_stSettingWid, &SettingWid::SigPreferencesApplied, this, [this](const AppPreferences& preferences) {
+		m_preferences = SanitizePreferences(preferences);
+		SavePreferences(GlobalHelper::PreferencesFilePath(), m_preferences);
+		ApplyPreferences(m_preferences);
+	});
 
 	connect(this, &MainWid::SigShowMax, &m_stTitle, &Title::OnChangeMaxBtnStyle);
 	connect(this, &MainWid::SigSeekForward, this, [this]() { m_playbackController->seekForward(); });
@@ -700,7 +703,12 @@ void MainWid::OnPlayFile(QString strFileName)
 		m_currentPlayFile.clear();
 		m_currentPlaySeconds = 0;
 		const QString location = strFileName;
-		if (!m_playbackController->play(MediaSource{location.toStdString()}))
+		MediaSource source{location.toStdString()};
+		source.network.maxReconnectAttempts = m_preferences.reconnectAttempts;
+		source.network.connectTimeout = std::chrono::milliseconds(m_preferences.connectTimeoutMs);
+		source.network.readTimeout = std::chrono::milliseconds(m_preferences.readTimeoutMs);
+		source.network.rtspTransport = m_preferences.rtspTransport;
+		if (!m_playbackController->play(source))
 			QMessageBox::warning(this, "打开网络流", "无法开始播放该网络地址。");
 		return;
 	}
@@ -806,7 +814,14 @@ void MainWid::FlushPlaybackPosition()
 
 void MainWid::OnShowSettingWid()
 {
+	m_stSettingWid.SetPreferences(m_preferences);
 	m_stSettingWid.show();
+}
+
+void MainWid::ApplyPreferences(const AppPreferences& preferences)
+{
+	m_preferences = SanitizePreferences(preferences);
+	ui->CtrlBarWid->ApplyPreferences(m_preferences);
 }
 
 void MainWid::InitMenu()

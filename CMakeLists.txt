@@ -55,6 +55,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(HEADER_FILES
     ${PLAYERDEMO_QT_APP_DIR}/about.h
+    ${PLAYERDEMO_QT_APP_DIR}/app_preferences.h
     ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.h
     ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.h
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.h
@@ -72,6 +73,7 @@ set(HEADER_FILES
 set(SOURCE_FILES
     ${PLAYERDEMO_QT_APP_DIR}/main.cpp
     ${PLAYERDEMO_QT_APP_DIR}/about.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/app_preferences.cpp
     ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.cpp
     ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.cpp
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
@@ -162,6 +164,55 @@ target_include_directories(playback_settings_tests PRIVATE
 add_test(NAME playback_settings_tests COMMAND playback_settings_tests)
 
 if(MYPLAYER_BUILD_QT_APP)
+add_executable(app_preferences_tests
+    tests/app_preferences_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/app_preferences.cpp
+)
+
+target_include_directories(app_preferences_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+)
+
+target_link_libraries(app_preferences_tests PRIVATE
+    play_core
+    Qt6::Core
+)
+
+add_test(NAME app_preferences_tests COMMAND app_preferences_tests)
+
+add_executable(setting_widget_tests
+    tests/setting_widget_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/app_preferences.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/settingwid.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/settingwid.ui
+)
+
+target_include_directories(setting_widget_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+)
+
+target_link_libraries(setting_widget_tests PRIVATE
+    play_core
+    Qt6::Core
+    Qt6::Widgets
+)
+
+if(WIN32)
+    get_filename_component(MYPLAYER_QT_ROOT "${Qt6_DIR}/../../.." ABSOLUTE)
+    add_custom_command(TARGET setting_widget_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:setting_widget_tests>
+            $<TARGET_FILE_DIR:setting_widget_tests>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${MYPLAYER_QT_ROOT}/plugins/platforms"
+            "$<TARGET_FILE_DIR:setting_widget_tests>/platforms"
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
+add_test(NAME setting_widget_tests COMMAND setting_widget_tests)
+set_tests_properties(setting_widget_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 add_executable(playback_status_presenter_tests
     tests/playback_status_presenter_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playback_status_presenter.cpp
@@ -322,6 +373,8 @@ set_tests_properties(show_widget_tests PROPERTIES
 
 foreach(test_target IN ITEMS
         playback_settings_tests
+        app_preferences_tests
+        setting_widget_tests
         playback_status_presenter_tests
         playlistfile_tests
         play_core_refactor_tests

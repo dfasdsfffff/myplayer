@@ -63,8 +63,10 @@ int main()
     if (!Expect(mainWidCpp.find("IsNetworkMediaLocation") != std::string::npos,
             "main window playback should split network streams from local file semantics"))
         return 1;
-    if (!Expect(mainWidCpp.find("m_playbackController->play(MediaSource{location.toStdString()})") != std::string::npos,
-            "network playlist items should play through MediaSource"))
+    if (!Expect(mainWidCpp.find("MediaSource source{location.toStdString()}") != std::string::npos
+                && mainWidCpp.find("source.network.connectTimeout") != std::string::npos
+                && mainWidCpp.find("m_playbackController->play(source)") != std::string::npos,
+            "network playlist items should play through MediaSource with saved network defaults"))
         return 1;
     if (!Expect(designSystemQss.find("QInputDialog") != std::string::npos,
             "global design system should style URL input dialogs"))

@@ -110,6 +110,7 @@ private:
     void RefreshRecentFilesMenu();
     void MarkPlaybackPositionDirty();
     void FlushPlaybackPosition();
+    void ApplyPreferences(const AppPreferences& preferences);
 
 signals:
     //最大化信号
@@ -144,6 +145,7 @@ private:
 
     About m_stAboutWidget;
     SettingWid m_stSettingWid;
+    AppPreferences m_preferences;
 
     QMenu m_stMenu;
     QMenu* m_pRecentFilesMenu = nullptr;
