@@ -178,6 +178,20 @@ target_include_directories(media_location_privacy_tests PRIVATE
 target_link_libraries(media_location_privacy_tests PRIVATE Qt6::Core)
 add_test(NAME media_location_privacy_tests COMMAND media_location_privacy_tests)
 
+add_executable(globalhelper_privacy_tests
+    tests/globalhelper_privacy_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
+)
+
+target_include_directories(globalhelper_privacy_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+    ${PROJECT_SOURCE_DIR}/play_core
+)
+
+target_link_libraries(globalhelper_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+add_test(NAME globalhelper_privacy_tests COMMAND globalhelper_privacy_tests)
+
 add_executable(app_preferences_tests
     tests/app_preferences_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/app_preferences.cpp
@@ -246,6 +260,7 @@ add_test(NAME playback_status_presenter_tests COMMAND playback_status_presenter_
 add_executable(playlistfile_tests
     tests/playlistfile_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
 )
 
 target_include_directories(playlistfile_tests PRIVATE
@@ -388,6 +403,7 @@ set_tests_properties(show_widget_tests PROPERTIES
 foreach(test_target IN ITEMS
         playback_settings_tests
         media_location_privacy_tests
+        globalhelper_privacy_tests
         app_preferences_tests
         setting_widget_tests
         playback_status_presenter_tests

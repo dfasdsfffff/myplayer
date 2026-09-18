@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QFileInfo>
 #include <QCryptographicHash>
+#include <QStandardPaths>
 
 #include "globalhelper.h"
 #include "media_location_privacy.h"
@@ -17,9 +18,19 @@ const QString APP_VERSION = "1.0.0";
 
 QString GlobalHelper::GetConfigFilePath()
 {
-    const QString configDir = QApplication::applicationDirPath() + QDir::separator() + "config";
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-	static const QString path = configDir + QDir::separator() + PLAYER_CONFIG;
+	static const QString path = [] {
+        const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        const QString configFile = QDir(configDir).filePath(PLAYER_CONFIG);
+        const QString legacyFile = QDir(QCoreApplication::applicationDirPath()).filePath("config/" + PLAYER_CONFIG);
+        if (!QFile::exists(configFile) && QFile::exists(legacyFile) && QFile::copy(legacyFile, configFile)) {
+            QSettings migrated(configFile, QSettings::IniFormat);
+            migrated.setValue("migration/version", 1);
+            migrated.sync();
+        }
+        return configFile;
+    }();
 	return path;
 }
 

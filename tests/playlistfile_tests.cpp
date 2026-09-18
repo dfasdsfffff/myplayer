@@ -97,18 +97,24 @@ int main(int argc, char* argv[])
         return 1;
 
     const QString exportFile = dir.filePath("exported.m3u8");
+    const QString authenticatedStream = "https://alice:secret@example.test/live?access_token=hidden";
     QString errorMessage;
-    if (!Expect(PlaylistFile::WriteM3u8(exportFile, { first, third, networkStream }, &errorMessage), "export m3u8"))
+    if (!Expect(PlaylistFile::WriteM3u8(exportFile, { first, third, networkStream, authenticatedStream }, &errorMessage), "export m3u8"))
     {
         std::cerr << errorMessage.toStdString() << '\n';
         return 1;
     }
 
     parsed = PlaylistFile::ReadM3u(exportFile);
-    if (!Expect(parsed.size() == 3, "exported m3u8 should round trip files and network streams") ||
+    if (!Expect(parsed.size() == 3, "exported m3u8 should omit authenticated streams") ||
         !Expect(parsed.at(0) == QFileInfo(first).canonicalFilePath(), "export first path") ||
         !Expect(parsed.at(1) == QFileInfo(third).canonicalFilePath(), "export third path") ||
         !Expect(parsed.at(2) == networkStream, "export network stream"))
+        return 1;
+
+    QFile exportedFile(exportFile);
+    if (!Expect(exportedFile.open(QIODevice::ReadOnly), "open exported playlist") ||
+        !Expect(!QString::fromUtf8(exportedFile.readAll()).contains("secret"), "export must not contain credentials"))
         return 1;
 
     return 0;

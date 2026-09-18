@@ -14,7 +14,10 @@ int main()
 {
     if (!Expect(ContainsSensitiveMediaCredentials("rtsp://alice:secret@example.com/live"), "URL userinfo is sensitive")) return 1;
     if (!Expect(ContainsSensitiveMediaCredentials("https://example.com/live?ACCESS_TOKEN=hidden"), "query keys are case insensitive")) return 1;
+    if (!Expect(ContainsSensitiveMediaCredentials("https://example.com/live?auth=hidden"), "auth is sensitive")) return 1;
+    if (!Expect(ContainsSensitiveMediaCredentials("https://example.com/live?key=hidden"), "key is sensitive")) return 1;
     if (!Expect(ContainsSensitiveMediaCredentials("https://example.com/live?signature=hidden"), "signature is sensitive")) return 1;
+    if (!Expect(ContainsSensitiveMediaCredentials("https://example.com/live?sig=hidden"), "sig is sensitive")) return 1;
     if (!Expect(!MayPersistMediaLocation("https://example.com/live?token=hidden"), "token URL is not persistable")) return 1;
     if (!Expect(MayPersistMediaLocation("rtsp://example.com/live"), "public RTSP is persistable")) return 1;
     if (!Expect(MayPersistMediaLocation("C:/media/movie.mp4"), "local path is persistable")) return 1;

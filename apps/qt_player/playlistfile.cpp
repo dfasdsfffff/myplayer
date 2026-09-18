@@ -1,4 +1,5 @@
 #include "playlistfile.h"
+#include "media_location_privacy.h"
 
 #include <QDir>
 #include <QFile>
@@ -182,6 +183,8 @@ bool PlaylistFile::WriteM3u8(const QString& playlistFileName, const QStringList&
     out << "#EXTM3U\n";
     for (const QString& fileName : files)
     {
+        if (!MayPersistMediaLocation(fileName))
+            continue;
         if (IsNetworkStream(fileName))
         {
             out << fileName << '\n';

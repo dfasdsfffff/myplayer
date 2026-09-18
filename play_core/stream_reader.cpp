@@ -15,7 +15,7 @@ void PrintError(const char* message, int error)
 {
     char buffer[256];
     av_strerror(error, buffer, sizeof(buffer));
-    av_log(nullptr, AV_LOG_ERROR, "%s: %s\n", message, buffer);
+    av_log(nullptr, AV_LOG_ERROR, "%s: %s\n", RedactMediaLocation(message ? message : "").c_str(), buffer);
 }
 
 int DecodeInterruptCallback(void* context)
@@ -159,7 +159,7 @@ void StreamReader::Run(VideoState* state)
 
     if (err < 0) {
         av_log(nullptr, AV_LOG_WARNING,
-            "%s: could not find codec parameters\n", state->session.filename);
+            "%s: could not find codec parameters\n", RedactMediaLocation(state->session.filename ? state->session.filename : "").c_str());
         state->session.readResult.store(err, std::memory_order_release);
         state->session.readError.store(
             MapAvError(err, IsRealtimeSource(ClassifyMediaSource(state->session.source.location))),
@@ -225,7 +225,7 @@ void StreamReader::Run(VideoState* state)
 
     if (state->video.video_stream < 0 && state->audio.audio_stream < 0) {
         av_log(nullptr, AV_LOG_FATAL, "Failed to open file '%s' or configure filtergraph\n",
-            state->session.filename);
+            RedactMediaLocation(state->session.filename ? state->session.filename : "").c_str());
         ret = -1;
         goto fail;
     }
@@ -265,7 +265,7 @@ void StreamReader::Run(VideoState* state)
             ret = avformat_seek_file(state->session.ic, -1, seekMin, seekTarget, seekMax, seekFlags);
             if (ret < 0) {
                 av_log(nullptr, AV_LOG_ERROR,
-                    "%s: error while seeking\n", state->session.ic->url);
+                    "%s: error while seeking\n", RedactMediaLocation(state->session.ic->url ? state->session.ic->url : "").c_str());
             } else {
                 if (state->audio.audio_stream >= 0)
                     packet_queue_flush(&state->audio.audioq);

@@ -35,7 +35,8 @@ std::string_view SchemeOf(std::string_view location)
 bool IsSensitiveQueryKey(std::string_view key)
 {
     const auto lower = ToLower(key);
-    return lower == "token" || lower == "access_token" || lower == "signature";
+    return lower == "token" || lower == "access_token" || lower == "auth" || lower == "key"
+        || lower == "signature" || lower == "sig";
 }
 
 void RedactSensitiveQueryValues(std::string& text, std::size_t queryStart)

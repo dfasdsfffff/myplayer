@@ -5,9 +5,11 @@
 #include <QMessageBox>
 #include <QRandomGenerator>
 #include <QUrl>
+#include <algorithm>
 
 #include "playlist.h"
 #include "playlistfile.h"
+#include "media_location_privacy.h"
 #include "ui_playlist.h"
 
 #include "globalhelper.h"
@@ -184,11 +186,10 @@ QListWidgetItem* Playlist::AddFileItem(const QString& strFileName)
         if (QListWidgetItem* existingItem = FindItemByLocation(strFileName))
             return existingItem;
 
-        const QUrl url(strFileName);
         QListWidgetItem* pItem = new QListWidgetItem(ui->List);
         pItem->setData(Qt::UserRole, QVariant(strFileName));
-        pItem->setText(url.toDisplayString(QUrl::RemoveUserInfo));
-        pItem->setToolTip(strFileName);
+        pItem->setText(SafeMediaLocationForDisplay(strFileName));
+        pItem->setToolTip(SafeMediaLocationForDisplay(strFileName));
         ui->List->addItem(pItem);
         return pItem;
     }
@@ -282,6 +283,14 @@ void Playlist::OnExportPlaylist()
         QMessageBox::information(this, "Export playlist", "The playlist is empty.");
         return;
     }
+
+    const bool containsSensitiveLocations = std::any_of(playList.cbegin(), playList.cend(), [](const QString& location) {
+        return !MayPersistMediaLocation(location);
+    });
+    if (containsSensitiveLocations && QMessageBox::question(this, "Export playlist",
+        "This playlist contains authenticated or tokenized media URLs. They will be omitted from the exported playlist. Continue?")
+        != QMessageBox::Yes)
+        return;
 
     QString playlistFileName = QFileDialog::getSaveFileName(this, "Export playlist", QDir::homePath() + "/playlist.m3u8",
         "M3U8 playlist (*.m3u8);;M3U playlist (*.m3u);;All files (*.*)");

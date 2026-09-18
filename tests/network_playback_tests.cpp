@@ -53,6 +53,9 @@ int main()
     if (!Expect(RedactMediaLocation("https://u:p@h/x?token=secret") == "https://***:***@h/x?token=***",
             "credentials redacted"))
         return 1;
+    if (!Expect(RedactMediaLocation("https://h/x?AUTH=secret&key=value&sig=signed") ==
+            "https://h/x?AUTH=***&key=***&sig=***", "all sensitive query values redacted"))
+        return 1;
 
     MediaSource rtsp{"rtsp://host/live"};
     rtsp.network.rtspTransport = RtspTransport::Udp;
