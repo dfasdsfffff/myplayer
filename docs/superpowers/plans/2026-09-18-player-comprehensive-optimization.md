@@ -131,6 +131,8 @@ git commit -m "build: establish optimization verification baseline"
 
 ### Task 2: Playback Status and Actionable Error Presentation
 
+Completed: `8136b4d`, Debug and Release builds passed; CTest passed 12/12; manual invalid-local-path and invalid-network-URL smoke tests passed with one final error and no secret exposure.
+
 **Files:**
 
 - Create: `apps/qt_player/playback_status_presenter.h`
@@ -148,13 +150,13 @@ struct StatusPresentation { QString text; StatusPresentationKind kind; };
 StatusPresentation PresentPlaybackStatus(const PlaybackStatus& status);
 ```
 
-- [ ] Write table-driven failing tests for Opening, Buffering, each reconnect attempt, Playing, user Stopped, Timeout, Authentication, NotFound, UnsupportedProtocol, InvalidMedia, DecoderFailure, and Unknown. Assert that credentials and sensitive query values never appear in returned text.
-- [ ] Build and run `playback_status_presenter_tests`; verify failure because the presenter is absent.
-- [ ] Implement the pure formatter. Reconnecting text must include `attempt/maxReconnectAttempts` and retry delay. Final errors must include one next action such as checking the URL, credentials, network, or codec.
-- [ ] Add `MainWid::OnPlaybackStatus(PlaybackStatus)` and connect `PlaybackRuntimeBridge::SigPlaybackStatus`. Use `statusBar()->showMessage`; show a modal warning only when `kind == FinalError`, and suppress duplicate final errors for the same playback generation.
-- [ ] Connect `SigMediaInfo` to update seek enablement and live/non-seekable UI state. Connect `SigPlayMsg` to diagnostics/status text instead of discarding it.
-- [ ] Run focused tests, full build, all CTest tests, and a UI smoke with an invalid local path and invalid network URL. Confirm one final error, no retry-dialog storm, and no raw secret in the UI.
-- [ ] Commit:
+- [x] Write table-driven failing tests for Opening, Buffering, each reconnect attempt, Playing, user Stopped, Timeout, Authentication, NotFound, UnsupportedProtocol, InvalidMedia, DecoderFailure, and Unknown. Assert that credentials and sensitive query values never appear in returned text.
+- [x] Build and run `playback_status_presenter_tests`; verify failure because the presenter is absent.
+- [x] Implement the pure formatter. Reconnecting text must include `attempt/maxReconnectAttempts` and retry delay. Final errors must include one next action such as checking the URL, credentials, network, or codec.
+- [x] Add `MainWid::OnPlaybackStatus(PlaybackStatus)` and connect `PlaybackRuntimeBridge::SigPlaybackStatus`. Use `statusBar()->showMessage`; show a modal warning only when `kind == FinalError`, and suppress duplicate final errors for the same playback generation.
+- [x] Connect `SigMediaInfo` to update seek enablement and live/non-seekable UI state. Connect `SigPlayMsg` to diagnostics/status text instead of discarding it.
+- [x] Run focused tests, full build, all CTest tests, and a UI smoke with an invalid local path and invalid network URL. Confirm one final error, no retry-dialog storm, and no raw secret in the UI.
+- [x] Commit:
 
 ```powershell
 git add apps/qt_player/playback_status_presenter.* apps/qt_player/mainwid.* tests/playback_status_presenter_tests.cpp CMakeLists.txt
