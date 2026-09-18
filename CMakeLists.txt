@@ -191,6 +191,26 @@ target_include_directories(globalhelper_privacy_tests PRIVATE
 
 target_link_libraries(globalhelper_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 add_test(NAME globalhelper_privacy_tests COMMAND globalhelper_privacy_tests)
+set_tests_properties(globalhelper_privacy_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(playlist_privacy_tests
+    tests/playlist_privacy_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/medialist.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playlist.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/playlist.ui
+    ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
+)
+
+target_include_directories(playlist_privacy_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+    ${PROJECT_SOURCE_DIR}/play_core
+)
+
+target_link_libraries(playlist_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+add_test(NAME playlist_privacy_tests COMMAND playlist_privacy_tests)
+set_tests_properties(playlist_privacy_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 add_executable(app_preferences_tests
     tests/app_preferences_tests.cpp
@@ -404,6 +424,7 @@ foreach(test_target IN ITEMS
         playback_settings_tests
         media_location_privacy_tests
         globalhelper_privacy_tests
+        playlist_privacy_tests
         app_preferences_tests
         setting_widget_tests
         playback_status_presenter_tests

@@ -24,11 +24,35 @@ QString GlobalHelper::GetConfigFilePath()
         const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
         const QString configFile = QDir(configDir).filePath(PLAYER_CONFIG);
         const QString legacyFile = QDir(QCoreApplication::applicationDirPath()).filePath("config/" + PLAYER_CONFIG);
-        if (!QFile::exists(configFile) && QFile::exists(legacyFile) && QFile::copy(legacyFile, configFile)) {
-            QSettings migrated(configFile, QSettings::IniFormat);
-            migrated.setValue("migration/version", 1);
-            migrated.sync();
-        }
+		if (!QFile::exists(configFile) && QFile::exists(legacyFile)) {
+			QSettings legacy(legacyFile, QSettings::IniFormat);
+			QSettings migrated(configFile, QSettings::IniFormat);
+			for (const QString& key : legacy.allKeys()) {
+				if (!key.startsWith("playlist/") && !key.startsWith("recent_files/"))
+					migrated.setValue(key, legacy.value(key));
+			}
+
+			const auto migrateLocations = [&legacy, &migrated](const QString& group, const QString& valueKey) {
+				const int count = legacy.beginReadArray(group);
+				migrated.remove(group);
+				migrated.beginWriteArray(group);
+				int persistedIndex = 0;
+				for (int index = 0; index < count; ++index) {
+					legacy.setArrayIndex(index);
+					const QString location = legacy.value(valueKey).toString();
+					if (!location.isEmpty() && MayPersistMediaLocation(location)) {
+						migrated.setArrayIndex(persistedIndex++);
+						migrated.setValue(valueKey, location);
+					}
+				}
+				legacy.endArray();
+				migrated.endArray();
+			};
+			migrateLocations("playlist", "movie");
+			migrateLocations("recent_files", "file");
+			migrated.setValue("migration/version", 1);
+			migrated.sync();
+		}
         return configFile;
     }();
 	return path;

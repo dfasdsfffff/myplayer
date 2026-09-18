@@ -28,10 +28,7 @@ Playlist::Playlist(QWidget *parent) :
 Playlist::~Playlist()
 {
     QStringList strListPlayList;
-    for (int i = 0; i < ui->List->count(); i++)
-    {
-        strListPlayList.append(ui->List->item(i)->toolTip());
-    }
+    GetPlaylist(strListPlayList);
     GlobalHelper::SavePlaylist(strListPlayList);
 
     delete ui;
@@ -129,7 +126,7 @@ void Playlist::GetPlaylist(QStringList& playList)
     for (int i = 0; i < ui->List->count(); i++)
     {
         QListWidgetItem* item = ui->List->item(i);
-        playList.append(item->toolTip());
+        playList.append(item->data(Qt::UserRole).toString());
     }
 }
 

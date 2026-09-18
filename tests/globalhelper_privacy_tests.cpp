@@ -33,6 +33,18 @@ int main(int argc, char* argv[])
     {
         QSettings legacy(legacyFile, QSettings::IniFormat);
         legacy.setValue("play/volume", 0.25);
+        legacy.beginWriteArray("playlist");
+        legacy.setArrayIndex(0);
+        legacy.setValue("movie", "https://example.test/public");
+        legacy.setArrayIndex(1);
+        legacy.setValue("movie", "https://example.test/secret?token=hidden");
+        legacy.endArray();
+        legacy.beginWriteArray("recent_files");
+        legacy.setArrayIndex(0);
+        legacy.setValue("file", "https://example.test/recent");
+        legacy.setArrayIndex(1);
+        legacy.setValue("file", "https://example.test/recent?access_token=hidden");
+        legacy.endArray();
         legacy.sync();
     }
 
@@ -44,6 +56,20 @@ int main(int argc, char* argv[])
     QSettings migrated(configFile, QSettings::IniFormat);
     if (!Expect(migrated.value("play/volume").toDouble() == 0.25, "migration must preserve legacy settings") ||
         !Expect(migrated.value("migration/version").toInt() == 1, "migration must record its version"))
+        return 1;
+
+    const int migratedPlaylistSize = migrated.beginReadArray("playlist");
+    migrated.setArrayIndex(0);
+    const QString migratedPlaylistLocation = migrated.value("movie").toString();
+    migrated.endArray();
+    const int migratedRecentSize = migrated.beginReadArray("recent_files");
+    migrated.setArrayIndex(0);
+    const QString migratedRecentLocation = migrated.value("file").toString();
+    migrated.endArray();
+    if (!Expect(migratedPlaylistSize == 1 && migratedPlaylistLocation == "https://example.test/public",
+            "migration must omit sensitive playlist locations") ||
+        !Expect(migratedRecentSize == 1 && migratedRecentLocation == "https://example.test/recent",
+            "migration must omit sensitive recent locations"))
         return 1;
 
     const QString publicLocation = "https://example.test/live";
