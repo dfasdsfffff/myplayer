@@ -501,6 +501,8 @@ git commit -m "fix: encapsulate queues and stress playback lifecycle"
 
 ### Task 12: Rich Media Information and Explicit Track Selection
 
+Completed: `b577d15`, Debug build passed and CTest passed 25/25, including in-memory FFmpeg metadata, controller forwarding, and offscreen track-menu coverage. Manual multi-track selection remains a release-QA checklist item because this workspace has no suitable media fixture.
+
 **Files:**
 
 - Modify: `play_core/media_source.h`
@@ -539,12 +541,12 @@ void PlaybackController::selectAudioTrack(int streamIndex);
 void PlaybackController::selectSubtitleTrack(std::optional<int> streamIndex);
 ```
 
-- [ ] Write failing tests that build an in-memory `AVFormatContext` with named/default/forced audio and subtitle streams and verify normalized metadata.
-- [ ] Populate rich `MediaInfo` after stream discovery. Avoid exposing borrowed FFmpeg pointers.
-- [ ] Add explicit controller/facade methods that post `TrackCommand`; retain cycle methods as wrappers.
-- [ ] Rebuild Audio and Subtitle menus from `SigMediaInfo`, use stream index in `QAction::data`, make actions checkable, and provide a checked “关闭字幕” action.
-- [ ] Run focused/full tests and manually select each track in a multi-track file.
-- [ ] Commit:
+- [x] Write failing tests that build an in-memory `AVFormatContext` with named/default/forced audio and subtitle streams and verify normalized metadata.
+- [x] Populate rich `MediaInfo` after stream discovery. Avoid exposing borrowed FFmpeg pointers.
+- [x] Add explicit controller/facade methods that post `TrackCommand`; retain cycle methods as wrappers.
+- [x] Rebuild Audio and Subtitle menus from `SigMediaInfo`, use stream index in `QAction::data`, make actions checkable, and provide a checked “关闭字幕” action.
+- [x] Run focused/full tests and manually select each track in a multi-track file.
+- [x] Commit:
 
 ```powershell
 git add play_core/media_source.h play_core/network_input.cpp play_core/stream_reader.cpp play_core/playback_controller.* play_core/playback_controller_videoctl.cpp play_core/videoctl.* apps/qt_player/mainwid.cpp apps/qt_player/playback_runtime_bridge.* tests/media_info_tests.cpp CMakeLists.txt
