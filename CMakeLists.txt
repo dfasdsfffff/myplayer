@@ -60,6 +60,7 @@ set(HEADER_FILES
     ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.h
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.h
     ${PLAYERDEMO_QT_APP_DIR}/mainwid.h
+    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.h
     ${PLAYERDEMO_QT_APP_DIR}/medialist.h
     ${PLAYERDEMO_QT_APP_DIR}/playlist.h
     ${PLAYERDEMO_QT_APP_DIR}/playlistfile.h
@@ -78,6 +79,7 @@ set(SOURCE_FILES
     ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.cpp
     ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
     ${PLAYERDEMO_QT_APP_DIR}/mainwid.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
     ${PLAYERDEMO_QT_APP_DIR}/medialist.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlist.cpp
     ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
@@ -164,6 +166,18 @@ target_include_directories(playback_settings_tests PRIVATE
 add_test(NAME playback_settings_tests COMMAND playback_settings_tests)
 
 if(MYPLAYER_BUILD_QT_APP)
+add_executable(media_location_privacy_tests
+    tests/media_location_privacy_tests.cpp
+    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
+)
+
+target_include_directories(media_location_privacy_tests PRIVATE
+    ${PLAYERDEMO_QT_APP_DIR}
+)
+
+target_link_libraries(media_location_privacy_tests PRIVATE Qt6::Core)
+add_test(NAME media_location_privacy_tests COMMAND media_location_privacy_tests)
+
 add_executable(app_preferences_tests
     tests/app_preferences_tests.cpp
     ${PLAYERDEMO_QT_APP_DIR}/app_preferences.cpp
@@ -373,6 +387,7 @@ set_tests_properties(show_widget_tests PROPERTIES
 
 foreach(test_target IN ITEMS
         playback_settings_tests
+        media_location_privacy_tests
         app_preferences_tests
         setting_widget_tests
         playback_status_presenter_tests

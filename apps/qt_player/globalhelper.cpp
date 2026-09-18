@@ -8,6 +8,7 @@
 #include <QCryptographicHash>
 
 #include "globalhelper.h"
+#include "media_location_privacy.h"
 #include "av_constants.h"
 
 const QString PLAYER_CONFIG = "player_config.ini";
@@ -92,11 +93,15 @@ void GlobalHelper::SavePlaylist(const QStringList& playList)
     //QString strPlayerConfigFileName = QCoreApplication::applicationDirPath() + QDir::separator() + PLAYER_CONFIG;
     QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
+    settings.remove("playlist");
     settings.beginWriteArray("playlist");
-    for (int i = 0; i < playList.size(); ++i)
+    int persistedIndex = 0;
+    for (const QString& location : playList)
     {
-        settings.setArrayIndex(i);
-        settings.setValue("movie", playList.at(i));
+        if (!MayPersistMediaLocation(location))
+            continue;
+        settings.setArrayIndex(persistedIndex++);
+        settings.setValue("movie", location);
     }
     settings.endArray();
 }
@@ -173,11 +178,15 @@ void GlobalHelper::SaveRecentFiles(const QStringList& recentFiles)
 {
     QString strPlayerConfigFileName = GetConfigFilePath();
     QSettings settings(strPlayerConfigFileName, QSettings::IniFormat);
+    settings.remove("recent_files");
     settings.beginWriteArray("recent_files");
-    for (int i = 0; i < recentFiles.size(); ++i)
+    int persistedIndex = 0;
+    for (const QString& location : recentFiles)
     {
-        settings.setArrayIndex(i);
-        settings.setValue("file", recentFiles.at(i));
+        if (!MayPersistMediaLocation(location))
+            continue;
+        settings.setArrayIndex(persistedIndex++);
+        settings.setValue("file", location);
     }
     settings.endArray();
     settings.sync();
