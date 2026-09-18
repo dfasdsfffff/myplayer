@@ -165,6 +165,8 @@ git commit -m "feat: present playback status and failures"
 
 ### Task 3: Unified Preferences and Functional Settings Window
 
+Completed: `3664bb1`, Debug and Release builds passed; CTest passed 14/14, including preference serialization and offscreen Apply/OK/Cancel tests.
+
 **Files:**
 
 - Create: `apps/qt_player/app_preferences.h`
@@ -197,13 +199,13 @@ struct AppPreferences {
 AppPreferences SanitizePreferences(AppPreferences value);
 ```
 
-- [ ] Write failing tests for clamping volume, allowed speed range, loop-policy validation, non-negative retry count, timeout bounds, and round-trip serialization through a temporary INI path. Add an offscreen widget test proving Apply emits sanitized values, OK applies and closes, and Cancel closes without emitting.
-- [ ] Implement `AppPreferences` and path-injected `LoadPreferences(const QString&)` / `SavePreferences(const QString&, const AppPreferences&)`. Keep serialization separate from widgets.
-- [ ] Replace the empty settings UI with Playback and Network sections plus Apply, OK, and Cancel. Applying emits `SigPreferencesApplied(AppPreferences)`; Cancel must not mutate live state.
-- [ ] Add `CtrlBar::ApplyPreferences(const AppPreferences&)`. Use signal blockers while updating widgets, then explicitly apply volume, speed, and loop policy once through `PlaybackController`.
-- [ ] In `MainWid::Init`, load preferences after widgets/signals initialize and apply them. Build `MediaSource::network` from the saved network defaults when opening a URL. Remove the redundant `volume/size` versus `play/volume` write paths after migration in Task 4.
-- [ ] Run focused tests, full verification, close/reopen the app, and confirm volume/speed/loop/network settings restore exactly.
-- [ ] Commit:
+- [x] Write failing tests for clamping volume, allowed speed range, loop-policy validation, non-negative retry count, timeout bounds, and round-trip serialization through a temporary INI path. Add an offscreen widget test proving Apply emits sanitized values, OK applies and closes, and Cancel closes without emitting.
+- [x] Implement `AppPreferences` and path-injected `LoadPreferences(const QString&)` / `SavePreferences(const QString&, const AppPreferences&)`. Keep serialization separate from widgets.
+- [x] Replace the empty settings UI with Playback and Network sections plus Apply, OK, and Cancel. Applying emits `SigPreferencesApplied(AppPreferences)`; Cancel must not mutate live state.
+- [x] Add `CtrlBar::ApplyPreferences(const AppPreferences&)`. Use signal blockers while updating widgets, then explicitly apply volume, speed, and loop policy once through `PlaybackController`.
+- [x] In `MainWid::Init`, load preferences after widgets/signals initialize and apply them. Build `MediaSource::network` from the saved network defaults when opening a URL. Remove the redundant `volume/size` versus `play/volume` write paths after migration in Task 4.
+- [x] Run focused tests, full verification, close/reopen the app, and confirm volume/speed/loop/network settings restore exactly.
+- [x] Commit:
 
 ```powershell
 git add apps/qt_player/app_preferences.* apps/qt_player/globalhelper.* apps/qt_player/settingwid.* apps/qt_player/settingwid.ui apps/qt_player/ctrlbar.* apps/qt_player/mainwid.cpp tests/app_preferences_tests.cpp tests/setting_widget_tests.cpp CMakeLists.txt
