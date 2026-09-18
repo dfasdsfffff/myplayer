@@ -112,8 +112,8 @@ int main()
             "BGRA input should preserve pixel values"))
         return 1;
 
-    static_assert(std::is_same_v<decltype(std::declval<PacketQueue&>().serial), std::atomic<int>>,
-        "packet queue generation must be safe to observe across threads");
+    static_assert(std::is_same_v<decltype(std::declval<PacketQueue&>().serialStorage()), std::atomic<int>*>,
+        "packet queue generation storage must remain safe to observe across threads");
 
     std::atomic<int> queueSerial{1};
     Clock queueClock;

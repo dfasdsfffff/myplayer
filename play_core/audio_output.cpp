@@ -163,20 +163,20 @@ int AudioOutput::DecodeFrame(VideoState* state)
 reload:
     do {
 #if defined(_WIN32)
-        while (state->audio.sampq.nb_remaining() == 0 && !state->audio.audioq.abort_request.load(std::memory_order_acquire)) {
+        while (state->audio.sampq.nb_remaining() == 0 && !state->audio.audioq.isAborted()) {
             const auto waitStarted = av_gettime_relative();
             state->audio.sampq.wait_readable_for(100);
             if ((av_gettime_relative() - waitStarted) > 1000000LL * state->audio.audio_hw_buf_size / state->audio.audio_tgt.bytes_per_sec / 2)
                 return -1;
         }
 
-        if (state->audio.audioq.abort_request.load(std::memory_order_acquire))
+        if (state->audio.audioq.isAborted())
             return -1;
 #endif
         if (!(audioFrame = state->audio.sampq.peek_readable()))
             return -1;
         state->audio.sampq.next();
-    } while (audioFrame->serial != state->audio.audioq.serial.load(std::memory_order_acquire));
+    } while (audioFrame->serial != state->audio.audioq.serial());
 
     dataSize = av_samples_get_buffer_size(nullptr, audioFrame->frame->ch_layout.nb_channels,
         audioFrame->frame->nb_samples,

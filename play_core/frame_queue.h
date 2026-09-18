@@ -24,6 +24,12 @@ typedef struct Frame {
 	AVRational sar = {0, 0};
 } Frame;
 
+struct FrameQueueSnapshot {
+    int remaining{0};
+    int serial{0};
+    bool aborted{true};
+};
+
 //帧队列
 class FrameQueue {
 public:
@@ -45,8 +51,13 @@ public:
 	void next();
 	int nb_remaining();
 	int64_t last_pos();
+	FrameQueueSnapshot snapshot() const;
+	bool hasShown() const;
+	void lock();
+	void unlock();
 
-	// 过渡期间保持 public
+	// Frame payloads are accessed through peek methods; queue bookkeeping is private.
+private:
 	Frame queue[FRAME_QUEUE_SIZE];
 	int rindex = 0;
 	int windex = 0;
@@ -57,8 +68,6 @@ public:
 	SDL_mutex* mutex = nullptr;
 	SDL_cond* cond = nullptr;
 	PacketQueue* pktq = nullptr;
-
-private:
 	void unref_item(Frame* vp);
 };
 

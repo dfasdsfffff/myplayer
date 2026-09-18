@@ -76,6 +76,39 @@ void FrameQueue::signal()
 	SDL_UnlockMutex(mutex);
 }
 
+FrameQueueSnapshot FrameQueue::snapshot() const
+{
+	FrameQueueSnapshot result;
+	if (!mutex)
+		return result;
+	SDL_LockMutex(mutex);
+	result.remaining = size - rindex_shown;
+	result.serial = pktq ? pktq->serial() : 0;
+	result.aborted = !pktq || pktq->isAborted();
+	SDL_UnlockMutex(mutex);
+	return result;
+}
+
+bool FrameQueue::hasShown() const
+{
+	if (!mutex)
+		return false;
+	SDL_LockMutex(mutex);
+	const bool shown = rindex_shown != 0;
+	SDL_UnlockMutex(mutex);
+	return shown;
+}
+
+void FrameQueue::lock()
+{
+	SDL_LockMutex(mutex);
+}
+
+void FrameQueue::unlock()
+{
+	SDL_UnlockMutex(mutex);
+}
+
 Frame* FrameQueue::peek()
 {
 	return &queue[(rindex + rindex_shown) % max_size];
@@ -96,12 +129,12 @@ Frame* FrameQueue::peek_writable()
 	/* wait until we have space to put a new frame */
 	SDL_LockMutex(mutex);
 	while (size >= max_size &&
-		!pktq->abort_request) {
+		!pktq->isAborted()) {
 		SDL_CondWait(cond, mutex);
 	}
 	SDL_UnlockMutex(mutex);
 
-	if (pktq->abort_request)
+	if (pktq->isAborted())
 		return nullptr;
 
 	return &queue[windex];
@@ -112,12 +145,12 @@ Frame* FrameQueue::peek_readable()
 	/* wait until we have a readable a new frame */
 	SDL_LockMutex(mutex);
 	while (size - rindex_shown <= 0 &&
-		!pktq->abort_request) {
+		!pktq->isAborted()) {
 		SDL_CondWait(cond, mutex);
 	}
 	SDL_UnlockMutex(mutex);
 
-	if (pktq->abort_request)
+	if (pktq->isAborted())
 		return nullptr;
 
 	return &queue[(rindex + rindex_shown) % max_size];
@@ -127,7 +160,7 @@ int FrameQueue::wait_readable_for(Uint32 timeout_ms)
 {
 	SDL_LockMutex(mutex);
 	int ret = 0;
-	while (size - rindex_shown <= 0 && !pktq->abort_request && ret == 0) {
+	while (size - rindex_shown <= 0 && !pktq->isAborted() && ret == 0) {
 		ret = SDL_CondWaitTimeout(cond, mutex, timeout_ms);
 	}
 	const int readable = size - rindex_shown > 0;
@@ -171,7 +204,7 @@ int FrameQueue::nb_remaining()
 int64_t FrameQueue::last_pos()
 {
 	Frame* fp = &queue[rindex];
-	if (rindex_shown && fp->serial == pktq->serial.load(std::memory_order_acquire))
+	if (rindex_shown && fp->serial == pktq->serial())
 		return fp->pos;
 	else
 		return -1;

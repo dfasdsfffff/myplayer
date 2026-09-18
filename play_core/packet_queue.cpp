@@ -12,6 +12,39 @@ PacketQueue::~PacketQueue()
 	destroy();
 }
 
+PacketQueueSnapshot PacketQueue::snapshot() const
+{
+	PacketQueueSnapshot result;
+	if (!mutex)
+		return result;
+	SDL_LockMutex(mutex);
+	result = {nb_packets.load(std::memory_order_relaxed), size.load(std::memory_order_relaxed),
+		duration.load(std::memory_order_relaxed), m_serial.load(std::memory_order_relaxed),
+		abort_request.load(std::memory_order_relaxed) != 0};
+	SDL_UnlockMutex(mutex);
+	return result;
+}
+
+bool PacketQueue::isAborted() const
+{
+	return abort_request.load(std::memory_order_acquire) != 0;
+}
+
+int PacketQueue::serial() const
+{
+	return m_serial.load(std::memory_order_acquire);
+}
+
+std::atomic<int>* PacketQueue::serialStorage()
+{
+	return &m_serial;
+}
+
+std::atomic<int>* PacketQueue::serialStorage() const
+{
+	return const_cast<std::atomic<int>*>(&m_serial);
+}
+
 int PacketQueue::put_private(AVPacket* pkt)
 {
 	MyAVPacketList pkt1;
@@ -21,7 +54,7 @@ int PacketQueue::put_private(AVPacket* pkt)
 		return -1;
 
 	pkt1.pkt = pkt;
-	pkt1.serial = serial.load(std::memory_order_relaxed);
+	pkt1.serial = m_serial.load(std::memory_order_relaxed);
 
 	ret = av_fifo_write(pkt_list, &pkt1, 1);
 	if (ret < 0)
@@ -87,7 +120,7 @@ int PacketQueue::init()
 	nb_packets = 0;
 	size = 0;
 	duration = 0;
-	serial.store(0, std::memory_order_relaxed);
+	m_serial.store(0, std::memory_order_relaxed);
 	return 0;
 }
 
@@ -95,7 +128,7 @@ int PacketQueue::init()
 void PacketQueue::add_serial()
 {
 	SDL_LockMutex(mutex);
-	serial.fetch_add(1, std::memory_order_release);
+	m_serial.fetch_add(1, std::memory_order_release);
 	SDL_UnlockMutex(mutex);
 }
 
@@ -113,7 +146,7 @@ void PacketQueue::flush()
 	nb_packets = 0;
 	size = 0;
 	duration = 0;
-	serial.fetch_add(1, std::memory_order_release);
+	m_serial.fetch_add(1, std::memory_order_release);
 	SDL_UnlockMutex(mutex);
 }
 
@@ -154,7 +187,7 @@ void PacketQueue::start()
 
 	SDL_LockMutex(mutex);
 	abort_request = 0;
-	serial.fetch_add(1, std::memory_order_release);
+	m_serial.fetch_add(1, std::memory_order_release);
 	SDL_UnlockMutex(mutex);
 }
 

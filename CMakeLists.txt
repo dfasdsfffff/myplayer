@@ -411,6 +411,17 @@ target_link_libraries(track_switching_tests PRIVATE
 
 add_test(NAME track_switching_tests COMMAND track_switching_tests)
 
+add_executable(playback_lifecycle_stress_tests
+    tests/playback_lifecycle_stress_tests.cpp
+)
+
+target_link_libraries(playback_lifecycle_stress_tests PRIVATE
+    play_core
+)
+
+add_test(NAME playback_lifecycle_stress_tests COMMAND playback_lifecycle_stress_tests)
+set_tests_properties(playback_lifecycle_stress_tests PROPERTIES LABELS STRESS_TESTS)
+
 add_executable(network_playback_tests
     tests/network_playback_tests.cpp
 )

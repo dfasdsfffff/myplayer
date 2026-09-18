@@ -118,6 +118,15 @@ void VideoCtl::stream_close(VideoState* is)
 	is->session.io.cancelled.store(true, std::memory_order_release);
 	if (is->session.continue_read_thread)
 		SDL_CondSignal(is->session.continue_read_thread);
+	// Wake every queue consumer before joining the reader.  A reader blocked on
+	// queue backpressure must never be the condition that delays teardown.
+	m_audioOutput.Close();
+	is->audio.audioq.abort();
+	is->video.videoq.abort();
+	is->subtitle.subtitleq.abort();
+	is->audio.sampq.signal();
+	is->video.pictq.signal();
+	is->subtitle.subpq.signal();
 	if (is->session.read_tid.joinable())
 		is->session.read_tid.join();
 
@@ -133,8 +142,6 @@ void VideoCtl::stream_close(VideoState* is)
 
 	}
 
-	// 关闭音频（尽管在stream_component_close已经调用了）
-	m_audioOutput.Close();
 	delete is;
 }
 
@@ -258,7 +265,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			lastvp = is->video.pictq.peek_last();
 			vp = is->video.pictq.peek();
 
-			if (vp->serial != is->video.videoq.serial.load(std::memory_order_acquire)) {
+			if (vp->serial != is->video.videoq.serial()) {
 				is->video.pictq.next();
 				goto retry;
 			}
@@ -283,10 +290,10 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 				is->video.frame_timer = time;
 
 			{
-				SDL_LockMutex(is->video.pictq.mutex);
+				is->video.pictq.lock();
 				if (!std::isnan(vp->pts))
 					MediaSync::update_video_pts(is, vp->pts, vp->pos, vp->serial);
-				SDL_UnlockMutex(is->video.pictq.mutex);
+				is->video.pictq.unlock();
 			}
 
 			if (is->video.pictq.nb_remaining() > 1) {
@@ -308,7 +315,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 					else
 						sp2 = NULL;
 
-					if (sp->serial != is->subtitle.subtitleq.serial.load(std::memory_order_acquire)
+					if (sp->serial != is->subtitle.subtitleq.serial()
 						|| (is->clocks.vidclk.get() > (sp->pts + ((float)sp->sub.end_display_time / 1000)))
 						|| (sp2 && is->clocks.vidclk.get() > (sp2->pts + ((float)sp2->sub.start_display_time / 1000))))
 					{
@@ -328,7 +335,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 		}
 	display:
 		/* display picture */
-		if (is->session.force_refresh && is->video.pictq.rindex_shown)
+		if (is->session.force_refresh && is->video.pictq.hasShown())
 			video_display();
 	}
 	is->session.force_refresh = 0;
@@ -562,8 +569,8 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 		goto fail;
 	}
 	//视频、音频 时钟
-	is->clocks.vidclk.init(&is->video.videoq.serial);
-	is->clocks.audclk.init(&is->audio.audioq.serial);
+	is->clocks.vidclk.init(is->video.videoq.serialStorage());
+	is->clocks.audclk.init(is->audio.audioq.serialStorage());
 	is->clocks.extclk.init(is->clocks.extclk.serialStorage());
 	is->audio.audio_clock_serial = -1;
 	is->audio.audio_volume.store(sdlVolume, std::memory_order_release);

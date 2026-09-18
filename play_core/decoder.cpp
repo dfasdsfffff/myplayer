@@ -42,9 +42,9 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
     int ret = AVERROR(EAGAIN);
 
     for (;;) {
-        if (queue->serial.load(std::memory_order_acquire) == pkt_serial) {
+        if (queue->serial() == pkt_serial) {
             do {
-                if (queue->abort_request)
+                if (queue->isAborted())
                     return -1;
 
                 switch (avctx->codec_type) {
@@ -85,7 +85,7 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
         }
 
         do {
-            if (queue->nb_packets == 0)
+            if (queue->snapshot().packets == 0)
                 SDL_CondSignal(empty_queue_cond);
             if (packet_pending) {
                 packet_pending = 0;
@@ -101,7 +101,7 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
                     next_pts_tb = start_pts_tb;
                 }
             }
-            if (queue->serial.load(std::memory_order_acquire) == pkt_serial)
+            if (queue->serial() == pkt_serial)
                 break;
             av_packet_unref(pkt);
         } while (1);

@@ -71,10 +71,11 @@ StreamReader::StreamReader(StreamReaderCallbacks callbacks)
 
 bool StreamReader::HasEnoughPackets(AVStream* stream, int streamId, PacketQueue* queue)
 {
+	const auto snapshot = queue->snapshot();
     return streamId < 0 ||
-        queue->abort_request ||
+        snapshot.aborted ||
         (stream->disposition & AV_DISPOSITION_ATTACHED_PIC) ||
-        queue->nb_packets > MIN_FRAMES && (!queue->duration || av_q2d(stream->time_base) * queue->duration > 1.0);
+        snapshot.packets > MIN_FRAMES && (!snapshot.duration || av_q2d(stream->time_base) * snapshot.duration > 1.0);
 }
 
 bool StreamReader::IsRealtime(const AVFormatContext* context)
@@ -298,9 +299,9 @@ void StreamReader::Run(VideoState* state)
 
         std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
         if (!state->session.unlimitedBuffer &&
-            (state->audio.audioq.size.load(std::memory_order_relaxed)
-                + state->video.videoq.size.load(std::memory_order_relaxed)
-                + state->subtitle.subtitleq.size.load(std::memory_order_relaxed) > MAX_QUEUE_SIZE
+            (state->audio.audioq.snapshot().bytes
+                + state->video.videoq.snapshot().bytes
+                + state->subtitle.subtitleq.snapshot().bytes > MAX_QUEUE_SIZE
                 || (HasEnoughPackets(state->audio.audio_st, state->audio.audio_stream, &state->audio.audioq) &&
                     HasEnoughPackets(state->video.video_st, state->video.video_stream, &state->video.videoq) &&
                     HasEnoughPackets(state->subtitle.subtitle_st, state->subtitle.subtitle_stream, &state->subtitle.subtitleq)))) {
@@ -309,8 +310,8 @@ void StreamReader::Run(VideoState* state)
             continue;
         }
         if (!paused &&
-            (!state->audio.audio_st || (state->audio.aud_decoder.finished == state->audio.audioq.serial.load(std::memory_order_acquire) && state->audio.sampq.nb_remaining() == 0)) &&
-            (!state->video.video_st || (state->video.vid_decoder.finished == state->video.videoq.serial.load(std::memory_order_acquire) && state->video.pictq.nb_remaining() == 0))) {
+            (!state->audio.audio_st || (state->audio.aud_decoder.finished == state->audio.audioq.serial() && state->audio.sampq.nb_remaining() == 0)) &&
+            (!state->video.video_st || (state->video.vid_decoder.finished == state->video.videoq.serial() && state->video.pictq.nb_remaining() == 0))) {
             trackLock.unlock();
             m_callbacks.handleEndOfMedia();
             continue;

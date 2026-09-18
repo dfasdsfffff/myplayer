@@ -39,11 +39,13 @@ double get_master_clock(VideoState* is)
 void check_external_clock_speed(VideoState* is)
 {
     std::shared_lock<std::shared_mutex> trackLock(is->session.trackMutex);
-    if ((is->video.video_stream >= 0 && is->video.videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES) ||
-        (is->audio.audio_stream >= 0 && is->audio.audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES)) {
+    const auto videoQueue = is->video.videoq.snapshot();
+    const auto audioQueue = is->audio.audioq.snapshot();
+    if ((is->video.video_stream >= 0 && videoQueue.packets <= EXTERNAL_CLOCK_MIN_FRAMES) ||
+        (is->audio.audio_stream >= 0 && audioQueue.packets <= EXTERNAL_CLOCK_MIN_FRAMES)) {
 		is->clocks.extclk.set_speed(FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->clocks.extclk.speed() - EXTERNAL_CLOCK_SPEED_STEP));
-    } else if ((is->video.video_stream < 0 || is->video.videoq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES) &&
-        (is->audio.audio_stream < 0 || is->audio.audioq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES)) {
+    } else if ((is->video.video_stream < 0 || videoQueue.packets > EXTERNAL_CLOCK_MAX_FRAMES) &&
+        (is->audio.audio_stream < 0 || audioQueue.packets > EXTERNAL_CLOCK_MAX_FRAMES)) {
 		is->clocks.extclk.set_speed(FFMIN(EXTERNAL_CLOCK_SPEED_MAX, is->clocks.extclk.speed() + EXTERNAL_CLOCK_SPEED_STEP));
     } else {
 		double speed = is->clocks.extclk.speed();

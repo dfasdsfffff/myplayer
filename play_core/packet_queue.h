@@ -16,6 +16,14 @@ typedef struct MyAVPacketList {
 	int serial;
 } MyAVPacketList;
 
+struct PacketQueueSnapshot {
+    int packets{0};
+    int bytes{0};
+    int64_t duration{0};
+    int serial{0};
+    bool aborted{true};
+};
+
 //数据包队列
 class PacketQueue {
 public:
@@ -33,20 +41,23 @@ public:
 	int put(AVPacket* pkt);
 	int put_nullpacket(AVPacket* pkt, int stream_index);
 	int get(AVPacket* pkt, int block, int* serial);
+	PacketQueueSnapshot snapshot() const;
+	bool isAborted() const;
+	int serial() const;
+	std::atomic<int>* serialStorage();
 
-	// 过渡期间保持 public，供 Decoder/FrameQueue 直接访问
+	// Clock needs a stable atomic generation address, but mutations remain private.
+	std::atomic<int>* serialStorage() const;
+
+private:
 	AVFifo* pkt_list = nullptr;
-	// 以下标量由队列内部在 mutex 保护下更新，但调用方会无锁读取，
-	// 因此使用原子变量消除数据竞争。
 	std::atomic<int> nb_packets{0};
 	std::atomic<int> size{0};
 	std::atomic<int64_t> duration{0};
 	std::atomic<int> abort_request{1};
-	std::atomic<int> serial{0};
+	std::atomic<int> m_serial{0};
 	SDL_mutex* mutex = nullptr;
 	SDL_cond* cond = nullptr;
-
-private:
 	int put_private(AVPacket* pkt);
 };
 

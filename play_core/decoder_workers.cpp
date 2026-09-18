@@ -66,7 +66,7 @@ int DecoderWorkers::GetVideoFrame(VideoState* state, AVFrame* frame)
                 if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD &&
                     diff - state->video.frame_last_filter_delay < 0 &&
 					state->video.vid_decoder.pkt_serial == state->clocks.vidclk.serial() &&
-                    state->video.videoq.nb_packets) {
+                    state->video.videoq.snapshot().packets) {
                     state->video.frame_drops_early++;
                     av_frame_unref(frame);
                     got_picture = 0;
@@ -149,7 +149,7 @@ int DecoderWorkers::Audio(void* opaque)
 
                 av_frame_move_ref(af->frame, frame);
                 state->audio.sampq.push();
-                if (state->audio.audioq.serial.load(std::memory_order_acquire) != state->audio.aud_decoder.pkt_serial)
+                if (state->audio.audioq.serial() != state->audio.aud_decoder.pkt_serial)
                     break;
             }
             if (ret == AVERROR_EOF)
@@ -269,7 +269,7 @@ int DecoderWorkers::Video(void* opaque)
             pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
             ret = QueuePicture(state, frame, pts, duration, fd ? fd->pkt_pos : -1, state->video.vid_decoder.pkt_serial);
             av_frame_unref(frame);
-            if (state->video.videoq.serial.load(std::memory_order_acquire) != state->video.vid_decoder.pkt_serial)
+            if (state->video.videoq.serial() != state->video.vid_decoder.pkt_serial)
                 break;
         }
 #else

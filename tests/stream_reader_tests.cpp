@@ -127,8 +127,12 @@ int main()
         auto stream = MakeStream();
         if (!Expect(stream != nullptr, "stream should allocate"))
             return 1;
-        queue.nb_packets.store(MIN_FRAMES + 1, std::memory_order_release);
-        queue.duration.store(2000, std::memory_order_release);
+        for (int index = 0; index <= MIN_FRAMES; ++index) {
+            AVPacket packet{};
+            packet.duration = 2000;
+            if (!Expect(queue.put(&packet) == 0, "queue should accept test packets"))
+                return 1;
+        }
         if (!Expect(StreamReader::HasEnoughPackets(stream.get(), 0, &queue),
                 "queue above packet and duration thresholds has enough packets"))
             return 1;
