@@ -650,6 +650,8 @@ Completed in commits `fa15f56` and `0f49bac`. Production target `myplayer` and f
 
 ### Task 15: Latest-Frame Mailbox and Bounded UI Delivery
 
+Completed: `f64778c`, Debug build passed and CTest passed 30/30. The worker-burst test stalls UI delivery while publishing 4,096 frames, retains only the newest frame, and delivers it through one Qt drain; its sampled peak working set was 20.07 MiB.
+
 **Files:**
 
 - Create: `apps/qt_player/latest_video_frame_mailbox.h`
@@ -672,12 +674,12 @@ public:
 };
 ```
 
-- [ ] Write failing tests publishing thousands of numbered frames from a worker while the consumer is stalled. Assert bounded pending storage, newest-frame delivery, one scheduled Qt drain, and safe clear during stop.
-- [ ] Implement the mailbox with `std::atomic<std::shared_ptr<VideoFrame>>` and an atomic scheduled flag.
-- [ ] In the bridge, store frames and queue at most one UI drain. The drain emits the latest frame and reschedules only if a newer frame arrived during rendering.
-- [ ] Add counters for published, presented, and coalesced frames to debug diagnostics. Do not treat coalescing as decoder frame dropping.
-- [ ] Run focused/full tests and measure peak memory while artificially delaying UI presentation.
-- [ ] Commit:
+- [x] Write failing tests publishing thousands of numbered frames from a worker while the consumer is stalled. Assert bounded pending storage, newest-frame delivery, one scheduled Qt drain, and safe clear during stop.
+- [x] Implement the mailbox with `std::atomic<std::shared_ptr<VideoFrame>>` and an atomic scheduled flag.
+- [x] In the bridge, store frames and queue at most one UI drain. The drain emits the latest frame and reschedules only if a newer frame arrived during rendering.
+- [x] Add counters for published, presented, and coalesced frames to debug diagnostics. Do not treat coalescing as decoder frame dropping.
+- [x] Run focused/full tests and measure peak memory while artificially delaying UI presentation.
+- [x] Commit:
 
 ```powershell
 git add apps/qt_player/latest_video_frame_mailbox.* apps/qt_player/playback_runtime_bridge.* apps/qt_player/show.* tests/latest_video_frame_mailbox_tests.cpp CMakeLists.txt
