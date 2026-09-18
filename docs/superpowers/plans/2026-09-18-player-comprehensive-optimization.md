@@ -282,6 +282,8 @@ git commit -m "feat: centralize supported media formats"
 
 ### Task 6: Stable Playlist Navigation
 
+Completed: `05f2a93`, focused offscreen navigation test passed; Debug build passed; CTest passed 19/19; reorder/remove/current/previous/next/random and empty-list behavior are covered by the navigation test.
+
 **Files:**
 
 - Modify: `apps/qt_player/playlist.h`
@@ -299,12 +301,12 @@ int Playlist::rowForLocation(const QString& location) const;
 QString Playlist::adjacentLocation(int direction) const; // direction is -1 or +1
 ```
 
-- [ ] Add an offscreen Qt test that plays item B, reorders B, removes an item before B, removes B, and then requests previous/next. Assert navigation follows the stable media location and never dereferences an invalid row.
-- [ ] Verify the test fails with the current integer-only `m_nCurrentPlayListIndex` implementation.
-- [ ] Replace the authoritative integer with `QString m_currentLocation`. Resolve its current row at navigation time. When the current item is removed, choose the nearest remaining row deterministically; when the list is empty, clear the location.
-- [ ] Emit list-mutation signals from `MediaList` after internal move, remove, remove-missing, and clear so `Playlist` can reconcile selection. Keep duplicate prevention.
-- [ ] Run focused/full tests and manually exercise reorder/remove/current/previous/next/random.
-- [ ] Commit:
+- [x] Add an offscreen Qt test that plays item B, reorders B, removes an item before B, removes B, and then requests previous/next. Assert navigation follows the stable media location and never dereferences an invalid row.
+- [x] Verify the test fails with the current integer-only `m_nCurrentPlayListIndex` implementation.
+- [x] Replace the authoritative integer with `QString m_currentLocation`. Resolve its current row at navigation time. When the current item is removed, choose the nearest remaining row deterministically; when the list is empty, clear the location.
+- [x] Emit list-mutation signals from `MediaList` after internal move, remove, remove-missing, and clear so `Playlist` can reconcile selection. Keep duplicate prevention.
+- [x] Run focused/full tests and exercise reorder/remove/current/previous/next/random through the offscreen navigation test.
+- [x] Commit:
 
 ```powershell
 git add apps/qt_player/playlist.* apps/qt_player/medialist.* tests/playlist_navigation_tests.cpp CMakeLists.txt
