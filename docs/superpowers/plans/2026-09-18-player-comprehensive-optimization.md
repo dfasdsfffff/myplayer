@@ -252,7 +252,7 @@ git commit -m "fix: protect persisted media locations"
 
 ### Task 5: Central Media Format Registry and Audio-Only UX
 
-Completed: `891fa24`, Debug build passed; CTest passed 18/18, including media format registry, M3U, playlist, and audio-indicator coverage.
+Completed: `891fa24`, Debug build passed; CTest passed 18/18, including media format registry, M3U, playlist, and audio-indicator coverage. On 2026-09-19, a generated 5-second PCM WAV fixture was decoded successfully with FFmpeg; add-and-play UI behavior remains manual QA.
 
 **Files:**
 
@@ -276,7 +276,7 @@ QString SubtitleOpenDialogFilter();
 - [x] Write failing tests for existing formats plus MOV, M4V, WebM, MPEG/MPG, TS/M2TS, MP3, AAC/M4A, FLAC, WAV, OGG/Opus, and supported network schemes. Reject directories and unknown extensions.
 - [x] Implement one case-insensitive registry and make playlist validation, folder scanning, file dialogs, and M3U import use it. Remove duplicated extension functions.
 - [x] For audio-only playback, keep the video surface black, display the filename and an audio indicator, keep duration/seek/volume/speed usable, and do not require a video stream.
-- [x] Run focused/full tests. Automated tests cover supported audio and newer video containers; no local playable fixture was available for the manual add-and-play check.
+- [x] Run focused/full tests. Automated tests cover supported audio and newer video containers. On 2026-09-19, FFmpeg generated and decoded `.cache/media-qa/audio-only.wav` (5-second PCM, 48 kHz mono); manual add-and-play verification remains release QA.
 - [x] Commit:
 
 ```powershell
@@ -436,7 +436,7 @@ git commit -m "fix: publish coherent playback clocks"
 
 ### Task 10: Synchronize Track Replacement and Packet Routing
 
-Completed: `f2e383c`, focused `track_switching_tests` and full Debug CTest passed 23/23 on 2026-09-18; manual multi-track GUI validation remains a release-QA checklist item because this workspace has no suitable fixture.
+Completed: `f2e383c`, focused `track_switching_tests` and full Debug CTest passed 23/23 on 2026-09-18. On 2026-09-19, FFmpeg/ffprobe validated a generated multi-track fixture with two named AAC tracks; rapid GUI track cycling while playing/stopping remains manual release QA.
 
 **Files:**
 
@@ -451,7 +451,7 @@ Completed: `f2e383c`, focused `track_switching_tests` and full Debug CTest passe
 - [x] Add `std::shared_mutex trackMutex` to session/track state. Packet routing, EOF null-packet dispatch, queue sufficiency checks, and refresh snapshots take a shared lock only while copying stable indices/pointers. Track close/open takes the exclusive lock.
 - [x] Ensure decoder/audio device teardown completes before publishing replacement pointers. Do not hold the track lock while blocking on unrelated network reads.
 - [x] Make stream index fields private to a small `TrackStateSnapshot` API or atomic where only the index is required. Eliminate unguarded reads found by `rg "audio_stream|video_stream|subtitle_stream" play_core`.
-- [x] Run focused/full tests and a manual rapid audio/subtitle cycle while playing and stopping. Focused `track_switching_tests` and the complete Debug CTest suite passed 23/23 on 2026-09-18; manual multi-track GUI validation remains a release-QA checklist item because this workspace has no suitable fixture.
+- [x] Run focused/full tests and a manual rapid audio/subtitle cycle while playing and stopping. Focused `track_switching_tests` and the complete Debug CTest suite passed 23/23 on 2026-09-18. On 2026-09-19, `.cache/media-qa/multitrack-anamorphic-rotated.mkv` was generated and decoded successfully; ffprobe confirmed the named `eng` and `deu` AAC tracks. Manual rapid GUI cycling remains release QA.
 - [x] Commit:
 
 ```powershell
@@ -501,7 +501,7 @@ git commit -m "fix: encapsulate queues and stress playback lifecycle"
 
 ### Task 12: Rich Media Information and Explicit Track Selection
 
-Completed: `b577d15`, Debug build passed and CTest passed 25/25, including in-memory FFmpeg metadata, controller forwarding, and offscreen track-menu coverage. Manual multi-track selection remains a release-QA checklist item because this workspace has no suitable media fixture.
+Completed: `b577d15`, Debug build passed and CTest passed 25/25, including in-memory FFmpeg metadata, controller forwarding, and offscreen track-menu coverage. On 2026-09-19, the generated multi-track fixture was inspected with ffprobe and decoded successfully; selecting each track in the GUI remains release QA.
 
 **Files:**
 
@@ -545,7 +545,7 @@ void PlaybackController::selectSubtitleTrack(std::optional<int> streamIndex);
 - [x] Populate rich `MediaInfo` after stream discovery. Avoid exposing borrowed FFmpeg pointers.
 - [x] Add explicit controller/facade methods that post `TrackCommand`; retain cycle methods as wrappers.
 - [x] Rebuild Audio and Subtitle menus from `SigMediaInfo`, use stream index in `QAction::data`, make actions checkable, and provide a checked “关闭字幕” action.
-- [x] Run focused/full tests and manually select each track in a multi-track file.
+- [x] Run focused/full tests and manually select each track in a multi-track file. On 2026-09-19, ffprobe verified stream indices, language tags, and titles in `.cache/media-qa/multitrack-anamorphic-rotated.mkv`; manual GUI selection remains release QA.
 - [x] Commit:
 
 ```powershell
@@ -555,7 +555,7 @@ git commit -m "feat: expose media tracks and metadata"
 
 ### Task 13: Embedded and External Subtitle Rendering
 
-Completed: `748bb3c`, Debug build passed; the 26 runtime tests plus the configuration-contract test passed (27/27); renderer coverage includes embedded bitmap, ASS, SRT, timing, bounds, unload preservation, and viewport/time-bucket caching. Manual media QA with real embedded text/bitmap files remains a release checklist item because this workspace contains no media fixtures.
+Completed: `748bb3c`, Debug build passed; the 26 runtime tests plus the configuration-contract test passed (27/27); renderer coverage includes embedded bitmap, ASS, SRT, timing, bounds, unload preservation, and viewport/time-bucket caching. On 2026-09-19, generated embedded ASS and external SRT fixtures parsed and decoded successfully. Real GUI QA remains required; an embedded bitmap-subtitle fixture is still unavailable because the installed FFmpeg cannot synthesize bitmap subtitle packets from text.
 
 **Files:**
 
@@ -593,7 +593,7 @@ Signal<std::shared_ptr<const SubtitleFrame>> SigSubtitleFrame;
 - [x] Implement `SubtitleRenderer` using libass for ASS/text and an SDL blend texture for bitmap/ASS output. Cache font/library/track state; rerender only when cue, time bucket, or viewport changes.
 - [x] Add Open Subtitle for SRT/ASS/SSA. Load external files into a separate libass track, align them to playback time, and allow unload/reload. Do not silently replace embedded track state.
 - [x] Wire subtitle frames through runtime/bridge to `Show`, clear overlays on seek/track change/stop, and composite after the video texture so both BGRA and future YUV paths work.
-- [x] Run focused/full tests and manual QA with embedded text, embedded bitmap, external SRT, seek, pause, track switch, and stop. Automated coverage is complete; real-media manual QA remains deferred to release QA because no local media fixture is available.
+- [x] Run focused/full tests and manual QA with embedded text, embedded bitmap, external SRT, seek, pause, track switch, and stop. On 2026-09-19, FFmpeg generated and decoded embedded ASS in `.cache/media-qa/multitrack-anamorphic-rotated.mkv`, and parsed `.cache/media-qa/fixture.srt` as ASS. Embedded bitmap rendering retains synthetic automated coverage only: the installed FFmpeg has `dvbsub`/`dvdsub` encoders but no text-to-bitmap subtitle generator. GUI QA for text/external subtitles and any supplied PGS/VobSub/DVB fixture remains release QA.
 - [x] Commit:
 
 ```powershell
@@ -640,7 +640,7 @@ git add play_core/video_frame.h play_core/video_frame_converter.cpp play_core/re
 git commit -m "fix: honor presentation metadata and resume policy"
 ```
 
-Completed in commits `fa15f56` and `0f49bac`. Production target `myplayer` and focused geometry/resume targets build successfully; 28/28 runtime CTest cases and the CMake configuration test pass. Manual media QA remains a release-checklist item because this checkout has no representative anamorphic/rotated/HDR fixtures.
+Completed in commits `fa15f56` and `0f49bac`. Production target `myplayer` and focused geometry/resume targets build successfully; 28/28 runtime CTest cases and the CMake configuration test pass. On 2026-09-19, FFmpeg generated and decoded representative fixtures: anamorphic 720x576 with SAR 64:45, a separate MP4 with display-matrix `rotation=90`, and BT.2020/SMPTE-2084 HDR metadata. GUI geometry, HDR diagnostic, and resume behavior remain release-checklist items.
 
 **Stage 3 gate:** Named track selection works, subtitles render and clear correctly, audio-only playback is supported, geometry honors SAR/rotation, and resume behavior is duration-aware.
 
