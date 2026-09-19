@@ -3,6 +3,12 @@
 #include <algorithm>
 #include <cmath>
 
+enum class HardwareDecodePreference {
+    Auto,
+    Disabled,
+    D3D11VA,
+};
+
 namespace PlaybackSettings {
 
 inline double NormalizeVolume(double volume)

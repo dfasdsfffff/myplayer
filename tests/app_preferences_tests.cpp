@@ -23,7 +23,8 @@ bool PreferencesEqual(const AppPreferences& left, const AppPreferences& right)
         && left.reconnectAttempts == right.reconnectAttempts
         && left.connectTimeoutMs == right.connectTimeoutMs
         && left.readTimeoutMs == right.readTimeoutMs
-        && left.rtspTransport == right.rtspTransport;
+        && left.rtspTransport == right.rtspTransport
+        && left.hardwareDecode == right.hardwareDecode;
 }
 
 } // namespace
@@ -38,6 +39,7 @@ int main()
     invalid.connectTimeoutMs = 50;
     invalid.readTimeoutMs = 999999;
     invalid.rtspTransport = static_cast<RtspTransport>(99);
+    invalid.hardwareDecode = static_cast<HardwareDecodePreference>(99);
 
     const AppPreferences sanitized = SanitizePreferences(invalid);
     if (!Expect(sanitized.volume == 1.0, "volume above one clamps to one"))
@@ -55,6 +57,9 @@ int main()
         return 1;
     if (!Expect(sanitized.rtspTransport == RtspTransport::Tcp,
                 "invalid RTSP transport falls back to TCP"))
+        return 1;
+    if (!Expect(sanitized.hardwareDecode == HardwareDecodePreference::Auto,
+                "invalid hardware decode preference falls back to auto"))
         return 1;
 
     AppPreferences low;
@@ -81,6 +86,7 @@ int main()
     persisted.connectTimeoutMs = 12000;
     persisted.readTimeoutMs = 24000;
     persisted.rtspTransport = RtspTransport::Udp;
+    persisted.hardwareDecode = HardwareDecodePreference::D3D11VA;
     const QString path = QDir(directory.path()).filePath("preferences.ini");
 
     SavePreferences(path, persisted);

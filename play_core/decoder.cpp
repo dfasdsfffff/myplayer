@@ -14,7 +14,8 @@
 int decoder_reorder_pts = -1;
 
 //解码器初始化（绑定解码上下文、数据包队列、信号量，初始化pts）
-int Decoder::init(AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond)
+int Decoder::init(AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond,
+    std::unique_ptr<HardwareDecodeContext> hardwareDecode)
 {
     pkt = av_packet_alloc();
     if (!pkt)
@@ -22,6 +23,7 @@ int Decoder::init(AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_que
     this->avctx = avctx;
     this->queue = queue;
     this->empty_queue_cond = empty_queue_cond;
+    this->hardwareDecode = std::move(hardwareDecode);
     start_pts = AV_NOPTS_VALUE;
     pkt_serial = -1;
     finished = 0;
@@ -51,6 +53,15 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
                 case AVMEDIA_TYPE_VIDEO:
                     ret = avcodec_receive_frame(avctx, frame);
                     if (ret >= 0) {
+                        if (hardwareDecode && hardwareDecode->isHardwareFrame(frame)) {
+                            if (!transferFrame)
+                                transferFrame = av_frame_alloc();
+                            AVFrame* softwareFrame = hardwareDecode->transferToSoftware(frame, transferFrame);
+                            if (!softwareFrame)
+                                return AVERROR_EXTERNAL;
+                            av_frame_unref(frame);
+                            av_frame_move_ref(frame, softwareFrame);
+                        }
                         if (decoder_reorder_pts == -1) {
                             frame->pts = frame->best_effort_timestamp;
                         }
@@ -146,7 +157,9 @@ void Decoder::destroy()
         av_log(avctx, AV_LOG_WARNING, "Decoder destroyed while decode thread is still running; joining as a safety fallback.\n");
         decode_thread.join();
     }
-    av_packet_free(&pkt);
+	av_packet_free(&pkt);
+	av_frame_free(&transferFrame);
+	hardwareDecode.reset();
     avcodec_free_context(&avctx);
     queue = nullptr;
     empty_queue_cond = nullptr;

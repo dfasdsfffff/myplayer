@@ -174,6 +174,11 @@ void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
 	m_loopPolicy.store(loopPolicy, std::memory_order_release);
 }
 
+void VideoCtl::set_hardware_decode_preference(HardwareDecodePreference preference)
+{
+	m_hardwareDecodePreference.store(preference, std::memory_order_release);
+}
+
 /* seek in the stream */
 void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 {
@@ -365,6 +370,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 	memset(&ch_layout, 0, sizeof(AVChannelLayout));
 	int ret = 0;
 	int stream_lowres = 0;
+	std::unique_ptr<HardwareDecodeContext> hardwareDecode;
 
 	if (stream_index < 0 || stream_index >= ic->nb_streams)
 		return -1;
@@ -413,8 +419,19 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 	if (stream_lowres)
 		av_dict_set_int(&opts, "lowres", stream_lowres, 0);
     av_dict_set(&opts, "flags", "+copy_opaque", AV_DICT_MULTIKEY);
+	if (avctx->codec_type == AVMEDIA_TYPE_VIDEO) {
+		hardwareDecode = std::make_unique<HardwareDecodeContext>();
+		hardwareDecode->configure(avctx, m_hardwareDecodePreference.load(std::memory_order_acquire));
+	}
 	if ((ret = avcodec_open2(avctx, codec, &opts)) < 0) {
 		goto fail;
+	}
+	if (hardwareDecode) {
+		const HardwareDecodeResult& result = hardwareDecode->result();
+		if (result.active)
+			SigPlayMsg(std::format("Hardware decode: {} active", result.backend));
+		else
+			SigPlayMsg(std::format("Hardware decode: software fallback ({})", result.fallbackReason));
 	}
 	if ((t = av_dict_get(opts, "", NULL, AV_DICT_IGNORE_SUFFIX))) {
 		av_log(NULL, AV_LOG_ERROR, "Option %s not found.\n", t->key);
@@ -492,7 +509,8 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		is->video.video_stream = stream_index;
 		is->video.video_st = ic->streams[stream_index];
 
-		if ((ret = is->video.vid_decoder.init(avctx, &is->video.videoq, is->session.continue_read_thread)) < 0)
+		if ((ret = is->video.vid_decoder.init(avctx, &is->video.videoq, is->session.continue_read_thread,
+			std::move(hardwareDecode))) < 0)
 			goto fail;
 		packet_queue_start(is->video.vid_decoder.queue);
 		is->video.vid_decoder.decode_thread = std::thread(&DecoderWorkers::Video, is);

@@ -28,6 +28,7 @@ void SettingWid::SetPreferences(const AppPreferences& preferences)
     ui.connectTimeoutSpinBox->setValue(sanitized.connectTimeoutMs);
     ui.readTimeoutSpinBox->setValue(sanitized.readTimeoutMs);
     ui.rtspTransportComboBox->setCurrentIndex(static_cast<int>(sanitized.rtspTransport));
+	ui.hardwareDecodeComboBox->setCurrentIndex(static_cast<int>(sanitized.hardwareDecode));
 }
 
 AppPreferences SettingWid::Preferences() const
@@ -41,6 +42,7 @@ AppPreferences SettingWid::Preferences() const
     preferences.connectTimeoutMs = ui.connectTimeoutSpinBox->value();
     preferences.readTimeoutMs = ui.readTimeoutSpinBox->value();
     preferences.rtspTransport = static_cast<RtspTransport>(ui.rtspTransportComboBox->currentIndex());
+	preferences.hardwareDecode = static_cast<HardwareDecodePreference>(ui.hardwareDecodeComboBox->currentIndex());
     return SanitizePreferences(preferences);
 }
 

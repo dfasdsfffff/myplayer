@@ -615,6 +615,16 @@ target_link_libraries(audio_render_queue_tests PRIVATE
 
 add_test(NAME audio_render_queue_tests COMMAND audio_render_queue_tests)
 
+add_executable(hardware_decode_policy_tests
+    tests/hardware_decode_policy_tests.cpp
+)
+
+target_link_libraries(hardware_decode_policy_tests PRIVATE
+    play_core
+)
+
+add_test(NAME hardware_decode_policy_tests COMMAND hardware_decode_policy_tests)
+
 add_executable(soundtouch_wrap_tests
     tests/soundtouch_wrap_tests.cpp
 )

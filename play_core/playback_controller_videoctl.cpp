@@ -38,6 +38,9 @@ PlaybackController CreatePlaybackController(VideoCtl& ctl)
         [&ctl](VideoLoopPolicy policy) {
             ctl.set_play_loop_policy(policy);
         },
+		[&ctl](HardwareDecodePreference preference) {
+			ctl.set_hardware_decode_preference(preference);
+		},
         [&ctl]() {
             ctl.OnCycleAudioTrack();
         },

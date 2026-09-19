@@ -8,7 +8,9 @@
 
 #include "av_compat.h"
 #include "frame_queue.h"
+#include "hardware_decode.h"
 #include "packet_queue.h"
+#include <memory>
 #include <thread>
 
 // 解码器重排序pts，-1表示自动，0表示不重排序，1表示重排序
@@ -26,7 +28,8 @@ public:
 	Decoder(const Decoder&) = delete;
 	Decoder& operator=(const Decoder&) = delete;
 
-	int init(AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond);
+	int init(AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond,
+         std::unique_ptr<HardwareDecodeContext> hardwareDecode = {});
 	int decode_frame(AVFrame* frame, AVSubtitle* sub);
 	void destroy();
 	void abort(FrameQueue* fq);
@@ -44,4 +47,6 @@ public:
 	int64_t next_pts = 0;
 	AVRational next_pts_tb = {0, 0};
 	std::thread decode_thread;
+	std::unique_ptr<HardwareDecodeContext> hardwareDecode;
+	AVFrame* transferFrame = nullptr;
 };

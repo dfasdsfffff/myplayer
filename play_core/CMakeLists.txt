@@ -6,6 +6,7 @@ add_library(play_core STATIC
     decoder_workers.cpp
     filter_configurator.cpp
     frame_queue.cpp
+    hardware_decode.cpp
     media_sync.cpp
     media_session.cpp
     network_input.cpp

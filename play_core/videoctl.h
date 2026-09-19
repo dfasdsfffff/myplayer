@@ -22,6 +22,7 @@
 #include "media_source.h"
 #include "media_session.h"
 #include "playback_command_mailbox.h"
+#include "playback_settings.h"
 #include "reconnect_controller.h"
 #include "renderer_dispatcher.h"
 #include "signal.h"
@@ -61,6 +62,7 @@ public:
 
 	void set_play_speed(double dSpeed);
 	void set_play_loop_policy(VideoLoopPolicy loopPolicy);
+	void set_hardware_decode_preference(HardwareDecodePreference preference);
 
 	// Signal 成员，替代 Qt signals
 	Signal<const std::string&>  SigPlayMsg;
@@ -154,6 +156,7 @@ private:
 	AudioOutput m_audioOutput;
 	//
 	std::atomic<VideoLoopPolicy> m_loopPolicy{LOOP_ALL}; //循环策略
+	std::atomic<HardwareDecodePreference> m_hardwareDecodePreference{HardwareDecodePreference::Auto};
 
 	/* options specified by the user */
 	// 归一化音量 [0.0, 1.0]，避免与 SDL 音量标量混淆导致切换媒体后音量漂移

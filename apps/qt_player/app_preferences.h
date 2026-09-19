@@ -2,6 +2,7 @@
 
 #include "enums.h"
 #include "media_source.h"
+#include "playback_settings.h"
 
 #include <QMetaType>
 #include <QString>
@@ -15,6 +16,7 @@ struct AppPreferences {
     int connectTimeoutMs{10000};
     int readTimeoutMs{15000};
     RtspTransport rtspTransport{RtspTransport::Tcp};
+    HardwareDecodePreference hardwareDecode{HardwareDecodePreference::Auto};
 };
 
 AppPreferences SanitizePreferences(AppPreferences value);

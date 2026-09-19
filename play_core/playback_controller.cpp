@@ -89,6 +89,12 @@ void PlaybackController::cycleSubtitleTrack()
         m_actions.cycleSubtitleTrack();
 }
 
+void PlaybackController::setHardwareDecodePreference(HardwareDecodePreference preference)
+{
+    if (m_actions.setHardwareDecodePreference)
+        m_actions.setHardwareDecodePreference(preference);
+}
+
 void PlaybackController::selectAudioTrack(int streamIndex)
 {
     if (m_actions.selectAudioTrack)

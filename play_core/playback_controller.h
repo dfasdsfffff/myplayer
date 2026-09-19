@@ -2,6 +2,7 @@
 
 #include "enums.h"
 #include "media_source.h"
+#include "playback_settings.h"
 
 #include <functional>
 #include <string>
@@ -20,6 +21,7 @@ public:
         std::function<void(double)> setVolume;
         std::function<void(double)> setSpeed;
         std::function<void(VideoLoopPolicy)> setLoopPolicy;
+		std::function<void(HardwareDecodePreference)> setHardwareDecodePreference;
         std::function<void()> cycleAudioTrack;
         std::function<void()> cycleSubtitleTrack;
         std::function<void(int)> selectAudioTrack;
@@ -42,6 +44,7 @@ public:
     void setVolume(double percent);
     void setSpeed(double speed);
     void setLoopPolicy(VideoLoopPolicy policy);
+	void setHardwareDecodePreference(HardwareDecodePreference preference);
     void cycleAudioTrack();
     void cycleSubtitleTrack();
     void selectAudioTrack(int streamIndex);

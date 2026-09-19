@@ -21,6 +21,13 @@ bool IsValidRtspTransport(RtspTransport transport)
     return transport == RtspTransport::Tcp || transport == RtspTransport::Udp;
 }
 
+bool IsValidHardwareDecodePreference(HardwareDecodePreference preference)
+{
+    return preference == HardwareDecodePreference::Auto ||
+        preference == HardwareDecodePreference::Disabled ||
+        preference == HardwareDecodePreference::D3D11VA;
+}
+
 } // namespace
 
 AppPreferences SanitizePreferences(AppPreferences value)
@@ -34,6 +41,8 @@ AppPreferences SanitizePreferences(AppPreferences value)
     value.readTimeoutMs = std::clamp(value.readTimeoutMs, kMinimumTimeoutMs, kMaximumTimeoutMs);
     if (!IsValidRtspTransport(value.rtspTransport))
         value.rtspTransport = RtspTransport::Tcp;
+	if (!IsValidHardwareDecodePreference(value.hardwareDecode))
+		value.hardwareDecode = HardwareDecodePreference::Auto;
     return value;
 }
 
@@ -50,6 +59,7 @@ AppPreferences LoadPreferences(const QString& path)
     preferences.connectTimeoutMs = settings.value("connectTimeoutMs", preferences.connectTimeoutMs).toInt();
     preferences.readTimeoutMs = settings.value("readTimeoutMs", preferences.readTimeoutMs).toInt();
     preferences.rtspTransport = static_cast<RtspTransport>(settings.value("rtspTransport", static_cast<int>(preferences.rtspTransport)).toInt());
+	preferences.hardwareDecode = static_cast<HardwareDecodePreference>(settings.value("hardwareDecode", static_cast<int>(preferences.hardwareDecode)).toInt());
     settings.endGroup();
     return SanitizePreferences(preferences);
 }
@@ -67,6 +77,7 @@ void SavePreferences(const QString& path, const AppPreferences& preferences)
     settings.setValue("connectTimeoutMs", sanitized.connectTimeoutMs);
     settings.setValue("readTimeoutMs", sanitized.readTimeoutMs);
     settings.setValue("rtspTransport", static_cast<int>(sanitized.rtspTransport));
+	settings.setValue("hardwareDecode", static_cast<int>(sanitized.hardwareDecode));
     settings.endGroup();
     settings.sync();
 }

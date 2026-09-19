@@ -907,6 +907,7 @@ void MainWid::ApplyPreferences(const AppPreferences& preferences)
 {
 	m_preferences = SanitizePreferences(preferences);
 	ui->CtrlBarWid->ApplyPreferences(m_preferences);
+	m_playbackController->setHardwareDecodePreference(m_preferences.hardwareDecode);
 }
 
 void MainWid::InitMenu()
