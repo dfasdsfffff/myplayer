@@ -23,7 +23,7 @@
 
 - Parallel Release builds must never share a `platforms/` write directory.
 - Package validation must reject missing plugins, notices, licenses, Debug DLLs, or a failed smoke test.
-- No Qt5, FFmpeg 57, or obsolete `..\\myplayer\\bin` installer reference may remain.
+- No Qt5, FFmpeg 57, or obsolete `..\\myplayer\\bin` release reference may remain. Advanced Installer is not part of the portable-only release workflow.
 - CI must test and package Release, not merely compile it.
 - The release report must preserve unmet signing and manual-QA gates.
 
@@ -63,16 +63,15 @@
 **Files:**
 - Modify: `apps/qt_player/myplayer.rc`
 - Modify: `CMakeLists.txt`
-- Modify: `myplayer.aip`
 - Create: `tests/release_metadata_tests.cmake`
 
-**Produces:** `myplayer.exe` has CMake-derived `1.0.0` version and MyPlayer file metadata; the AIP references `dist/stage` with Qt6/current FFmpeg names.
+**Produces:** `myplayer.exe` has CMake-derived `1.0.0` version and MyPlayer file metadata. The retired Advanced Installer project is deliberately excluded from this portable-only workflow.
 
-- [ ] **Step 1: Write the failing metadata contract.** Create `tests/release_metadata_tests.cmake` that rejects Qt5, `avcodec-57`, `..\\myplayer\\bin`, missing `VS_VERSION_INFO`, and AIP version different from the CMake project version.
-- [ ] **Step 2: Run RED.** Run `ctest --test-dir build -C Debug -R release_metadata_tests --output-on-failure`. Expected: failure identifying legacy installer paths and missing resource metadata.
-- [ ] **Step 3: Implement.** Pass `PROJECT_VERSION_*` to the resource compiler; add Windows version fields. Update AIP product version, publisher/support links, source root, and component/file references to the stage tree; do not add false signature declarations.
+- [ ] **Step 1: Write the failing metadata contract.** Create `tests/release_metadata_tests.cmake` that rejects missing `VS_VERSION_INFO` and verifies CMake-derived file metadata.
+- [ ] **Step 2: Run RED.** Run `ctest --test-dir build -C Debug -R release_metadata_tests --output-on-failure`. Expected: failure identifying missing resource metadata.
+- [ ] **Step 3: Implement.** Pass `PROJECT_VERSION_*` to the resource compiler and add Windows version fields; do not add false signature declarations.
 - [ ] **Step 4: Run GREEN.** Run `cmake --build build --config Release --parallel; ctest --test-dir build -C Debug -R release_metadata_tests --output-on-failure`. Expected: version resource exposes `1.0.0` and MyPlayer fields.
-- [ ] **Step 5: Commit.** Run `git add apps/qt_player/myplayer.rc CMakeLists.txt myplayer.aip tests/release_metadata_tests.cmake; git commit -m "release: align version and installer metadata"`.
+- [ ] **Step 5: Commit.** Run `git add apps/qt_player/myplayer_version.rc.in CMakeLists.txt tests/release_metadata_tests.cmake; git commit -m "release: align portable version metadata"`.
 
 ### Task 4: Package and Verify the Staged Release Artifact
 
