@@ -87,7 +87,7 @@ void PlaybackRuntimeBridge::attach(PlaybackRuntime* runtime)
     }));
 
     m_connections.emplace_back(runtime->SigVideoFrame.connect([self](std::shared_ptr<VideoFrame> frame) {
-        if (!self || !frame || frame->bgra.empty())
+        if (!self || !frame || (frame->format == VideoFrameFormat::Bgra32 && frame->bgra.empty()))
             return;
         auto* bridge = self.data();
         bridge->m_publishedVideoFrames.fetch_add(1, std::memory_order_relaxed);

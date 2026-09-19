@@ -155,6 +155,7 @@ private:
     SDL_Window* m_sdlWindow = nullptr;
     SDL_Renderer* m_sdlRenderer = nullptr;
     SDL_Texture* m_sdlTexture = nullptr;
+    Uint32 m_sdlTextureFormat = SDL_PIXELFORMAT_UNKNOWN;
     bool m_sdlVideoInitialized = false;
     QSize m_sdlTextureSize;
     double m_playbackSeconds = 0.0;

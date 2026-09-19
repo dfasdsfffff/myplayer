@@ -7,9 +7,19 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <memory>
 #include <vector>
+
+enum class VideoFrameFormat { Bgra32, Yuv420P };
+
+struct VideoPlane {
+	std::shared_ptr<const uint8_t> data;
+	int stride = 0;
+	int height = 0;
+};
 
 struct VideoDisplayRect {
 	int x = 0;
@@ -45,6 +55,7 @@ inline VideoDisplayRect ComputeVideoDisplayRect(int codedWidth, int codedHeight,
 
 struct VideoFrame
 {
+	VideoFrameFormat format = VideoFrameFormat::Bgra32;
 	int width = 0;
 	int height = 0;
 	int bytesPerLine = 0;
@@ -54,4 +65,5 @@ struct VideoFrame
 	AVColorRange colorRange = AVCOL_RANGE_UNSPECIFIED;
 	bool unsupportedHdrTransfer = false;
 	std::vector<uint8_t> bgra;
+	std::array<VideoPlane, 3> planes;
 };

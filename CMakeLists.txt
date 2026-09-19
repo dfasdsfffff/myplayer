@@ -438,6 +438,10 @@ target_link_libraries(video_geometry_tests PRIVATE
 
 add_test(NAME video_geometry_tests COMMAND video_geometry_tests)
 
+add_executable(video_frame_format_tests tests/video_frame_format_tests.cpp)
+target_link_libraries(video_frame_format_tests PRIVATE play_core)
+add_test(NAME video_frame_format_tests COMMAND video_frame_format_tests)
+
 add_executable(resume_policy_tests
     tests/resume_policy_tests.cpp
 )

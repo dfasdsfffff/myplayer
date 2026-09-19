@@ -17,6 +17,8 @@ std::shared_ptr<VideoFrame> VideoFrameConverter::convert(const AVFrame* source)
 		return nullptr;
 
 	auto frame = acquireFrame();
+	frame->bgra.clear();
+	frame->planes = {};
 	frame->width = source->width;
 	frame->height = source->height;
 	frame->bytesPerLine = frame->width * 4;
@@ -29,6 +31,22 @@ std::shared_ptr<VideoFrame> VideoFrameConverter::convert(const AVFrame* source)
 	frame->rotationDegrees = 0.0;
 	if (const AVFrameSideData* displayMatrix = av_frame_get_side_data(source, AV_FRAME_DATA_DISPLAYMATRIX))
 		frame->rotationDegrees = -av_display_rotation_get(reinterpret_cast<const int32_t*>(displayMatrix->data));
+	if (source->format == AV_PIX_FMT_YUV420P && source->width % 2 == 0 && source->height % 2 == 0) {
+		AVFrame* retained = av_frame_alloc();
+		if (!retained || av_frame_ref(retained, source) < 0) {
+			av_frame_free(&retained);
+			return nullptr;
+		}
+		const std::shared_ptr<AVFrame> backing(retained, [](AVFrame* value) { av_frame_free(&value); });
+		frame->format = VideoFrameFormat::Yuv420P;
+		for (int plane = 0; plane < 3; ++plane) {
+			frame->planes[plane].data = std::shared_ptr<const uint8_t>(backing, retained->data[plane]);
+			frame->planes[plane].stride = retained->linesize[plane];
+			frame->planes[plane].height = plane == 0 ? source->height : source->height / 2;
+		}
+		return frame;
+	}
+	frame->format = VideoFrameFormat::Bgra32;
 	frame->bgra.resize(static_cast<std::size_t>(frame->bytesPerLine) * frame->height);
 
 	m_context = sws_getCachedContext(m_context,

@@ -88,7 +88,8 @@ void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
 
 void Show::OnVideoFrame(std::shared_ptr<VideoFrame> frame)
 {
-    if (!frame || frame->bgra.empty() || frame->width <= 0 || frame->height <= 0)
+    if (!frame || frame->width <= 0 || frame->height <= 0
+        || (frame->format == VideoFrameFormat::Bgra32 && frame->bgra.empty()))
         return;
 
     ClearAudioOnlyIndicator();
@@ -214,6 +215,7 @@ void Show::DestroySdlRenderer()
         m_sdlVideoInitialized = false;
     }
     m_sdlTextureSize = QSize();
+    m_sdlTextureFormat = SDL_PIXELFORMAT_UNKNOWN;
 }
 
 void Show::ClearVideoSurface()
@@ -230,27 +232,36 @@ void Show::ClearVideoSurface()
 
 void Show::RenderCurrentFrame()
 {
-    if (!m_currentFrame || m_currentFrame->bgra.empty() || ui->label->width() <= 0 || ui->label->height() <= 0)
+    if (!m_currentFrame || ui->label->width() <= 0 || ui->label->height() <= 0)
         return;
     if (!EnsureSdlRenderer())
         return;
 
     const QSize frameSize(m_currentFrame->width, m_currentFrame->height);
-    if (!m_sdlTexture || m_sdlTextureSize != frameSize)
+    const Uint32 pixelFormat = m_currentFrame->format == VideoFrameFormat::Yuv420P ? SDL_PIXELFORMAT_IYUV : SDL_PIXELFORMAT_BGRA32;
+    if (!m_sdlTexture || m_sdlTextureSize != frameSize || m_sdlTextureFormat != pixelFormat)
     {
         if (m_sdlTexture)
             SDL_DestroyTexture(m_sdlTexture);
-        m_sdlTexture = SDL_CreateTexture(m_sdlRenderer, SDL_PIXELFORMAT_BGRA32,
+        m_sdlTexture = SDL_CreateTexture(m_sdlRenderer, pixelFormat,
             SDL_TEXTUREACCESS_STREAMING, frameSize.width(), frameSize.height());
         m_sdlTextureSize = frameSize;
+        m_sdlTextureFormat = pixelFormat;
         if (!m_sdlTexture)
         {
             qWarning() << "SDL_CreateTexture failed:" << SDL_GetError();
             return;
         }
+        qDebug() << "Video presentation format:"
+                 << (pixelFormat == SDL_PIXELFORMAT_IYUV ? "YUV420P" : "BGRA32");
     }
 
-    if (SDL_UpdateTexture(m_sdlTexture, nullptr, m_currentFrame->bgra.data(), m_currentFrame->bytesPerLine) != 0)
+    const int updateResult = m_currentFrame->format == VideoFrameFormat::Yuv420P
+        ? SDL_UpdateYUVTexture(m_sdlTexture, nullptr, m_currentFrame->planes[0].data.get(), m_currentFrame->planes[0].stride,
+            m_currentFrame->planes[1].data.get(), m_currentFrame->planes[1].stride,
+            m_currentFrame->planes[2].data.get(), m_currentFrame->planes[2].stride)
+        : SDL_UpdateTexture(m_sdlTexture, nullptr, m_currentFrame->bgra.data(), m_currentFrame->bytesPerLine);
+    if (updateResult != 0)
     {
         qWarning() << "SDL_UpdateTexture failed:" << SDL_GetError();
         return;
