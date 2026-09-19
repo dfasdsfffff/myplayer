@@ -51,8 +51,8 @@ int main()
     if (!Expect(!disabled.active && disabled.fallbackReason == "disabled by preference",
                 "disabled preference reports software fallback") ||
         !Expect(codecContext->hw_device_ctx == nullptr && codecContext->opaque == nullptr &&
-                    codecContext->get_format == nullptr,
-                "disabled preference clears stale hardware decoder hooks")) {
+                    codecContext->get_format == avcodec_default_get_format,
+                "disabled preference restores FFmpeg's default pixel-format callback")) {
         avcodec_free_context(&codecContext);
         return 1;
     }

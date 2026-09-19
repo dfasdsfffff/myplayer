@@ -45,7 +45,7 @@ HardwareDecodeResult HardwareDecodeContext::configure(AVCodecContext* codecConte
 
     av_buffer_unref(&codecContext->hw_device_ctx);
     codecContext->opaque = nullptr;
-    codecContext->get_format = nullptr;
+    codecContext->get_format = avcodec_default_get_format;
 
 #ifdef _WIN32
     const AVHWDeviceType deviceType = av_hwdevice_find_type_by_name("d3d11va");
