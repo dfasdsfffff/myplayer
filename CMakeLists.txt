@@ -12,6 +12,7 @@ option(MYPLAYER_ENABLE_WARNINGS "Enable project warning flags" ON)
 option(MYPLAYER_ENABLE_SANITIZERS "Enable supported sanitizers" OFF)
 
 include(cmake/MyPlayerWarnings.cmake)
+include(cmake/MyPlayerInstall.cmake)
 
 option(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE "Use release Qt libraries for Debug builds" OFF)
 
@@ -170,9 +171,7 @@ myplayer_deploy_runtime_dependencies(${PROJECT_NAME})
 myplayer_enable_warnings(${PROJECT_NAME})
 myplayer_enable_sanitizers(${PROJECT_NAME})
 
-install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION bin
-)
+myplayer_install_release_tree(${PROJECT_NAME})
 endif()
 
 if(BUILD_TESTING)
@@ -199,6 +198,14 @@ endfunction()
             -DTOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
             -P ${PROJECT_SOURCE_DIR}/tests/cmake_configuration_tests.cmake
     )
+
+    if(MYPLAYER_BUILD_QT_APP)
+        add_test(NAME install_layout_tests
+            COMMAND ${CMAKE_COMMAND}
+                -DBINARY_DIR=${CMAKE_BINARY_DIR}
+                -P ${PROJECT_SOURCE_DIR}/tests/install_layout_tests.cmake
+        )
+    endif()
 
 add_executable(playback_settings_tests
     tests/playback_settings_tests.cpp
