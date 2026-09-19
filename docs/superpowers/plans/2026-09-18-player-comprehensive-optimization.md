@@ -721,6 +721,8 @@ git commit -m "perf: render video through YUV textures"
 
 ### Task 17: Prepared PCM Queue Outside the SDL Callback
 
+Implementation committed: `132361e`; Debug build passed and CTest passed 32/32. `audio_render_queue_tests` covers bounded 500 ms PCM capacity, producer wakeup after consumer reads, silence plus underrun accounting, flush, and stopping a blocked producer. SDL dummy-device/manual speed-change underrun observation remains release QA.
+
 **Files:**
 
 - Create: `play_core/audio_render_queue.h`
@@ -745,12 +747,12 @@ public:
 };
 ```
 
-- [ ] Write failing tests for bounded capacity, producer blocking/wakeup, read silence on underrun, flush after seek, speed change reset, and stop while producer is blocked.
-- [ ] Move frame dequeue, resampling, and SoundTouch processing to the render producer thread. Store prepared S16 PCM in a bounded ring buffer sized by milliseconds, not unbounded vectors.
-- [ ] Reduce `AudioOutput::Callback` to bounded ring-buffer read, silence fill, volume mix, and clock accounting. It must not allocate, wait, decode, resample, log, or call SoundTouch.
-- [ ] Flush and restart producer state on seek, track change, reconnect, and speed change. Stop/join it before closing the SDL device or destroying `VideoState`.
+- [x] Write failing tests for bounded capacity, producer blocking/wakeup, read silence on underrun, flush after seek, speed change reset, and stop while producer is blocked.
+- [x] Move frame dequeue, resampling, and SoundTouch processing to the render producer thread. Store prepared S16 PCM in a bounded ring buffer sized by milliseconds, not unbounded vectors.
+- [x] Reduce `AudioOutput::Callback` to bounded ring-buffer read, silence fill, volume mix, and clock accounting. It must not allocate, wait, decode, resample, log, or call SoundTouch.
+- [x] Flush and restart producer state on seek, track change, reconnect, and speed change. Stop/join it before closing the SDL device or destroying `VideoState`.
 - [ ] Run focused/full stress tests with SDL dummy audio and manually monitor underrun count during speed changes.
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add play_core/audio_render_queue.* play_core/audio_output.* play_core/video_state.h tests/audio_render_queue_tests.cpp play_core/CMakeLists.txt CMakeLists.txt
