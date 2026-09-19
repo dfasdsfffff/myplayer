@@ -39,5 +39,23 @@ int main()
     if (!Expect(ChooseHardwarePixelFormat({AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE}) == AV_PIX_FMT_NONE,
                 "missing hardware pixel format forces software fallback"))
         return 1;
+
+    AVCodecContext* codecContext = avcodec_alloc_context3(nullptr);
+    if (!Expect(codecContext != nullptr, "test allocates a codec context"))
+        return 1;
+    codecContext->hw_device_ctx = av_buffer_alloc(1);
+    codecContext->opaque = reinterpret_cast<void*>(1);
+    codecContext->get_format = [](AVCodecContext*, const AVPixelFormat*) { return AV_PIX_FMT_D3D11; };
+    HardwareDecodeContext context;
+    const HardwareDecodeResult disabled = context.configure(codecContext, HardwareDecodePreference::Disabled);
+    if (!Expect(!disabled.active && disabled.fallbackReason == "disabled by preference",
+                "disabled preference reports software fallback") ||
+        !Expect(codecContext->hw_device_ctx == nullptr && codecContext->opaque == nullptr &&
+                    codecContext->get_format == nullptr,
+                "disabled preference clears stale hardware decoder hooks")) {
+        avcodec_free_context(&codecContext);
+        return 1;
+    }
+    avcodec_free_context(&codecContext);
     return 0;
 }
