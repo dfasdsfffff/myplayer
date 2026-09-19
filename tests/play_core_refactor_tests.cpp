@@ -255,6 +255,7 @@ int main()
     double lastVolumePercent = -1.0;
     double lastSpeed = -1.0;
     VideoLoopPolicy lastLoopPolicy = LOOP_NONE;
+    HardwareDecodePreference lastHardwareDecodePreference = HardwareDecodePreference::Disabled;
     int cycleAudioTrackCount = 0;
     int cycleSubtitleTrackCount = 0;
     int selectedAudioTrack = -1;
@@ -278,6 +279,7 @@ int main()
         [&](double percent) { lastVolumePercent = percent; },
         [&](double speed) { lastSpeed = speed; },
         [&](VideoLoopPolicy policy) { lastLoopPolicy = policy; },
+        [&](HardwareDecodePreference preference) { lastHardwareDecodePreference = preference; },
         [&]() { ++cycleAudioTrackCount; },
         [&]() { ++cycleSubtitleTrackCount; },
         [&](int streamIndex) { selectedAudioTrack = streamIndex; },
@@ -311,6 +313,7 @@ int main()
     controller.setVolume(0.75);
     controller.setSpeed(1.5);
     controller.setLoopPolicy(LOOP_SINGLE);
+    controller.setHardwareDecodePreference(HardwareDecodePreference::D3D11VA);
     controller.cycleAudioTrack();
     controller.cycleSubtitleTrack();
     controller.selectAudioTrack(4);
@@ -338,6 +341,9 @@ int main()
     if (!Expect(lastSpeed == 1.5, "setSpeed should forward speed"))
         return 1;
     if (!Expect(lastLoopPolicy == LOOP_SINGLE, "setLoopPolicy should forward policy"))
+        return 1;
+    if (!Expect(lastHardwareDecodePreference == HardwareDecodePreference::D3D11VA,
+                "setHardwareDecodePreference should forward preference"))
         return 1;
     if (!Expect(cycleAudioTrackCount == 1, "cycleAudioTrack should forward once"))
         return 1;
