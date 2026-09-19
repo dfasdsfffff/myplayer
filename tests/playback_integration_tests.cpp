@@ -46,11 +46,19 @@ int main()
     std::mutex frameMutex;
     std::condition_variable frameReady;
     bool receivedFrame = false;
+    bool receivedMediaInfo = false;
+    MediaInfo mediaInfo;
     auto connection = runtime->SigVideoFrame.connect([&](std::shared_ptr<VideoFrame> frame) {
         if (!frame)
             return;
         std::lock_guard<std::mutex> lock(frameMutex);
         receivedFrame = true;
+        frameReady.notify_one();
+    });
+    auto mediaInfoConnection = runtime->SigMediaInfo.connect([&](const MediaInfo& info) {
+        std::lock_guard<std::mutex> lock(frameMutex);
+        mediaInfo = info;
+        receivedMediaInfo = true;
         frameReady.notify_one();
     });
     if (!Expect(runtime->controller().play(fixtures.video.string()), "generated video opens"))
@@ -59,6 +67,14 @@ int main()
         std::unique_lock<std::mutex> lock(frameMutex);
         if (!Expect(frameReady.wait_for(lock, std::chrono::seconds(5), [&] { return receivedFrame; }),
                     "generated video produces a first frame")) {
+            runtime->controller().stopAndWait();
+            return 1;
+        }
+        if (!Expect(frameReady.wait_for(lock, std::chrono::seconds(5), [&] { return receivedMediaInfo; }),
+                    "generated video publishes media information") ||
+            !Expect(mediaInfo.seekable && mediaInfo.duration && mediaInfo.duration->count() >= 900 &&
+                        mediaInfo.width == 64 && mediaInfo.height == 48,
+                    "media information exposes generated video duration, seekability, and dimensions")) {
             runtime->controller().stopAndWait();
             return 1;
         }
