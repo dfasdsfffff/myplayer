@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the Release build, portable package, installer seed, CI gate, and release evidence reproducible and auditable.
+**Goal:** Make the Release build, portable package, CI gate, and release evidence reproducible and auditable.
 
 **Architecture:** CMake owns a configuration-specific install tree containing executable, runtime dependencies, plugins, notices, and licenses. The portable script packages and verifies only that tree. Qt test targets receive per-target runtime directories so parallel builds never copy plugins into a shared directory.
 
-**Tech Stack:** CMake 3.25+, C++20, PowerShell, Qt 6, vcpkg, CTest, GitHub Actions, Advanced Installer seed.
+**Tech Stack:** CMake 3.25+, C++20, PowerShell, Qt 6, vcpkg, CTest, GitHub Actions.
 
 **Spec:** `docs/superpowers/specs/2026-09-19-release-readiness-design.md`
 
@@ -17,7 +17,7 @@
 - Do not claim a binary is signed or public-release ready without a certificate and clean-machine QA evidence.
 - Do not add a package manager or download media during verification.
 - Every production behavior change starts with a failing automated test or contract check.
-- Scripts and installer metadata must consume the CMake install layout rather than discover DLLs independently.
+- Scripts must consume the CMake install layout rather than discover DLLs independently.
 
 ## Review Focus
 
@@ -58,7 +58,7 @@
 - [ ] **Step 4: Run GREEN.** Run `cmake --build build --config Release --parallel; ctest --test-dir build -C Release -R install_layout_tests --output-on-failure`. Expected: staging contains only Release dependencies and required legal material.
 - [ ] **Step 5: Commit.** Run `git add CMakeLists.txt cmake/MyPlayerInstall.cmake tests/install_layout_tests.cmake; git commit -m "build: stage complete release install tree"`.
 
-### Task 3: Add Version Metadata and Replace the Obsolete Installer Seed
+### Task 3: Add Version Metadata
 
 **Files:**
 - Modify: `apps/qt_player/myplayer.rc`
