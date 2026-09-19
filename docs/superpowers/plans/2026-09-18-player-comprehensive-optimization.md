@@ -761,6 +761,8 @@ git commit -m "perf: prepare audio outside SDL callback"
 
 ### Task 18: Optional D3D11VA Hardware Decoding with Software Fallback
 
+Implementation committed: `df1c4f6`; Debug build and CTest passed 34/34. Real-device QA was confirmed by the user on 2026-09-19; codec, adapter, and CPU measurements were not recorded.
+
 **Files:**
 
 - Create: `play_core/hardware_decode.h`
