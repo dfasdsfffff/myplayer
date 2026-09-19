@@ -625,6 +625,25 @@ target_link_libraries(hardware_decode_policy_tests PRIVATE
 
 add_test(NAME hardware_decode_policy_tests COMMAND hardware_decode_policy_tests)
 
+add_executable(playback_integration_tests
+    tests/playback_integration_tests.cpp
+    tests/media_fixture_builder.cpp
+)
+
+target_include_directories(playback_integration_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests
+)
+
+target_link_libraries(playback_integration_tests PRIVATE
+    play_core
+)
+
+add_test(NAME playback_integration_tests COMMAND playback_integration_tests)
+set_tests_properties(playback_integration_tests PROPERTIES
+    LABELS INTEGRATION
+    ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
+)
+
 add_executable(soundtouch_wrap_tests
     tests/soundtouch_wrap_tests.cpp
 )
