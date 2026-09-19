@@ -133,6 +133,10 @@ void AudioOutput::Flush()
         if (m_device)
             SDL_LockAudioDevice(m_device);
         m_state->audio.renderQueue->flush();
+        {
+            std::lock_guard<std::mutex> soundTouchLock(m_state->audio.soundTouchMutex);
+            soundtouch_clear_samples(m_state->audio.soundTouchHandle);
+        }
         if (m_device)
             SDL_UnlockAudioDevice(m_device);
     }
@@ -273,16 +277,19 @@ reload:
             av_fast_malloc(&state->audio.audio_new_buf, &state->audio.audio_new_buf_size, outSize * 4);
             if (!state->audio.audio_new_buf)
                 return AVERROR(ENOMEM);
-            int translatedLength = soundtouch_translate(state->audio.soundTouchHandle,
-                reinterpret_cast<short*>(state->audio.audio_buf1),
-                static_cast<float>(playbackRate),
-                static_cast<float>(1.0 / playbackRate),
-                resampledDataSize / 2,
-                bytesPerSample,
-                state->audio.audio_tgt.ch_layout.nb_channels,
-                audioFrame->frame->sample_rate,
-                state->audio.audio_new_buf,
-                static_cast<int>(state->audio.audio_new_buf_size / sizeof(short)));
+            int translatedLength;
+            {
+                std::lock_guard<std::mutex> soundTouchLock(state->audio.soundTouchMutex);
+                translatedLength = soundtouch_translate(state->audio.soundTouchHandle,
+                    reinterpret_cast<short*>(state->audio.audio_buf1),
+                    static_cast<float>(playbackRate),
+                    resampledDataSize / 2,
+                    bytesPerSample,
+                    state->audio.audio_tgt.ch_layout.nb_channels,
+                    state->audio.audio_tgt.freq,
+                    state->audio.audio_new_buf,
+                    static_cast<int>(state->audio.audio_new_buf_size / sizeof(short)));
+            }
             if (translatedLength > 0) {
                 state->audio.audio_buf = (uint8_t*)state->audio.audio_new_buf;
                 resampledDataSize = translatedLength;

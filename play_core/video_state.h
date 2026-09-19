@@ -58,6 +58,7 @@ struct AudioState {
     ~AudioState();
 
     void* soundTouchHandle = nullptr;
+    std::mutex soundTouchMutex;
     short* audio_new_buf = nullptr;
     unsigned int audio_new_buf_size = 0;
     std::atomic<double> play_rate{1.0};

@@ -7,7 +7,7 @@ void* soundtouch_create()
     return handle;
 }
 
-int soundtouch_translate(void* handle, short* data, float speed, float pitch,
+int soundtouch_translate(void* handle, short* data, float tempo,
     int len, int bytes_per_sample, int n_channel, int n_sampleRate,
     short* output, int output_capacity_samples)
 {
@@ -18,11 +18,14 @@ int soundtouch_translate(void* handle, short* data, float speed, float pitch,
     if (h == NULL || !data || !output || n_channel <= 0 || output_capacity_samples <= 0)
         return 0;
 
-    soundtouch_setPitch(h, pitch);
-    soundtouch_setRate(h, speed);
-
     soundtouch_setSampleRate(h, n_sampleRate);
     soundtouch_setChannels(h, n_channel);
+    // setTempo changes duration while keeping the original pitch.  Combining
+    // setRate with an inverse setPitch adds an unnecessary resampling pass,
+    // which is especially audible as artifacts at slow playback rates.
+    soundtouch_setRate(h, 1.0f);
+    soundtouch_setPitch(h, 1.0f);
+    soundtouch_setTempo(h, tempo);
 
     soundtouch_putSamples_i16(h, data, put_n_sample);
 
@@ -37,11 +40,17 @@ int soundtouch_translate(void* handle, short* data, float speed, float pitch,
     return output_samples * bytes_per_sample;
 }
 
+void soundtouch_clear_samples(void* handle)
+{
+    if (handle)
+        soundtouch_clear(static_cast<HANDLE>(handle));
+}
+
 void soundtouch_destroy(void* handle)
 {
     HANDLE h = (HANDLE)handle;
     if (h == NULL)
         return;
-    soundtouch_clear(h);
+    soundtouch_clear_samples(handle);
     soundtouch_destroyInstance(h);
 }
