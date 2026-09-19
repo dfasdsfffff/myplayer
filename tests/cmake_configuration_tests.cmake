@@ -47,3 +47,14 @@ foreach(qt_test_target IN ITEMS
         message(FATAL_ERROR "Qt test lacks an isolated runtime directory: ${qt_test_target}")
     endif()
 endforeach()
+
+set(app_runtime_deploy_call_text [=[myplayer_deploy_runtime_dependencies(${PROJECT_NAME})]=])
+string(FIND "${root_cmake}" "${app_runtime_deploy_call_text}" app_runtime_deploy_call)
+if(app_runtime_deploy_call EQUAL -1)
+    message(FATAL_ERROR "application target does not deploy its runtime dependencies")
+endif()
+
+string(FIND "${root_cmake}" "myplayer_deploy_runtime_dependencies(globalhelper_privacy_tests)" globalhelper_runtime_deploy_call)
+if(globalhelper_runtime_deploy_call EQUAL -1)
+    message(FATAL_ERROR "globalhelper privacy test does not deploy its runtime dependencies")
+endif()

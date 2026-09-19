@@ -139,6 +139,24 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     PkgConfig::LIBASS
 )
 
+if(WIN32)
+    get_filename_component(MYPLAYER_QT_ROOT "${Qt6_DIR}/../../.." ABSOLUTE)
+endif()
+
+function(myplayer_deploy_runtime_dependencies target)
+    if(WIN32)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:${target}>
+                $<TARGET_FILE_DIR:${target}>
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${MYPLAYER_QT_ROOT}/plugins/platforms"
+                "$<TARGET_FILE_DIR:${target}>/platforms"
+            COMMAND_EXPAND_LISTS
+        )
+    endif()
+endfunction()
+
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PLAYERDEMO_OUTPUT_DIR}"
@@ -146,6 +164,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     OUTPUT_NAME_DEBUG "myplayer_debug"
     OUTPUT_NAME_RELEASE "myplayer"
 )
+
+myplayer_deploy_runtime_dependencies(${PROJECT_NAME})
 
 myplayer_enable_warnings(${PROJECT_NAME})
 myplayer_enable_sanitizers(${PROJECT_NAME})
@@ -215,6 +235,7 @@ target_include_directories(globalhelper_privacy_tests PRIVATE
 )
 
 target_link_libraries(globalhelper_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+myplayer_deploy_runtime_dependencies(globalhelper_privacy_tests)
 add_test(NAME globalhelper_privacy_tests COMMAND globalhelper_privacy_tests)
 set_tests_properties(globalhelper_privacy_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
@@ -237,7 +258,6 @@ target_include_directories(playlist_privacy_tests PRIVATE
 target_link_libraries(playlist_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 myplayer_set_test_runtime_dir(playlist_privacy_tests)
 if(WIN32)
-    get_filename_component(MYPLAYER_QT_ROOT "${Qt6_DIR}/../../.." ABSOLUTE)
     add_custom_command(TARGET playlist_privacy_tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_RUNTIME_DLLS:playlist_privacy_tests>
@@ -318,7 +338,6 @@ target_link_libraries(setting_widget_tests PRIVATE
 myplayer_set_test_runtime_dir(setting_widget_tests)
 
 if(WIN32)
-    get_filename_component(MYPLAYER_QT_ROOT "${Qt6_DIR}/../../.." ABSOLUTE)
     add_custom_command(TARGET setting_widget_tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_RUNTIME_DLLS:setting_widget_tests>
