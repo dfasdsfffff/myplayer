@@ -615,6 +615,16 @@ target_link_libraries(audio_render_queue_tests PRIVATE
 
 add_test(NAME audio_render_queue_tests COMMAND audio_render_queue_tests)
 
+add_executable(soundtouch_wrap_tests
+    tests/soundtouch_wrap_tests.cpp
+)
+
+target_link_libraries(soundtouch_wrap_tests PRIVATE
+    play_core
+)
+
+add_test(NAME soundtouch_wrap_tests COMMAND soundtouch_wrap_tests)
+
 add_executable(show_widget_tests
     tests/show_widget_tests.cpp
 )

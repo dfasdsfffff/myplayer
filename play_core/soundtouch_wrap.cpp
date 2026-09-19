@@ -8,13 +8,14 @@ void* soundtouch_create()
 }
 
 int soundtouch_translate(void* handle, short* data, float speed, float pitch,
-    int len, int bytes_per_sample, int n_channel, int n_sampleRate)
+    int len, int bytes_per_sample, int n_channel, int n_sampleRate,
+    short* output, int output_capacity_samples)
 {
     HANDLE h = (HANDLE)handle;
     int put_n_sample = len / n_channel;
     unsigned int nb = 0;
-    int pcm_data_size = 0;
-    if (h == NULL)
+    int output_samples = 0;
+    if (h == NULL || !data || !output || n_channel <= 0 || output_capacity_samples <= 0)
         return 0;
 
     soundtouch_setPitch(h, pitch);
@@ -26,11 +27,14 @@ int soundtouch_translate(void* handle, short* data, float speed, float pitch,
     soundtouch_putSamples_i16(h, data, put_n_sample);
 
     do {
-        nb = soundtouch_receiveSamples_i16(h, data, n_sampleRate / n_channel);
-        pcm_data_size += nb * n_channel * bytes_per_sample;
+        const unsigned int remaining_frames = static_cast<unsigned int>((output_capacity_samples - output_samples) / n_channel);
+        if (!remaining_frames)
+            break;
+        nb = soundtouch_receiveSamples_i16(h, output + output_samples, remaining_frames);
+        output_samples += static_cast<int>(nb) * n_channel;
     } while (nb != 0);
 
-    return pcm_data_size;
+    return output_samples * bytes_per_sample;
 }
 
 void soundtouch_destroy(void* handle)

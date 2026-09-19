@@ -185,7 +185,6 @@ int AudioOutput::DecodeFrame(VideoState* state)
     av_unused double audioClock0;
     int wantedSampleCount;
     Frame* audioFrame;
-    int translateTime = 1;
     if (state->session.paused.load(std::memory_order_acquire))
         return -1;
 reload:
@@ -271,24 +270,23 @@ reload:
         int bytesPerSample = av_get_bytes_per_sample(state->audio.audio_tgt.fmt);
         const auto playbackRate = state->audio.play_rate.load(std::memory_order_acquire);
         if (state->audio.soundTouchHandle && playbackRate != 1.0 && !state->session.abort_request.load(std::memory_order_acquire)) {
-            av_fast_malloc(&state->audio.audio_new_buf, &state->audio.audio_new_buf_size, outSize * translateTime);
+            av_fast_malloc(&state->audio.audio_new_buf, &state->audio.audio_new_buf_size, outSize * 4);
             if (!state->audio.audio_new_buf)
                 return AVERROR(ENOMEM);
-            for (int i = 0; i < (resampledDataSize / 2); i++)
-                state->audio.audio_new_buf[i] = (state->audio.audio_buf1[i * 2] | (state->audio.audio_buf1[i * 2 + 1] << 8));
             int translatedLength = soundtouch_translate(state->audio.soundTouchHandle,
-                state->audio.audio_new_buf,
+                reinterpret_cast<short*>(state->audio.audio_buf1),
                 static_cast<float>(playbackRate),
                 static_cast<float>(1.0 / playbackRate),
                 resampledDataSize / 2,
                 bytesPerSample,
                 state->audio.audio_tgt.ch_layout.nb_channels,
-                audioFrame->frame->sample_rate);
+                audioFrame->frame->sample_rate,
+                state->audio.audio_new_buf,
+                static_cast<int>(state->audio.audio_new_buf_size / sizeof(short)));
             if (translatedLength > 0) {
                 state->audio.audio_buf = (uint8_t*)state->audio.audio_new_buf;
                 resampledDataSize = translatedLength;
             } else {
-                translateTime++;
                 goto reload;
             }
         }
