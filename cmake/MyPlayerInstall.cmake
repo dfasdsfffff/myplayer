@@ -6,7 +6,14 @@ function(myplayer_install_release_tree target)
     )
 
     if(WIN32)
-        install(FILES $<TARGET_RUNTIME_DLLS:${target}>
+        install(DIRECTORY "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/"
+            DESTINATION ${CMAKE_INSTALL_BINDIR}
+            FILES_MATCHING PATTERN "*.dll"
+        )
+        install(FILES
+                "${MYPLAYER_QT_ROOT}/bin/Qt6Core.dll"
+                "${MYPLAYER_QT_ROOT}/bin/Qt6Gui.dll"
+                "${MYPLAYER_QT_ROOT}/bin/Qt6Widgets.dll"
             DESTINATION ${CMAKE_INSTALL_BINDIR}
         )
         install(FILES "${MYPLAYER_QT_ROOT}/plugins/platforms/qwindows.dll"

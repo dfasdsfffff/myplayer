@@ -283,6 +283,7 @@ playerdemo/GeneratedFiles/ui_mainwid.h
 /playerdemo/GeneratedFiles
 build
 .worktrees/
+.superpowers/
 .cache/
 build-refactor/
 __cmake_systeminformation/

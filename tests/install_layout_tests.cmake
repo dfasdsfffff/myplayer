@@ -15,6 +15,8 @@ endif()
 
 foreach(required_path IN ITEMS
         "bin/myplayer.exe"
+        "bin/avdevice-63.dll"
+        "bin/Qt6Widgets.dll"
         "bin/platforms/qwindows.dll"
         "LICENSE"
         "NOTICE"
