@@ -130,16 +130,17 @@ void VideoCtl::stream_close(VideoState* is)
 	if (is->session.read_tid.joinable())
 		is->session.read_tid.join();
 
-	std::unique_lock<std::shared_mutex> trackLock(is->session.trackMutex);
-	/* close each stream */
-	if (is->session.ic) {
-		if (is->audio.audio_stream >= 0)
-			stream_component_close(is, is->audio.audio_stream);
-		if (is->video.video_stream >= 0)
-			stream_component_close(is, is->video.video_stream);
-		if (is->subtitle.subtitle_stream >= 0)
-			stream_component_close(is, is->subtitle.subtitle_stream);
-
+	{
+		std::unique_lock<std::shared_mutex> trackLock(is->session.trackMutex);
+		/* close each stream */
+		if (is->session.ic) {
+			if (is->audio.audio_stream >= 0)
+				stream_component_close(is, is->audio.audio_stream);
+			if (is->video.video_stream >= 0)
+				stream_component_close(is, is->video.video_stream);
+			if (is->subtitle.subtitle_stream >= 0)
+				stream_component_close(is, is->subtitle.subtitle_stream);
+		}
 	}
 
 	delete is;
