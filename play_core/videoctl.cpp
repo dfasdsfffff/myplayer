@@ -120,11 +120,11 @@ void VideoCtl::stream_close(VideoState* is)
 		SDL_CondSignal(is->session.continue_read_thread);
 	// Wake every queue consumer before joining the reader.  A reader blocked on
 	// queue backpressure must never be the condition that delays teardown.
-	m_audioOutput.Close();
 	is->audio.audioq.abort();
+	is->audio.sampq.signal();
+	m_audioOutput.Close();
 	is->video.videoq.abort();
 	is->subtitle.subtitleq.abort();
-	is->audio.sampq.signal();
 	is->video.pictq.signal();
 	is->subtitle.subpq.signal();
 	if (is->session.read_tid.joinable())
