@@ -28,3 +28,15 @@ jobs:
         run: ctest --test-dir build -C Debug --output-on-failure
       - name: Build Release
         run: cmake --build build --config Release
+      - name: Test Release
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package portable release
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/package-portable.ps1 -BuildDir build -Configuration Release -Version 1.0.0
+      - name: Upload portable release
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyPlayer-portable-windows-x64
+          path: |
+            dist/*.zip
+            dist/*.sha256
