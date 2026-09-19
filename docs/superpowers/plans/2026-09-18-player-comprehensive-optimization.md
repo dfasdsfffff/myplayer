@@ -721,7 +721,7 @@ git commit -m "perf: render video through YUV textures"
 
 ### Task 17: Prepared PCM Queue Outside the SDL Callback
 
-Implementation committed: `132361e`; Debug build passed and CTest passed 32/32. `audio_render_queue_tests` covers bounded 500 ms PCM capacity, producer wakeup after consumer reads, silence plus underrun accounting, flush, and stopping a blocked producer. SDL dummy-device/manual speed-change underrun observation remains release QA.
+Implementation committed: `132361e`; Debug build passed and CTest passed 32/32. `audio_render_queue_tests` covers bounded 500 ms PCM capacity, producer wakeup after consumer reads, silence plus underrun accounting, flush, and stopping a blocked producer. SDL dummy must verify underrun counts and PCM queue watermarks; real devices must verify speed changes, seek, and pause/resume for dropouts, crackles, and A/V sync. A 0.5x real-device crackle was reported on 2026-09-19; investigation identified unsafe multi-chunk SoundTouch output handling and requires a regression fix before this task can close.
 
 **Files:**
 
@@ -751,7 +751,7 @@ public:
 - [x] Move frame dequeue, resampling, and SoundTouch processing to the render producer thread. Store prepared S16 PCM in a bounded ring buffer sized by milliseconds, not unbounded vectors.
 - [x] Reduce `AudioOutput::Callback` to bounded ring-buffer read, silence fill, volume mix, and clock accounting. It must not allocate, wait, decode, resample, log, or call SoundTouch.
 - [x] Flush and restart producer state on seek, track change, reconnect, and speed change. Stop/join it before closing the SDL device or destroying `VideoState`.
-- [ ] Run focused/full stress tests with SDL dummy audio and manually monitor underrun count during speed changes.
+- [ ] With SDL dummy, verify underrun counters and PCM queue watermarks; on real devices, verify speed changes, seek, and pause/resume for dropouts, crackles, and A/V synchronization.
 - [x] Commit:
 
 ```powershell
