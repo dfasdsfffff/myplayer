@@ -156,6 +156,14 @@ install(TARGETS ${PROJECT_NAME}
 endif()
 
 if(BUILD_TESTING)
+    if(MYPLAYER_BUILD_QT_APP)
+        add_test(NAME myplayer_smoke_test COMMAND $<TARGET_FILE:${PROJECT_NAME}> --smoke-test)
+        set_tests_properties(myplayer_smoke_test PROPERTIES
+            TIMEOUT 5
+            ENVIRONMENT "QT_QPA_PLATFORM=windows;SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
+        )
+    endif()
+
     add_test(NAME cmake_configuration_tests
         COMMAND ${CMAKE_COMMAND}
             -DSOURCE_DIR=${PROJECT_SOURCE_DIR}

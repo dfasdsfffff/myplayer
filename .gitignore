@@ -287,3 +287,4 @@ build
 build-refactor/
 __cmake_systeminformation/
 build-verify/
+res/test-*.mp4
