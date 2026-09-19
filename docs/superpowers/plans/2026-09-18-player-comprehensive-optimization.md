@@ -751,7 +751,7 @@ public:
 - [x] Move frame dequeue, resampling, and SoundTouch processing to the render producer thread. Store prepared S16 PCM in a bounded ring buffer sized by milliseconds, not unbounded vectors.
 - [x] Reduce `AudioOutput::Callback` to bounded ring-buffer read, silence fill, volume mix, and clock accounting. It must not allocate, wait, decode, resample, log, or call SoundTouch.
 - [x] Flush and restart producer state on seek, track change, reconnect, and speed change. Stop/join it before closing the SDL device or destroying `VideoState`.
-- [ ] With SDL dummy, verify underrun counters and PCM queue watermarks; on real devices, verify speed changes, seek, and pause/resume for dropouts, crackles, and A/V synchronization.
+- [x] With SDL dummy, verify underrun counters and PCM queue watermarks; on real devices, verify speed changes, seek, and pause/resume for dropouts, crackles, and A/V synchronization. `audio_output_tests` and `audio_render_queue_tests` passed with the SDL dummy driver; real-device QA was confirmed by the user on 2026-09-19.
 - [x] Commit:
 
 ```powershell

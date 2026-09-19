@@ -1,14 +1,17 @@
 #define SDL_MAIN_HANDLED
 
 #include "media_fixture_builder.h"
+#include "playback_runtime.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -139,5 +142,36 @@ int main()
         !Expect(StatusCode(server.url("/auth")) == 401, "loopback server exposes authentication failures") ||
         !Expect(StatusCode(server.url("/drop")) == 0, "loopback server can disconnect during a read"))
         return 1;
+
+    auto runtime = PlaybackRuntime::Create();
+    if (!Expect(runtime != nullptr, "playback runtime initializes for network failure testing"))
+        return 1;
+    std::mutex statusMutex;
+    std::condition_variable statusReady;
+    PlaybackStatus finalStatus;
+    bool receivedFinalStatus = false;
+    auto statusConnection = runtime->SigPlaybackStatus.connect([&](const PlaybackStatus& status) {
+        if (status.state != PlaybackState::Failed)
+            return;
+        std::lock_guard<std::mutex> lock(statusMutex);
+        finalStatus = status;
+        receivedFinalStatus = true;
+        statusReady.notify_one();
+    });
+    MediaSource missing{server.url("/missing")};
+    missing.network.reconnect = false;
+    if (!Expect(runtime->controller().play(missing), "loopback 404 source starts asynchronously"))
+        return 1;
+    {
+        std::unique_lock<std::mutex> lock(statusMutex);
+        if (!Expect(statusReady.wait_for(lock, std::chrono::seconds(5), [&] { return receivedFinalStatus; }),
+                    "loopback 404 publishes a final playback status") ||
+            !Expect(finalStatus.error == PlaybackError::NotFound,
+                    "loopback 404 maps to the not-found playback error")) {
+            runtime->controller().stopAndWait();
+            return 1;
+        }
+    }
+    runtime->controller().stopAndWait();
     return 0;
 }
