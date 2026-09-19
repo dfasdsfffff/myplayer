@@ -721,7 +721,7 @@ git commit -m "perf: render video through YUV textures"
 
 ### Task 17: Prepared PCM Queue Outside the SDL Callback
 
-Implementation committed: `132361e`; Debug build passed and CTest passed 32/32. `audio_render_queue_tests` covers bounded 500 ms PCM capacity, producer wakeup after consumer reads, silence plus underrun accounting, flush, and stopping a blocked producer. SDL dummy must verify underrun counts and PCM queue watermarks; real devices must verify speed changes, seek, and pause/resume for dropouts, crackles, and A/V sync. A 0.5x real-device crackle was reported on 2026-09-19; investigation identified unsafe multi-chunk SoundTouch output handling and requires a regression fix before this task can close.
+Implementation committed: `132361e`; Debug build passed and CTest passed 32/32. `audio_render_queue_tests` covers bounded 500 ms PCM capacity, producer wakeup after consumer reads, silence plus underrun accounting, flush, and stopping a blocked producer. SDL dummy must verify underrun counts and PCM queue watermarks; real devices must verify speed changes, seek, and pause/resume for dropouts, crackles, and A/V sync.
 
 **Files:**
 
