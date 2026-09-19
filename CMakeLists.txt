@@ -644,6 +644,20 @@ set_tests_properties(playback_integration_tests PROPERTIES
     ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
 )
 
+add_executable(network_integration_tests
+    tests/network_integration_tests.cpp
+    tests/media_fixture_builder.cpp
+)
+target_include_directories(network_integration_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests
+)
+target_link_libraries(network_integration_tests PRIVATE
+    play_core
+    ws2_32
+)
+add_test(NAME network_integration_tests COMMAND network_integration_tests)
+set_tests_properties(network_integration_tests PROPERTIES LABELS INTEGRATION)
+
 add_executable(soundtouch_wrap_tests
     tests/soundtouch_wrap_tests.cpp
 )
