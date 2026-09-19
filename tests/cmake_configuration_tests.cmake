@@ -11,7 +11,9 @@ file(REMOVE_RECURSE "${BINARY_DIR}")
 set(configure_command
     "${CMAKE_COMMAND}" -S "${SOURCE_DIR}" -B "${BINARY_DIR}"
     -DMYPLAYER_BUILD_QT_APP=OFF
-    -DBUILD_TESTING=OFF)
+    -DBUILD_TESTING=OFF
+    -DVCPKG_MANIFEST_MODE=OFF
+    "-DVCPKG_INSTALLED_DIR=${BINARY_DIR}/../vcpkg_installed")
 
 if(DEFINED TOOLCHAIN_FILE)
     list(APPEND configure_command "-DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE}")
@@ -37,14 +39,15 @@ foreach(expected_cache_entry IN ITEMS
 endforeach()
 
 file(READ "${SOURCE_DIR}/CMakeLists.txt" root_cmake)
-foreach(qt_test_target IN ITEMS
-        playlist_privacy_tests
-        playlist_navigation_tests
-        setting_widget_tests
-        main_window_behavior_tests)
-    string(FIND "${root_cmake}" "myplayer_set_test_runtime_dir(${qt_test_target})" runtime_directory_call)
-    if(runtime_directory_call EQUAL -1)
-        message(FATAL_ERROR "Qt test lacks an isolated runtime directory: ${qt_test_target}")
+foreach(required_runtime_contract IN ITEMS
+        "get_property(myplayer_build_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)"
+        "if(test_target MATCHES \"_tests$\")"
+        "myplayer_set_test_runtime_dir(\${test_target})"
+        "if(\"\${test_link_libraries}\" MATCHES \"Qt6::\")"
+        "myplayer_deploy_runtime_dependencies(\${test_target})")
+    string(FIND "${root_cmake}" "${required_runtime_contract}" runtime_contract_index)
+    if(runtime_contract_index EQUAL -1)
+        message(FATAL_ERROR "missing isolated test runtime contract: ${required_runtime_contract}")
     endif()
 endforeach()
 

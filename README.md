@@ -73,12 +73,12 @@ lib/                  Bundled third-party dependency roots
 docs/                 Developer, release, and QA documentation
 LICENSE               GPL license text
 NOTICE                Attribution and third-party notice summary
-myplayer.aip          Advanced Installer project seed, updated for MyPlayer metadata
+scripts/package-portable.ps1  Portable Windows package build and verification
 ```
 
 ## Packaging
 
-`myplayer.aip` is an Advanced Installer project file. It is not needed to build or run MyPlayer from CMake. It is kept only as a Windows installer project seed and must be validated in Advanced Installer before release.
+MyPlayer is distributed only as a portable Windows archive. Build it with `scripts/package-portable.ps1`, extract the resulting ZIP, and run `myplayer.exe` from the extracted directory. No installer is built, maintained, or required.
 
 Before shipping, follow:
 

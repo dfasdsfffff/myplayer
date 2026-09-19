@@ -33,7 +33,6 @@ int main()
     const std::string titleUi = ReadFile("apps/qt_player/title.ui");
     const std::string settingUi = ReadFile("apps/qt_player/settingwid.ui");
     
-    const std::string aip = ReadFile("myplayer.aip");
     const std::string notice = ReadFile("NOTICE");
     const std::string releaseChecklist = ReadFile("docs/release-checklist.md");
     const std::string qaChecklist = ReadFile("docs/player-qa-checklist.md");
@@ -94,13 +93,6 @@ int main()
                 && settingUi.find("MyPlayer") != std::string::npos,
             "Qt visible titles should use MyPlayer"))
         return 1;
-    if (!Expect(aip.find("Value=\"MyPlayer\"") != std::string::npos
-                && aip.find("Value=\"myplayer\"") != std::string::npos,
-            "installer metadata should use MyPlayer/myplayer names"))
-        return 1;
-    if (!Expect(aip.find("https://github.com/dfasdsfffff/playerdemo-master") != std::string::npos,
-            "installer product links should point to the maintained MyPlayer repository"))
-        return 1;
     if (!Expect(notice.find("MyPlayer") != std::string::npos
                 && notice.find("itisyang/playerdemo") != std::string::npos
                 && notice.find("https://github.com/dfasdsfffff/playerdemo-master") != std::string::npos
@@ -108,24 +100,25 @@ int main()
             "NOTICE should preserve product, upstream, and GPL attribution"))
         return 1;
     if (!Expect(releaseChecklist.find("GPL") != std::string::npos
-                && releaseChecklist.find("source") != std::string::npos,
-            "release checklist should document GPL source distribution"))
+                && releaseChecklist.find("source") != std::string::npos
+                && releaseChecklist.find("Advanced Installer") == std::string::npos,
+            "release checklist should document GPL source distribution and portable-only publishing"))
         return 1;
     if (!Expect(qaChecklist.find("format compatibility") != std::string::npos
                 && qaChecklist.find("long-running playback") != std::string::npos
                 && qaChecklist.find("network failure") != std::string::npos,
             "player QA checklist should cover commercial-readiness playback risks"))
         return 1;
-    if (!Expect(portablePackager.find("MyPlayer-1.0.0-windows-x64.zip") != std::string::npos,
+    if (!Expect(portablePackager.find("MyPlayer-$Version-windows-x64") != std::string::npos,
             "portable packager should produce the expected green package name"))
         return 1;
-    if (!Expect(portablePackager.find("windeployqt") != std::string::npos
-                && portablePackager.find("platforms") != std::string::npos,
+    if (!Expect(portablePackager.find("cmake --install") != std::string::npos
+                && portablePackager.find("qwindows.dll") != std::string::npos,
             "portable packager should deploy Qt runtime and platform plugins"))
         return 1;
     if (!Expect(portablePackager.find("LICENSE") != std::string::npos
                 && portablePackager.find("NOTICE") != std::string::npos
-                && portablePackager.find("THIRD-PARTY-NOTICES.md") != std::string::npos,
+                && portablePackager.find("licenses") != std::string::npos,
             "portable packager should include license and notice files"))
         return 1;
 

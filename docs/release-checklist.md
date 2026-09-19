@@ -21,18 +21,16 @@ Use this checklist before publishing a MyPlayer binary package.
 - Confirm `bin/myplayer.exe` is produced for Release builds.
 - Confirm runtime DLLs copied beside the executable match the actual Qt, FFmpeg, SDL2, and SoundTouch versions.
 
-## Installer
+## Portable Package
 
-- Open `myplayer.aip` in Advanced Installer.
-- Confirm product name is `MyPlayer`.
-- Confirm installed executable is `myplayer.exe`.
-- Confirm shortcuts show `MyPlayer`.
-- Replace stale Qt5 or old FFmpeg entries with the DLLs produced by the current CMake build.
-- Confirm Control Panel support, about, and update links do not point to the upstream author unless intentionally used as an attribution link.
-- Confirm the installer includes `LICENSE`, `NOTICE`, third-party license files, and source distribution instructions.
+- Run `scripts/package-portable.ps1 -BuildDir build -Configuration Release -Version <version>`.
+- Confirm the ZIP contains `bin/myplayer.exe`, Qt6 runtime DLLs, current FFmpeg/SDL2/SoundTouch DLLs, and `bin/platforms/qwindows.dll`.
+- Confirm the ZIP contains `LICENSE`, `NOTICE`, third-party licenses, and source distribution instructions.
+- Confirm the `.sha256` sidecar matches the ZIP.
+- Extract the ZIP to a clean Windows directory and smoke-test `myplayer.exe --smoke-test`.
 
 ## Release Artifact
 
-- Attach checksums for installer and portable package.
+- Attach the portable package checksum.
 - Record compiler, Qt, FFmpeg, SDL2, SoundTouch, and vcpkg dependency versions.
-- Smoke-test installation, launch, playback, uninstall, and reinstall on a clean Windows machine.
+- Smoke-test extraction, launch, playback, and deletion of the extracted directory on a clean Windows machine.

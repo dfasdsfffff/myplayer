@@ -115,7 +115,12 @@ set(QRC_FILES
 )
 
 if(WIN32)
-    set(RC_FILES ${PLAYERDEMO_QT_APP_DIR}/myplayer.rc)
+    configure_file(
+        "${PLAYERDEMO_QT_APP_DIR}/myplayer_version.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/apps/qt_player/myplayer_version.rc"
+        @ONLY
+    )
+    set(RC_FILES "${CMAKE_CURRENT_BINARY_DIR}/apps/qt_player/myplayer_version.rc")
 endif()
 
 add_executable(${PROJECT_NAME} WIN32
@@ -184,6 +189,11 @@ function(myplayer_set_test_runtime_dir target)
 endfunction()
 
     if(MYPLAYER_BUILD_QT_APP)
+        add_test(NAME release_metadata_tests
+            COMMAND ${CMAKE_COMMAND}
+                -DBINARY_DIR=${CMAKE_BINARY_DIR}
+                -P ${PROJECT_SOURCE_DIR}/tests/release_metadata_tests.cmake
+        )
         add_test(NAME myplayer_smoke_test COMMAND $<TARGET_FILE:${PROJECT_NAME}> --smoke-test)
         set_tests_properties(myplayer_smoke_test PROPERTIES
             TIMEOUT 5
@@ -759,31 +769,14 @@ set_tests_properties(main_window_behavior_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
 )
 
-foreach(test_target IN ITEMS
-        playback_settings_tests
-        media_location_privacy_tests
-        globalhelper_privacy_tests
-        playlist_privacy_tests
-        app_preferences_tests
-        setting_widget_tests
-        playback_status_presenter_tests
-        media_format_registry_tests
-        playlistfile_tests
-        video_geometry_tests
-        resume_policy_tests
-        play_core_refactor_tests
-        network_playback_tests
-        reconnect_controller_tests
-        filter_configurator_tests
-        decoder_workers_tests
-        stream_reader_tests
-        audio_output_tests
-        show_widget_tests
-        subtitle_dispatcher_tests
-        subtitle_renderer_tests
-        latest_video_frame_mailbox_tests
-        main_window_behavior_tests)
-    if(TARGET ${test_target})
+get_property(myplayer_build_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(test_target IN LISTS myplayer_build_targets)
+    if(test_target MATCHES "_tests$")
+        myplayer_set_test_runtime_dir(${test_target})
+        get_target_property(test_link_libraries ${test_target} LINK_LIBRARIES)
+        if("${test_link_libraries}" MATCHES "Qt6::")
+            myplayer_deploy_runtime_dependencies(${test_target})
+        endif()
         myplayer_enable_warnings(${test_target})
         myplayer_enable_sanitizers(${test_target})
     endif()
