@@ -35,3 +35,15 @@ foreach(expected_cache_entry IN ITEMS
         message(FATAL_ERROR "missing cache entry: ${expected_cache_entry}")
     endif()
 endforeach()
+
+file(READ "${SOURCE_DIR}/CMakeLists.txt" root_cmake)
+foreach(qt_test_target IN ITEMS
+        playlist_privacy_tests
+        playlist_navigation_tests
+        setting_widget_tests
+        main_window_behavior_tests)
+    string(FIND "${root_cmake}" "myplayer_set_test_runtime_dir(${qt_test_target})" runtime_directory_call)
+    if(runtime_directory_call EQUAL -1)
+        message(FATAL_ERROR "Qt test lacks an isolated runtime directory: ${qt_test_target}")
+    endif()
+endforeach()
