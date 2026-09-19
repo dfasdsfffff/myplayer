@@ -339,7 +339,10 @@ void MainWid::mousePressEvent(QMouseEvent* event)
 		if (ui->TitleWid->geometry().contains(event->pos()))
 		{
 			m_bMoveDrag = true;
-			m_DragPosition = event->globalPos() - this->pos();
+			// 最大化时先记录鼠标在标题栏中的位置，真正拖动时再恢复普通状态。
+			m_DragPosition = isMaximized()
+				? event->pos()
+				: event->globalPos() - this->pos();
 		}
 	}
 
@@ -357,6 +360,15 @@ void MainWid::mouseMoveEvent(QMouseEvent* event)
 {
 	if (m_bMoveDrag)
 	{
+		if (isMaximized())
+		{
+			// 保持鼠标在标题栏中的相对位置，避免恢复普通状态时窗口跳动。
+			const double xRatio = width() > 0
+				? static_cast<double>(m_DragPosition.x()) / width()
+				: 0.5;
+			showNormal();
+			m_DragPosition = QPoint(qRound(width() * qBound(0.0, xRatio, 1.0)), event->pos().y());
+		}
 		move(event->globalPos() - m_DragPosition);
 	}
 
