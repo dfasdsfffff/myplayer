@@ -9,6 +9,7 @@ extern "C" {
 
 #include <filesystem>
 #include <iostream>
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
@@ -47,6 +48,7 @@ int main()
     std::condition_variable frameReady;
     bool receivedFrame = false;
     bool receivedMediaInfo = false;
+    bool receivedPlaying = false;
     MediaInfo mediaInfo;
     auto connection = runtime->SigVideoFrame.connect([&](std::shared_ptr<VideoFrame> frame) {
         if (!frame)
@@ -59,6 +61,13 @@ int main()
         std::lock_guard<std::mutex> lock(frameMutex);
         mediaInfo = info;
         receivedMediaInfo = true;
+        frameReady.notify_one();
+    });
+    auto statusConnection = runtime->SigPlaybackStatus.connect([&](const PlaybackStatus& status) {
+        if (status.state != PlaybackState::Playing)
+            return;
+        std::lock_guard<std::mutex> lock(frameMutex);
+        receivedPlaying = true;
         frameReady.notify_one();
     });
     if (!Expect(runtime->controller().play(fixtures.video.string()), "generated video opens"))
@@ -87,6 +96,28 @@ int main()
     receivedFrame = false;
     if (!Expect(runtime->controller().play(fixtures.video.string()), "generated video replays after stop"))
         return 1;
+    runtime->controller().stopAndWait();
+
+    {
+        std::lock_guard<std::mutex> lock(frameMutex);
+        receivedMediaInfo = false;
+        receivedPlaying = false;
+    }
+    if (!Expect(runtime->controller().play(fixtures.wav.string()), "generated WAV opens"))
+        return 1;
+    {
+        std::unique_lock<std::mutex> lock(frameMutex);
+        if (!Expect(frameReady.wait_for(lock, std::chrono::seconds(5), [&] {
+                        return receivedMediaInfo && receivedPlaying;
+                    }), "generated WAV publishes metadata and enters Playing") ||
+            !Expect(!mediaInfo.live && mediaInfo.seekable &&
+                        std::any_of(mediaInfo.tracks.begin(), mediaInfo.tracks.end(), [](const TrackInfo& track) {
+                            return track.type == AVMEDIA_TYPE_AUDIO;
+                        }), "generated WAV exposes an audio track")) {
+            runtime->controller().stopAndWait();
+            return 1;
+        }
+    }
     runtime->controller().stopAndWait();
     return 0;
 }
