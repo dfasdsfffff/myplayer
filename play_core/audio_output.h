@@ -18,6 +18,7 @@ public:
         AudioParams* hardwareParams);
     void Pause(bool paused);
     void Close();
+    void Flush();
     [[nodiscard]] SDL_AudioDeviceID DeviceId() const noexcept;
 
     static int SynchronizeSamples(VideoState* state, int sampleCount);
@@ -28,4 +29,5 @@ private:
     static void UpdateSampleDisplay(VideoState* state, const int16_t* samples, int sampleCount);
 
     SDL_AudioDeviceID m_device{0};
+    VideoState* m_state{nullptr};
 };

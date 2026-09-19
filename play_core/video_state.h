@@ -5,6 +5,7 @@
 #include <shared_mutex>
 
 #include "av_types.h"
+#include "audio_render_queue.h"
 #include "decoder.h"
 #include "network_input.h"
 #include "soundtouch_wrap.h"
@@ -60,6 +61,7 @@ struct AudioState {
     short* audio_new_buf = nullptr;
     unsigned int audio_new_buf_size = 0;
     std::atomic<double> play_rate{1.0};
+    std::unique_ptr<AudioRenderQueue> renderQueue;
 
     FrameQueue sampq;
     Decoder aud_decoder;
@@ -168,6 +170,7 @@ inline SessionState::~SessionState()
 
 inline AudioState::~AudioState()
 {
+    renderQueue.reset();
     if (soundTouchHandle) {
         soundtouch_destroy(soundTouchHandle);
         soundTouchHandle = nullptr;

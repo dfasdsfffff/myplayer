@@ -1,4 +1,5 @@
 add_library(play_core STATIC
+    audio_render_queue.cpp
     audio_output.cpp
     clock.cpp
     decoder.cpp

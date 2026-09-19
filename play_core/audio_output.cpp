@@ -1,5 +1,6 @@
 #include "audio_output.h"
 
+#include "audio_render_queue.h"
 #include "media_sync.h"
 #include "soundtouch_wrap.h"
 #include "video_state.h"
@@ -17,7 +18,7 @@ int AudioOutput::Open(VideoState* state,
     int wantedSampleRate,
     AudioParams* hardwareParams)
 {
-    SDL_AudioSpec wantedSpec, spec;
+    SDL_AudioSpec wantedSpec{}, spec{};
     const char* env;
     static const int nextChannelCounts[] = {0, 0, 1, 6, 2, 6, 4, 6};
     static const int nextSampleRates[] = {0, 44100, 48000, 96000, 192000};
@@ -93,6 +94,13 @@ int AudioOutput::Open(VideoState* state,
         Close();
         return -1;
     }
+    m_state = state;
+    state->audio.renderQueue = std::make_unique<AudioRenderQueue>();
+    if (!state->audio.renderQueue->start(state, *hardwareParams)) {
+        state->audio.renderQueue.reset();
+        Close();
+        return -1;
+    }
     return spec.size;
 }
 
@@ -104,9 +112,29 @@ void AudioOutput::Pause(bool paused)
 
 void AudioOutput::Close()
 {
+    if (m_state && m_state->audio.renderQueue) {
+        if (m_device)
+            SDL_LockAudioDevice(m_device);
+        m_state->audio.renderQueue->stop();
+        m_state->audio.renderQueue.reset();
+        if (m_device)
+            SDL_UnlockAudioDevice(m_device);
+    }
     if (m_device) {
         SDL_CloseAudioDevice(m_device);
         m_device = 0;
+    }
+    m_state = nullptr;
+}
+
+void AudioOutput::Flush()
+{
+    if (m_state && m_state->audio.renderQueue) {
+        if (m_device)
+            SDL_LockAudioDevice(m_device);
+        m_state->audio.renderQueue->flush();
+        if (m_device)
+            SDL_UnlockAudioDevice(m_device);
     }
 }
 
@@ -281,40 +309,25 @@ reload:
 void AudioOutput::Callback(void* opaque, Uint8* stream, int length)
 {
     auto* state = static_cast<VideoState*>(opaque);
-    int audioSize, copyLength;
     const auto callbackTime = av_gettime_relative();
-
-    while (length > 0) {
-        if (state->audio.audio_buf_index >= state->audio.audio_buf_size) {
-            audioSize = AudioOutput::DecodeFrame(state);
-            if (audioSize < 0) {
-                state->audio.audio_buf = nullptr;
-                state->audio.audio_buf_size = SDL_AUDIO_MIN_BUFFER_SIZE / state->audio.audio_tgt.frame_size * state->audio.audio_tgt.frame_size;
-            } else {
-                state->audio.audio_buf_size = audioSize;
-            }
-            state->audio.audio_buf_index = 0;
-        }
-        copyLength = state->audio.audio_buf_size - state->audio.audio_buf_index;
-        if (copyLength > length)
-            copyLength = length;
-        const auto audioVolume = state->audio.audio_volume.load(std::memory_order_relaxed);
-        if (state->audio.audio_buf && audioVolume == SDL_MIX_MAXVOLUME) {
-            memcpy(stream, (uint8_t*)state->audio.audio_buf + state->audio.audio_buf_index, copyLength);
-        } else {
-            memset(stream, 0, copyLength);
-            if (state->audio.audio_buf)
-                SDL_MixAudio(stream, (uint8_t*)state->audio.audio_buf + state->audio.audio_buf_index, copyLength, audioVolume);
-        }
-        length -= copyLength;
-        stream += copyLength;
-        state->audio.audio_buf_index += copyLength;
+    auto* renderQueue = state->audio.renderQueue.get();
+    if (!renderQueue) {
+        memset(stream, 0, length);
+        return;
     }
-    state->audio.audio_write_buf_size = state->audio.audio_buf_size - state->audio.audio_buf_index;
-    if (!std::isnan(state->audio.audio_clock)) {
+
+    renderQueue->read(stream, static_cast<size_t>(length));
+    const auto audioVolume = state->audio.audio_volume.load(std::memory_order_relaxed);
+    if (audioVolume != SDL_MIX_MAXVOLUME) {
+        auto* samples = reinterpret_cast<int16_t*>(stream);
+        for (int index = 0; index < length / static_cast<int>(sizeof(int16_t)); ++index)
+            samples[index] = static_cast<int16_t>(static_cast<int>(samples[index]) * audioVolume / SDL_MIX_MAXVOLUME);
+    }
+    const double audioClock = renderQueue->producerClock();
+    if (!std::isnan(audioClock)) {
         state->clocks.audclk.set_at(
-            state->audio.audio_clock - (double)(2 * state->audio.audio_hw_buf_size + state->audio.audio_write_buf_size) / state->audio.audio_tgt.bytes_per_sec,
-            state->audio.audio_clock_serial,
+            audioClock - static_cast<double>(2 * state->audio.audio_hw_buf_size + renderQueue->pendingBytes()) / state->audio.audio_tgt.bytes_per_sec,
+            renderQueue->producerClockSerial(),
             callbackTime / 1000000.0);
         state->clocks.extclk.sync_to_slave(state->clocks.audclk);
     }

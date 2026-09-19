@@ -605,6 +605,16 @@ set_tests_properties(audio_output_tests PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:audio_output_tests>"
 )
 
+add_executable(audio_render_queue_tests
+    tests/audio_render_queue_tests.cpp
+)
+
+target_link_libraries(audio_render_queue_tests PRIVATE
+    play_core
+)
+
+add_test(NAME audio_render_queue_tests COMMAND audio_render_queue_tests)
+
 add_executable(show_widget_tests
     tests/show_widget_tests.cpp
 )

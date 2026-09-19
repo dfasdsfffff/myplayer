@@ -162,7 +162,10 @@ void VideoCtl::set_play_speed(double dSpeed)
 	// 保护 m_CurStream 访问
 	std::unique_lock<std::shared_mutex> streamLock(m_streamMutex);
 	if (m_CurStream)
+	{
 		m_CurStream->audio.play_rate.store(m_fPlaybackSpeed, std::memory_order_release);
+		m_audioOutput.Flush();
+	}
 }
 
 void VideoCtl::set_play_loop_policy(VideoLoopPolicy loopPolicy)
@@ -178,6 +181,7 @@ void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 
 	std::lock_guard<std::mutex> seekLock(m_CurStream->session.seek_mutex);
 	if (!m_CurStream->session.seek_req) {
+		m_audioOutput.Flush();
 		m_CurStream->session.seek_pos = pos;
 		m_CurStream->session.seek_rel = rel;
 		m_CurStream->session.seek_flags &= ~AVSEEK_FLAG_BYTE;
