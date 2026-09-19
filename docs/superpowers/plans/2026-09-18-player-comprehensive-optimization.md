@@ -761,7 +761,7 @@ git commit -m "perf: prepare audio outside SDL callback"
 
 ### Task 18: Optional D3D11VA Hardware Decoding with Software Fallback
 
-Implementation committed: `df1c4f6`; Debug build and CTest passed 34/34. Real-device QA was confirmed by the user on 2026-09-19; codec, adapter, and CPU measurements were not recorded.
+Implementation committed: `df1c4f6`. Verified follow-up evidence: `hardware_decode_policy_tests` passed; `c9f072d` clears stale `hw_device_ctx`, `opaque`, and `get_format` hooks before software fallback; FFmpeg D3D11VA decoded the first 120 frames of both H.264 1920x1080 and HEVC 1920x1080 inputs; Debug CTest passed 36/36. CPU usage, player UI/GPU telemetry, expanded compatibility coverage, and real-hardware manual QA remain unrecorded.
 
 **Files:**
 
@@ -789,13 +789,13 @@ public:
 };
 ```
 
-- [ ] Write failing policy tests for Disabled, Auto preference, unsupported codec, device creation failure, hardware pixel-format negotiation failure, and mandatory software fallback.
-- [ ] Implement Windows D3D11VA setup through FFmpeg `av_hwdevice_ctx_create` and codec `get_format`. Non-Windows builds compile a disabled implementation.
-- [ ] Transfer hardware frames to reusable software frames before the existing YUV/BGRA presentation path. Zero-copy D3D11 texture sharing is explicitly out of scope.
-- [ ] Add Auto/Disabled/D3D11VA settings and publish the active backend/fallback reason through diagnostics, not modal errors.
-- [ ] Test H.264 and HEVC on capable and incapable machines. Any initialization or per-frame transfer failure must disable hardware decode for that session and continue in software.
-- [ ] Record CPU and compatibility results; keep the feature only if fallback and stop/seek/reconnect tests pass.
-- [ ] Commit:
+- [x] Write policy tests for Disabled, Auto preference, unsupported codec, device creation failure, hardware pixel-format negotiation failure, and mandatory software fallback. `hardware_decode_policy_tests` passed.
+- [x] Implement Windows D3D11VA setup through FFmpeg `av_hwdevice_ctx_create` and codec `get_format`. Non-Windows builds compile a disabled implementation.
+- [x] Transfer hardware frames to reusable software frames before the existing YUV/BGRA presentation path. Zero-copy D3D11 texture sharing is explicitly out of scope.
+- [x] Add Auto/Disabled/D3D11VA settings and publish the active backend/fallback reason through diagnostics, not modal errors.
+- [x] Validate FFmpeg D3D11VA decoding of H.264 1920x1080 and HEVC 1920x1080 for the first 120 frames each. The policy test covers software fallback; `c9f072d` also clears `hw_device_ctx`, `opaque`, and `get_format` before fallback.
+- [ ] Record CPU usage, player UI/GPU telemetry, additional codec/adapter compatibility, and real-hardware manual QA. Keep the feature only if fallback and stop/seek/reconnect tests pass.
+- [x] Commit: `df1c4f6 perf: add optional D3D11VA decoding`; follow-up fallback fix: `c9f072d fix: clear stale hardware decode hooks on fallback`.
 
 ```powershell
 git add play_core/hardware_decode.* play_core/decoder.* play_core/video_frame_converter.cpp play_core/playback_settings.h apps/qt_player/app_preferences.* apps/qt_player/settingwid.* tests/hardware_decode_policy_tests.cpp play_core/CMakeLists.txt CMakeLists.txt
