@@ -222,6 +222,7 @@ AVDictionary** AvDictionary::put() noexcept
 
 void IoControl::begin(IoOperation newOperation, std::chrono::milliseconds timeout)
 {
+    deadlineExpired.store(false, std::memory_order_release);
     operation.store(newOperation, std::memory_order_release);
     if (timeout.count() <= 0) {
         deadlineUs.store(0, std::memory_order_release);
@@ -302,7 +303,10 @@ int InterruptNetworkIo(void* opaque)
     const auto deadline = control->deadlineUs.load(std::memory_order_acquire);
     if (deadline == 0)
         return 0;
-    return av_gettime_relative() >= deadline ? 1 : 0;
+    if (av_gettime_relative() < deadline)
+        return 0;
+    control->deadlineExpired.store(true, std::memory_order_release);
+    return 1;
 }
 
 MediaInfo BuildMediaInfo(const MediaSource& source, AVFormatContext* formatContext)

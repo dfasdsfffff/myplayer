@@ -856,12 +856,17 @@ void VideoCtl::LoopThread()
 		}
 		stream_close(exitStream);
 
-		if (!m_reconnectController.wait(delay))
+		if (!m_reconnectController.wait(delay)) {
+			SigPlaybackStatus(PlaybackStatus{PlaybackState::Stopped, PlaybackError::Cancelled, reconnectAttempt,
+				source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
+			SigStopFinished();
 			return;
+		}
 
 		VideoState* reopened = stream_open(source);
 		if (!reopened) {
 			SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, PlaybackError::Unknown, reconnectAttempt, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
+			SigStopFinished();
 			return;
 		}
 		const bool installed = m_reconnectController.runIfNotCancelled([&] {
@@ -872,6 +877,9 @@ void VideoCtl::LoopThread()
 		});
 		if (!installed) {
 			stream_close(reopened);
+			SigPlaybackStatus(PlaybackStatus{PlaybackState::Stopped, PlaybackError::Cancelled, reconnectAttempt,
+				source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
+			SigStopFinished();
 			return;
 		}
 	}

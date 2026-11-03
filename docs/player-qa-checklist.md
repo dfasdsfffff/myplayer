@@ -31,6 +31,47 @@ Run this checklist before calling a build commercial-ready.
 - Authentication failure URL.
 - URL containing credentials; verify logs and playlist display redact sensitive data where applicable.
 
+### Automated HTTP Runtime Acceptance
+
+`network_integration_tests` runs the actual playback runtime against a bounded,
+loopback-only HTTP server with generated MPEG-TS video. It verifies:
+
+- HTTP 404 and 401 are categorized correctly and do not retry, even when reconnect is enabled.
+- An opening deadline produces Timeout rather than Cancelled.
+- Explicit stop interrupts both an unanswered request and an active stream,
+  completes exactly one session, and does not publish a cancellation failure.
+- Server reset after video delivery is reported as a network failure.
+- A stalled body read after video delivery produces Timeout, including when
+  the demuxer returns buffered packets before exposing the underlying AVIO error.
+- Stop interrupts a ten-second reconnect backoff in under 1500 ms and publishes
+  Stopped plus exactly one session completion.
+- A complete finite HTTP video reaches natural end-of-media without a failure.
+
+Build `network_integration_tests`, then run:
+
+```powershell
+ctest --test-dir build -C Release -R "^network_integration_tests$" --output-on-failure
+```
+
+CTest supplies dummy SDL drivers and a 60-second process timeout. Fixtures and
+server sockets are isolated per invocation and cleaned up on exit.
+This coverage does not establish HTTPS, HLS, RTSP, UDP/RTP, DNS-failure, or
+eight-hour network-stream acceptance.
+
+#### Network Verification — 2026-11-03
+
+- The nine affected Release tests passed: application smoke, playback integration,
+  lifecycle stress, network integration, network policy, stream reader,
+  reconnect controller, video widget, and main-window behavior.
+- All nine HTTP integration scenarios passed five consecutive runs.
+- A separate actual GUI run used the Open Link dialog and a loopback H.264
+  MPEG-TS stream; a screenshot confirmed video and the Playing status.
+- GUI close completed in 234 ms during streaming and 128 ms while waiting
+  for HTTP response headers; both player processes exited 0.
+- Fixes preserve timeout causes across buffered demuxer output, retain AVIO
+  socket errors, report read failures instead of discarding them, avoid
+  failure status for user cancellation, and complete cancelled reconnects.
+
 ## long-running playback
 
 - Play a local file for at least 8 hours.
@@ -93,7 +134,7 @@ when comparing changes. Avoid other heavy workloads during measurement.
 - Invalid arguments exited 2; readable non-media input exited 1; a forced
   2 ms watchdog deadline exited 3 with `hard_timeout` and incomplete teardown.
 - This short local run does not clear the eight-hour playback, clean-machine,
-  hardware-decoding, network-interruption, or audio/video-sync acceptance items.
+  hardware-decoding, real-network/protocol-matrix, or audio/video-sync acceptance items.
 
 ## Playlist And Files
 

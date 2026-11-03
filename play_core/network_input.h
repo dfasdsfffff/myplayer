@@ -63,6 +63,7 @@ enum class IoOperation {
 
 struct IoControl {
     std::atomic_bool cancelled{false};
+    std::atomic_bool deadlineExpired{false};
     std::atomic<std::int64_t> deadlineUs{0};
     std::atomic<IoOperation> operation{IoOperation::None};
 

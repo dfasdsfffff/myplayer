@@ -714,7 +714,11 @@ target_link_libraries(network_integration_tests PRIVATE
     ws2_32
 )
 add_test(NAME network_integration_tests COMMAND network_integration_tests)
-set_tests_properties(network_integration_tests PROPERTIES LABELS INTEGRATION)
+set_tests_properties(network_integration_tests PROPERTIES
+    LABELS INTEGRATION
+    TIMEOUT 60
+    ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
+)
 
 add_executable(soundtouch_wrap_tests
     tests/soundtouch_wrap_tests.cpp

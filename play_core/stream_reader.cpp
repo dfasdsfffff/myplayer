@@ -5,6 +5,7 @@
 #include "network_input.h"
 #include "video_state.h"
 
+#include <cerrno>
 #include <cstring>
 #include <stdexcept>
 #include <thread>
@@ -22,6 +23,25 @@ int DecodeInterruptCallback(void* context)
 {
     auto* state = static_cast<VideoState*>(context);
     return state->session.abort_request || InterruptNetworkIo(&state->session.io);
+}
+
+PlaybackError FinishInputOperation(VideoState* state, int result, bool realtime)
+{
+    auto& io = state->session.io;
+    PlaybackError error = result < 0 ? MapAvError(result, realtime) : PlaybackError::None;
+    // Demuxers may turn an interrupted read into EOF or EIO. Preserve the
+    // interrupt reason instead of trying to infer it from the translated code.
+    if (result < 0) {
+        if (io.cancelled.load(std::memory_order_acquire))
+            error = PlaybackError::Cancelled;
+        else if (io.deadlineExpired.load(std::memory_order_acquire))
+            error = PlaybackError::Timeout;
+        else if (result == AVERROR(EIO) && io.operation.load(std::memory_order_acquire) == IoOperation::Reading &&
+                 IsNetworkSource(ClassifyMediaSource(state->session.source.location)))
+            error = PlaybackError::ConnectionLost;
+    }
+    io.end();
+    return error;
 }
 
 void TogglePause(VideoState* state)
@@ -138,13 +158,11 @@ void StreamReader::Run(VideoState* state)
     inputOptions = BuildInputOptions(state->session.source);
     state->session.io.begin(IoOperation::Opening, state->session.source.network.connectTimeout);
     err = avformat_open_input(&inputContext, state->session.filename, nullptr, inputOptions.put());
-    state->session.io.end();
+    state->session.readError.store(FinishInputOperation(state, err,
+        IsRealtimeSource(ClassifyMediaSource(state->session.source.location))), std::memory_order_release);
     if (err < 0) {
         PrintError(state->session.filename, err);
         state->session.readResult.store(err, std::memory_order_release);
-        state->session.readError.store(
-            MapAvError(err, IsRealtimeSource(ClassifyMediaSource(state->session.source.location))),
-            std::memory_order_release);
         ret = err;
         goto fail;
     }
@@ -154,21 +172,27 @@ void StreamReader::Run(VideoState* state)
     state->session.io.begin(IoOperation::Probing,
         std::chrono::duration_cast<std::chrono::milliseconds>(state->session.source.network.analyzeDuration));
     err = avformat_find_stream_info(inputContext, opts);
-    state->session.io.end();
+    state->session.readError.store(FinishInputOperation(state, err,
+        IsRealtimeSource(ClassifyMediaSource(state->session.source.location))), std::memory_order_release);
 
     if (err < 0) {
         av_log(nullptr, AV_LOG_WARNING,
             "%s: could not find codec parameters\n", RedactMediaLocation(state->session.filename ? state->session.filename : "").c_str());
         state->session.readResult.store(err, std::memory_order_release);
-        state->session.readError.store(
-            MapAvError(err, IsRealtimeSource(ClassifyMediaSource(state->session.source.location))),
-            std::memory_order_release);
         ret = err;
         goto fail;
     }
 
-    if (inputContext->pb)
+    if (inputContext->pb) {
         inputContext->pb->eof_reached = 0;
+        // Probing may return usable stream information after its analysis
+        // deadline interrupts AVIO. That operation's transient interrupt must
+        // not poison subsequent reads, which have their own timeout budget.
+        if (state->session.io.deadlineExpired.load(std::memory_order_acquire) &&
+            !state->session.io.cancelled.load(std::memory_order_acquire) &&
+            inputContext->pb->error == AVERROR_EXIT)
+            inputContext->pb->error = 0;
+    }
 
     state->video.max_frame_duration = (inputContext->iformat->flags & AVFMT_TS_DISCONT) ? 10.0 : 3600.0;
     state->session.realtime = IsRealtime(inputContext);
@@ -318,12 +342,22 @@ void StreamReader::Run(VideoState* state)
         }
 
         trackLock.unlock();
+        const auto pendingError = inputContext->pb && inputContext->pb->error < 0
+            ? state->session.readError.load(std::memory_order_acquire) : PlaybackError::None;
         state->session.io.begin(IoOperation::Reading, state->session.source.network.readTimeout);
         ret = av_read_frame(inputContext, packet);
-        state->session.io.end();
+        // AVIO can fail while the demuxer still returns buffered packets.
+        // Capture its cause now, before the next operation resets the deadline,
+        // and retain it until the demuxer finally returns the pending error.
+        const int ioResult = inputContext->pb && inputContext->pb->error < 0 ? inputContext->pb->error : ret;
+        const auto currentError = FinishInputOperation(state, ioResult, state->session.realtime != 0);
+        state->session.readError.store(
+            pendingError != PlaybackError::None && !state->session.io.cancelled.load(std::memory_order_acquire)
+                ? pendingError : currentError, std::memory_order_release);
+        if (ret < 0 && ioResult < 0)
+            ret = ioResult;
         if (ret < 0) {
             state->session.readResult.store(ret, std::memory_order_release);
-            state->session.readError.store(MapAvError(ret, state->session.realtime != 0), std::memory_order_release);
             {
                 std::shared_lock<std::shared_mutex> eofTrackLock(state->session.trackMutex);
                 if ((ret == AVERROR_EOF || avio_feof(inputContext->pb)) && !state->session.eof) {
@@ -364,7 +398,6 @@ void StreamReader::Run(VideoState* state)
         }
     }
 
-    ret = 0;
 fail:
     if (packet)
         av_packet_free(&packet);
@@ -372,9 +405,10 @@ fail:
         avformat_close_input(&inputContext);
     if (ret != 0) {
         const auto error = state->session.readError.load(std::memory_order_acquire);
-        m_callbacks.publishStatus(PlaybackStatus{PlaybackState::Failed, error, 0,
-            state->session.source.network.maxReconnectAttempts, {},
-            RedactMediaLocation(state->session.source.location)});
+        if (!state->session.abort_request.load(std::memory_order_acquire))
+            m_callbacks.publishStatus(PlaybackStatus{PlaybackState::Failed, error, 0,
+                state->session.source.network.maxReconnectAttempts, {},
+                RedactMediaLocation(state->session.source.location)});
         m_callbacks.stopRefreshLoop();
     }
     if (state->session.read_wait_mutex) {
