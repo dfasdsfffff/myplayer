@@ -8,4 +8,4 @@ struct GeneratedMediaFixtures {
     std::filesystem::path subtitle;
 };
 
-GeneratedMediaFixtures BuildMediaFixtures(const std::filesystem::path& directory);
+GeneratedMediaFixtures BuildMediaFixtures(const std::filesystem::path& directory, int videoFrameCount = 10);

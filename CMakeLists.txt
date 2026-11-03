@@ -75,6 +75,7 @@ set(HEADER_FILES
     ${PLAYERDEMO_QT_APP_DIR}/subtitle_renderer.h
     ${PLAYERDEMO_QT_APP_DIR}/title.h
     ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.h
+    ${PLAYERDEMO_QT_APP_DIR}/playback_benchmark.h
 )
 
 set(SOURCE_FILES
@@ -129,6 +130,7 @@ add_executable(${PROJECT_NAME} WIN32
     ${UI_FILES}
     ${QRC_FILES}
     ${RC_FILES}
+    ${PLAYERDEMO_QT_APP_DIR}/playback_benchmark.cpp
 )
 
 
@@ -696,6 +698,7 @@ target_link_libraries(playback_integration_tests PRIVATE
 add_test(NAME playback_integration_tests COMMAND playback_integration_tests)
 set_tests_properties(playback_integration_tests PROPERTIES
     LABELS INTEGRATION
+    TIMEOUT 60
     ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
 )
 

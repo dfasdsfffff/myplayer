@@ -78,6 +78,11 @@ void Show::SetPlaybackController(PlaybackController* controller)
     m_playbackController = controller;
 }
 
+void Show::SetFrameSubmissionMeasurementEnabled(bool enabled)
+{
+    m_measureFrameSubmission = enabled;
+}
+
 void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
 {
     m_nLastFrameWidth = nFrameWidth;
@@ -95,7 +100,9 @@ void Show::OnVideoFrame(std::shared_ptr<VideoFrame> frame)
     ClearAudioOnlyIndicator();
     m_currentFrame = std::move(frame);
     ChangeShow();
-    RenderCurrentFrame();
+    const bool submitted = RenderCurrentFrame();
+    if (submitted && m_measureFrameSubmission)
+        emit SigVideoFrameSubmitted();
 }
 
 void Show::OnSubtitleFrame(std::shared_ptr<const SubtitleFrame> frame)
@@ -230,12 +237,12 @@ void Show::ClearVideoSurface()
     ui->label->update();
 }
 
-void Show::RenderCurrentFrame()
+bool Show::RenderCurrentFrame()
 {
     if (!m_currentFrame || ui->label->width() <= 0 || ui->label->height() <= 0)
-        return;
+        return false;
     if (!EnsureSdlRenderer())
-        return;
+        return false;
 
     const QSize frameSize(m_currentFrame->width, m_currentFrame->height);
     const Uint32 pixelFormat = m_currentFrame->format == VideoFrameFormat::Yuv420P ? SDL_PIXELFORMAT_IYUV : SDL_PIXELFORMAT_BGRA32;
@@ -250,7 +257,7 @@ void Show::RenderCurrentFrame()
         if (!m_sdlTexture)
         {
             qWarning() << "SDL_CreateTexture failed:" << SDL_GetError();
-            return;
+            return false;
         }
         qDebug() << "Video presentation format:"
                  << (pixelFormat == SDL_PIXELFORMAT_IYUV ? "YUV420P" : "BGRA32");
@@ -264,15 +271,17 @@ void Show::RenderCurrentFrame()
     if (updateResult != 0)
     {
         qWarning() << "SDL_UpdateTexture failed:" << SDL_GetError();
-        return;
+        return false;
     }
 
     SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
-    SDL_RenderClear(m_sdlRenderer);
-    SDL_RenderCopy(m_sdlRenderer, m_sdlTexture, nullptr, nullptr);
+    if (SDL_RenderClear(m_sdlRenderer) != 0 ||
+        SDL_RenderCopy(m_sdlRenderer, m_sdlTexture, nullptr, nullptr) != 0)
+        return false;
     if (m_subtitleRenderer)
         m_subtitleRenderer->render(m_sdlRenderer, frameSize, m_playbackSeconds);
     SDL_RenderPresent(m_sdlRenderer);
+    return true;
 }
 
 void Show::dragEnterEvent(QDragEnterEvent *event)

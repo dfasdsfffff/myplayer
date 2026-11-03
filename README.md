@@ -85,6 +85,38 @@ Before shipping, follow:
 - [Release checklist](docs/release-checklist.md)
 - [Player QA checklist](docs/player-qa-checklist.md)
 
+## Playback Performance Baseline
+
+Build Release first, then run from an interactive Windows desktop:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/benchmark-video-presentation.ps1 `
+  -Player bin/myplayer.exe -Ffmpeg ffmpeg -RunMs 10000 -TimeoutMs 30000
+```
+
+The script generates 1080p60 and 4K60 H.264 fixtures, runs the actual Qt/SDL
+player, and writes `.cache/benchmarks/baseline.json`, per-player reports,
+process CPU/memory samples, and logs. FFmpeg null-output decoding is recorded
+separately as a reference, not as player presentation performance.
+Use `-SkipFixtureGeneration` to reuse fixtures and `-SkipDecodeReference` to
+omit that reference.
+
+To measure an existing local video directly:
+
+```powershell
+bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
+  --benchmark-output C:/existing-directory/player.json `
+  --benchmark-run-ms 10000 --benchmark-timeout-ms 30000
+```
+
+Benchmark mode uses software decoding, speed 1, no looping/resume, and a
+requested 1280×720 window. Reports distinguish GUI-delivered frames from
+successful SDL-present returns; neither proves physical screen visibility or
+counts decoder drops. CPU percentages use one logical core as 100%; memory
+peaks are periodic samples. These video-only fixtures do not measure audio/video
+drift. Compare repeated runs on the same machine, display setup, configuration,
+and media; a short run does not establish long-term stability.
+
 ## License And Attribution
 
 MyPlayer is distributed under the GNU General Public License because it is based on GPL-licensed upstream code from `itisyang/playerdemo`.

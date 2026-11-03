@@ -56,7 +56,7 @@ void WriteWav(const std::filesystem::path& path)
     output.write(reinterpret_cast<const char*>(pcm.data()), dataBytes);
 }
 
-void WriteVideo(const std::filesystem::path& path)
+void WriteVideo(const std::filesystem::path& path, int frameCount)
 {
     AVFormatContext* format = nullptr;
     AVCodecContext* codec = nullptr;
@@ -97,10 +97,10 @@ void WriteVideo(const std::filesystem::path& path)
         frame->height = codec->height;
         if (av_frame_get_buffer(frame, 32) < 0)
             throw std::runtime_error("cannot allocate video fixture pixels");
-        for (int index = 0; index < 10; ++index) {
+        for (int index = 0; index < frameCount; ++index) {
             av_frame_make_writable(frame);
             for (int y = 0; y < frame->height; ++y)
-                std::fill_n(frame->data[0] + y * frame->linesize[0], frame->width, index < 5 ? 64 : 192);
+                std::fill_n(frame->data[0] + y * frame->linesize[0], frame->width, index < frameCount / 2 ? 64 : 192);
             for (int y = 0; y < frame->height / 2; ++y) {
                 std::fill_n(frame->data[1] + y * frame->linesize[1], frame->width / 2, 90);
                 std::fill_n(frame->data[2] + y * frame->linesize[2], frame->width / 2, 240);
@@ -144,12 +144,14 @@ void WriteVideo(const std::filesystem::path& path)
 
 } // namespace
 
-GeneratedMediaFixtures BuildMediaFixtures(const std::filesystem::path& directory)
+GeneratedMediaFixtures BuildMediaFixtures(const std::filesystem::path& directory, int videoFrameCount)
 {
+    if (videoFrameCount < 2)
+        throw std::invalid_argument("video fixture needs at least two frames");
     std::filesystem::create_directories(directory);
     GeneratedMediaFixtures fixtures{directory / "tone.wav", directory / "colors.avi", directory / "caption.srt"};
     WriteWav(fixtures.wav);
-    WriteVideo(fixtures.video);
+    WriteVideo(fixtures.video, videoFrameCount);
     std::ofstream subtitle(fixtures.subtitle);
     if (!subtitle)
         throw std::runtime_error("cannot create subtitle fixture");

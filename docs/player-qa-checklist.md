@@ -52,6 +52,49 @@ Run this checklist before calling a build commercial-ready.
 - Stop during network buffering.
 - Close the app while decoding.
 
+### Automated Runtime Transition Acceptance
+
+`playback_integration_tests` generates isolated local fixtures and verifies:
+
+- Opening precedes Playing, with metadata and a fresh video frame.
+- Pause acknowledgement and frame quiescence; three resume cycles deliver new frames.
+- Paused forward seek and rewind reach distinct decoded image regions without resuming.
+- Explicit stop joins exactly one session and leaves no subsequent frame delivery.
+- Replay after stop, including immediate stop → replay ordering.
+- Runtime destruction during playback completes the active session.
+- Audio-only WAV metadata, Playing status, and shutdown completion.
+
+Run after building the target:
+
+```powershell
+ctest --test-dir build -C Release -R "^playback_integration_tests$" --output-on-failure
+```
+
+This is runtime-level acceptance using dummy SDL drivers, not GUI rendering
+or real audio-device validation. Seek checks image regions, not exact timestamps.
+The 60-second CTest timeout also bounds synchronous shutdown deadlocks.
+
+## GUI Performance Baseline
+
+Run `scripts/benchmark-video-presentation.ps1` on an interactive desktop; see
+the README for arguments and metric definitions. Preserve `baseline.json`,
+player reports, process samples, configuration, and hardware/display details
+when comparing changes. Avoid other heavy workloads during measurement.
+
+### Local Verification — 2026-11-03
+
+- MSVC Release build passed using Qt 6.9.3 and FFmpeg libavcodec 63.1.101.
+- Release CTest passed: application smoke, playback integration, network integration,
+  video widget, and main-window behavior (5/5).
+- Actual Qt/SDL playback completed both generated fixtures with a 3000 ms run
+  request, software decode, and requested 1280×720 window. Both processes exited 0.
+- A native-window screenshot showed the 1080p test pattern during playback;
+  a separate run reached natural end-of-media and completed teardown.
+- Invalid arguments exited 2; readable non-media input exited 1; a forced
+  2 ms watchdog deadline exited 3 with `hard_timeout` and incomplete teardown.
+- This short local run does not clear the eight-hour playback, clean-machine,
+  hardware-decoding, network-interruption, or audio/video-sync acceptance items.
+
 ## Playlist And Files
 
 - Drag local files into the player.

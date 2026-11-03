@@ -30,6 +30,8 @@ class MainWid;
 
 class PlaybackController;
 class PlaybackRuntime;
+class QApplication;
+struct PlaybackBenchmarkOptions;
 
 class MainWid : public QMainWindow
 {
@@ -124,6 +126,7 @@ signals:
     void SigPlayOrPause();
     void SigOpenFile(QString strFilename);
 private:
+    friend int RunPlaybackBenchmark(QApplication& application, const PlaybackBenchmarkOptions& options);
     Ui::MainWid *ui;
 
     const int m_nShadowWidth; ///< 阴影宽度

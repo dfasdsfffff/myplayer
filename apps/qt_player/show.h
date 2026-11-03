@@ -44,6 +44,7 @@ public:
 	 */
 	bool Init();
     void SetPlaybackController(PlaybackController* controller);
+    void SetFrameSubmissionMeasurementEnabled(bool enabled);
 
 protected:
 	/**
@@ -131,7 +132,7 @@ private:
     bool EnsureSdlRenderer();
     void DestroySdlRenderer();
     void ClearVideoSurface();
-    void RenderCurrentFrame();
+    bool RenderCurrentFrame();
 signals:
     void SigOpenFile(QString strFileName);///< 增加视频文件
 	void SigPlay(QString strFile); ///<播放
@@ -145,6 +146,8 @@ signals:
     void SigSeekBack();
     void SigAddVolume();
     void SigSubVolume();
+    // Measures SDL_RenderPresent returning, not compositor/monitor visibility.
+    void SigVideoFrameSubmitted();
 private:
     Ui::Show *ui;
 
@@ -166,6 +169,7 @@ private:
     QActionGroup m_stActionGroup;
     PlaybackController* m_playbackController = nullptr;
     bool m_audioOnlyActive = false;
+    bool m_measureFrameSubmission = false;
 };
 
 

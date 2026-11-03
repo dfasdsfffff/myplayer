@@ -1,5 +1,6 @@
 ﻿#include "mainwid.h"
 #include "playback_runtime.h"
+#include "playback_benchmark.h"
 #include <QApplication>
 #include <QFontDatabase>
 #include <QDebug>
@@ -22,6 +23,20 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion("1.0.0");
     QCoreApplication::setOrganizationName("MyPlayer");
     
+    const QStringList arguments = QCoreApplication::arguments();
+    bool benchmarkRequested = false;
+    for (const QString& argument : arguments) {
+        if (argument == "--benchmark" || argument.startsWith("--benchmark-"))
+            benchmarkRequested = true;
+    }
+    PlaybackBenchmarkOptions benchmarkOptions;
+    if (benchmarkRequested) {
+        QString error;
+        if (!ParsePlaybackBenchmarkOptions(arguments, benchmarkOptions, error)) {
+            qCritical().noquote() << error;
+            return 2;
+        }
+    }
     //使用第三方字库，用来作为UI图片 ://res/fa-solid-900.ttf
     QFontDatabase::addApplicationFont("://res/fontawesome-webfont.ttf");
     //QFontDatabase::addApplicationFont("://res/fa-solid-900.ttf");
@@ -31,6 +46,9 @@ int main(int argc, char *argv[])
         auto runtime = PlaybackRuntime::Create();
         std::_Exit(runtime ? EXIT_SUCCESS : EXIT_FAILURE);
     }
+
+    if (benchmarkRequested)
+        return RunPlaybackBenchmark(a, benchmarkOptions);
 
     MainWid w;
     if (w.Init() == false)
