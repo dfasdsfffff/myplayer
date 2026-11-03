@@ -17,6 +17,52 @@ Run this checklist before calling a build commercial-ready.
 - Very short files under 5 seconds.
 - Long files over 2 hours.
 
+### Automated Compatibility And Decode Acceptance
+
+`media_compatibility_tests` uses the production runtime. Its no-argument CTest
+cases generate MPEG4 video, PCM WAV, invalid bytes and an unusable AVI prefix;
+they verify finite playback/error boundaries, prevent premature audio EOF and
+duplicate next-item events, and check that single-item repeat still seeks and
+remains stoppable across EOF.
+
+`scripts/verify-media-compatibility.ps1` generates a broader finite matrix using
+an external FFmpeg encoder. It checks runtime playback separately from direct
+decoding with production `HardwareDecodeContext`; see the README for commands.
+MediaInfo's track list contains audio/subtitle tracks, not video tracks.
+Runtime video evidence uses valid frame storage and dimensions; exact counts
+are checked only by the direct decoder, since runtime callbacks may redraw.
+
+#### Compatibility Verification — 2026-11-03
+
+- Release matrix: 23/23 cases passed, with no skipped fixtures.
+- Runtime: H.264/AAC MP4, Main8 H.265 MKV and MPEG4 AVI in disabled/Auto/D3D11VA
+  modes; WAV, AAC and MP3 audio-only; invalid bytes and ftyp-only MP4 rejection.
+- Direct context: each video decoded all 12 expected frames in all three modes
+  and drained both demuxer and decoder; frames had valid dimensions/storage.
+- Four cases produced 12 D3D11 frames each and transferred all 12 to CPU frames:
+  H.264 and H.265, each in Auto and D3D11VA modes.
+- The adapter queried from those hardware frames was Intel(R) Arc(TM) Graphics,
+  driver 32.0.101.6078 from the matching local inventory. The installed NVIDIA
+  RTX 4060 Laptop GPU was not selected and is not covered by this run.
+- Two MPEG4 cases (Auto/D3D11VA) actually fell back to software after pixel-format
+  negotiation. Device-creation failure/unavailable-device recovery was not induced.
+- WAV/AAC/MP3 fixtures of 1200 ms reached natural EOF at approximately 1336–1343 ms.
+  This verifies output-queue timing, not acoustic fidelity or synchronization.
+- Fixed short-audio EOF to wait for in-flight PCM production, queued PCM and
+  the output-buffer tail. Fixed repeated EOF notifications; a successful seek
+  re-arms the notification for single-item repeat.
+- Twelve affected Release tests passed. Compatibility and audio-ring tests
+  each passed five consecutive runs.
+- A separate real Qt/SDL window rendered a repeated HEVC test pattern for a
+  bounded five-second run (software decode), submitted 50 frames and exited 0.
+- Linked runtime FFmpeg was 9.0.1; fixture-generator FFmpeg was 7.1.1.
+
+Evidence is under `.cache/media-compatibility/20261103-155824-c6f25b2a266449c2ab2c3aed3929c9ea/`;
+the desktop screenshot/report are `.cache/media-gui-smoke.png` and
+`.cache/media-gui-smoke.json`. This is one adapter/profile sample, not the full
+hardware publication gate. FLV/WMV, other profiles/adapters, two-hour media,
+eight-hour stability, and audio/video-sync acceptance remain outstanding.
+
 ## network failure
 
 - HTTP video URL.

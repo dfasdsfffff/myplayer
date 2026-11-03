@@ -37,6 +37,9 @@ bool AudioRenderQueue::start(VideoState* state, const AudioParams& target)
     m_underruns.store(0, std::memory_order_release);
     m_producerClock.store(NAN, std::memory_order_release);
     m_producerClockSerial.store(0, std::memory_order_release);
+    m_producing.store(false, std::memory_order_release);
+    m_consuming.store(false, std::memory_order_release);
+    m_outputDeadlineUs.store(0, std::memory_order_release);
     m_stopping.store(false, std::memory_order_release);
     if (state)
         m_producer = std::thread(&AudioRenderQueue::produce, this, state);
@@ -86,11 +89,12 @@ size_t AudioRenderQueue::write(const uint8_t* source, size_t bytes)
     return written;
 }
 
-size_t AudioRenderQueue::read(uint8_t* destination, size_t bytes) noexcept
+size_t AudioRenderQueue::read(uint8_t* destination, size_t bytes, std::chrono::microseconds outputLatency) noexcept
 {
     if (!destination || !bytes)
         return 0;
 
+    m_consuming.store(true, std::memory_order_release);
     const size_t readable = std::min(bytes, availableToRead());
     if (readable) {
         const size_t read = m_readPosition.load(std::memory_order_relaxed);
@@ -105,6 +109,13 @@ size_t AudioRenderQueue::read(uint8_t* destination, size_t bytes) noexcept
         std::memset(destination + readable, 0, bytes - readable);
         m_underruns.fetch_add(1, std::memory_order_relaxed);
     }
+    if (readable && outputLatency.count() > 0) {
+        const auto now = std::chrono::steady_clock::now().time_since_epoch();
+        m_outputDeadlineUs.store(
+            std::chrono::duration_cast<std::chrono::microseconds>(now).count() + outputLatency.count(),
+            std::memory_order_release);
+    }
+    m_consuming.store(false, std::memory_order_release);
     return readable;
 }
 
@@ -113,6 +124,7 @@ void AudioRenderQueue::flush()
     std::lock_guard<std::mutex> lock(m_writeMutex);
     m_readPosition.store(m_writePosition.load(std::memory_order_acquire), std::memory_order_release);
     m_producerClock.store(NAN, std::memory_order_release);
+    m_outputDeadlineUs.store(0, std::memory_order_release);
     m_spaceAvailable.notify_all();
 }
 
@@ -129,6 +141,19 @@ size_t AudioRenderQueue::capacityBytes() const noexcept
 size_t AudioRenderQueue::pendingBytes() const noexcept
 {
     return availableToRead();
+}
+
+bool AudioRenderQueue::drained() const noexcept
+{
+    // Observe the ring first: a completed read publishes its in-flight flag and
+    // output deadline before becoming idle. A producer can also hold PCM after
+    // removing its last decoded frame but before publishing it to the ring.
+    if (pendingBytes() != 0 || m_producing.load(std::memory_order_acquire) ||
+        m_consuming.load(std::memory_order_acquire))
+        return false;
+    const auto deadline = m_outputDeadlineUs.load(std::memory_order_acquire);
+    return deadline == 0 || std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count() >= deadline;
 }
 
 double AudioRenderQueue::producerClock() const noexcept
@@ -151,6 +176,9 @@ void AudioRenderQueue::produce(VideoState* state)
 {
     while (!m_stopping.load(std::memory_order_acquire) &&
            !state->session.abort_request.load(std::memory_order_acquire)) {
+        if (!state->audio.sampq.wait_readable_for(100))
+            continue;
+        m_producing.store(true, std::memory_order_release);
         const int preparedBytes = AudioOutput::DecodeFrame(state);
         if (preparedBytes > 0 && state->audio.audio_buf) {
             write(state->audio.audio_buf, static_cast<size_t>(preparedBytes));
@@ -158,5 +186,6 @@ void AudioRenderQueue::produce(VideoState* state)
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
+        m_producing.store(false, std::memory_order_release);
     }
 }

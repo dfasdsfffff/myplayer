@@ -117,6 +117,32 @@ peaks are periodic samples. These video-only fixtures do not measure audio/video
 drift. Compare repeated runs on the same machine, display setup, configuration,
 and media; a short run does not establish long-term stability.
 
+## Media Compatibility And Hardware Fallback
+
+Build the acceptance runners and run the matrix with a caller-provided FFmpeg
+executable that includes libx264, libx265, AAC, and MPEG4 encoders:
+
+```powershell
+cmake --build build --config Release --target media_compatibility_tests hardware_decode_policy_tests
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-media-compatibility.ps1 `
+  -BuildDir build -Configuration Release -Ffmpeg ffmpeg
+```
+
+Each run creates an isolated directory under `.cache/media-compatibility/`.
+`compatibility.json` aggregates runtime playback results and separate
+`HardwareDecodeContext` decoding/transfer evidence. Fixtures include H.264/AAC
+MP4, Main8 H.265 MKV, MPEG4 AVI, WAV, AAC, MP3 when the generator supports it,
+invalid bytes, and an unusable ftyp-only MP4.
+
+Runtime cases check decoded frame storage/dimensions, audio metadata, timed
+natural completion, and failure behavior using dummy SDL sinks. Runtime frame
+callbacks can repeat for redraws; only the separate direct-context decoder
+asserts exact decoded-frame counts. Its adapter identity is read from an actual
+hardware frame's D3D11 device, not inferred from installed GPUs. A successful
+software fallback is not hardware coverage. These checks do not establish
+speaker output, audio/video synchronization, all adapters/profiles, or release
+readiness. The no-argument CTest cases need neither external encoders nor a GPU.
+
 ## License And Attribution
 
 MyPlayer is distributed under the GNU General Public License because it is based on GPL-licensed upstream code from `itisyang/playerdemo`.

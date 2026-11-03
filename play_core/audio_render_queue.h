@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -23,9 +24,10 @@ public:
 
     bool start(VideoState* state, const AudioParams& target);
     void stop();
-    size_t read(uint8_t* destination, size_t bytes) noexcept;
+    size_t read(uint8_t* destination, size_t bytes, std::chrono::microseconds outputLatency = {}) noexcept;
     void flush();
     [[nodiscard]] uint64_t underruns() const noexcept;
+    [[nodiscard]] bool drained() const noexcept;
 
     size_t write(const uint8_t* source, size_t bytes);
     [[nodiscard]] size_t capacityBytes() const noexcept;
@@ -47,6 +49,9 @@ private:
     std::atomic_uint64_t m_underruns{0};
     std::atomic<double> m_producerClock{NAN};
     std::atomic_int m_producerClockSerial{0};
+    std::atomic_bool m_producing{false};
+    std::atomic_bool m_consuming{false};
+    std::atomic<int64_t> m_outputDeadlineUs{0};
     std::mutex m_writeMutex;
     std::condition_variable m_spaceAvailable;
     std::thread m_producer;

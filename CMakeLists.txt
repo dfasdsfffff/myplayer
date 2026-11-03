@@ -682,6 +682,23 @@ target_link_libraries(hardware_decode_policy_tests PRIVATE
 
 add_test(NAME hardware_decode_policy_tests COMMAND hardware_decode_policy_tests)
 
+add_executable(media_compatibility_tests
+    tests/media_compatibility_tests.cpp
+    tests/media_fixture_builder.cpp
+)
+target_include_directories(media_compatibility_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests
+)
+target_link_libraries(media_compatibility_tests PRIVATE
+    play_core
+)
+add_test(NAME media_compatibility_tests COMMAND media_compatibility_tests)
+set_tests_properties(media_compatibility_tests PROPERTIES
+    LABELS "INTEGRATION;COMPATIBILITY"
+    TIMEOUT 60
+    ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
+)
+
 add_executable(playback_integration_tests
     tests/playback_integration_tests.cpp
     tests/media_fixture_builder.cpp

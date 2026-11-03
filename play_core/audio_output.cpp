@@ -321,7 +321,8 @@ void AudioOutput::Callback(void* opaque, Uint8* stream, int length)
         return;
     }
 
-    renderQueue->read(stream, static_cast<size_t>(length));
+    renderQueue->read(stream, static_cast<size_t>(length), std::chrono::microseconds{
+        2LL * state->audio.audio_hw_buf_size * 1000000 / state->audio.audio_tgt.bytes_per_sec});
     const auto audioVolume = state->audio.audio_volume.load(std::memory_order_relaxed);
     if (audioVolume != SDL_MIX_MAXVOLUME) {
         auto* samples = reinterpret_cast<int16_t*>(stream);

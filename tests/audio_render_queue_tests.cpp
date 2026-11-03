@@ -41,7 +41,8 @@ int main()
     const std::vector<uint8_t> source(queue.capacityBytes(), 0x5a);
     const size_t accepted = queue.write(source.data(), source.size());
     if (!Expect(accepted == queue.capacityBytes(), "queue must bound pending PCM to its configured capacity") ||
-        !Expect(queue.pendingBytes() == queue.capacityBytes(), "full queue must report bounded pending PCM"))
+        !Expect(queue.pendingBytes() == queue.capacityBytes(), "full queue must report bounded pending PCM") ||
+        !Expect(!queue.drained(), "queued PCM must prevent playback completion"))
         return 1;
 
     std::array<uint8_t, 32> firstRead{};
@@ -96,6 +97,22 @@ int main()
     queue.stop();
     stopBlockedWriter.join();
     if (!Expect(stopWriterFinished.load(std::memory_order_acquire), "stop must wake a blocked producer"))
+        return 1;
+
+    AudioRenderQueue tail;
+    if (!Expect(tail.start(nullptr, target), "tail queue starts"))
+        return 1;
+    const std::array<uint8_t, 8> lastSamples{1, 2, 3, 4, 5, 6, 7, 8};
+    tail.write(lastSamples.data(), lastSamples.size());
+    std::array<uint8_t, 8> output{};
+    if (!Expect(tail.read(output.data(), output.size(), std::chrono::milliseconds(100)) == output.size() &&
+                    output == lastSamples, "last callback receives all remaining PCM") ||
+        !Expect(!tail.drained(), "PCM handed to the output device must finish playing before EOF"))
+        return 1;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (!tail.drained() && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    if (!Expect(tail.drained(), "output tail eventually drains without another audio callback"))
         return 1;
 
     av_channel_layout_uninit(&target.ch_layout);

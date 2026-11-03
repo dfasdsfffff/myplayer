@@ -1,6 +1,7 @@
 #include "stream_reader.h"
 
 #include "av_constants.h"
+#include "audio_render_queue.h"
 #include "media_sync.h"
 #include "network_input.h"
 #include "video_state.h"
@@ -127,6 +128,7 @@ void StreamReader::Run(VideoState* state)
     AVDictionary** opts = nullptr;
     AvDictionary inputOptions;
     int64_t packetTimestamp = 0;
+    bool endOfMediaNotified = false;
     const char* wantedStreamSpec[AVMEDIA_TYPE_NB] = {0};
 
     SDL_mutex* waitMutex = SDL_CreateMutex();
@@ -293,6 +295,7 @@ void StreamReader::Run(VideoState* state)
                 av_log(nullptr, AV_LOG_ERROR,
                     "%s: error while seeking\n", RedactMediaLocation(state->session.ic->url ? state->session.ic->url : "").c_str());
             } else {
+                endOfMediaNotified = false;
                 std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
                 if (state->audio.audio_stream >= 0)
                     packet_queue_flush(&state->audio.audioq);
@@ -334,10 +337,16 @@ void StreamReader::Run(VideoState* state)
             continue;
         }
         if (!paused &&
-            (!state->audio.audio_st || (state->audio.aud_decoder.finished == state->audio.audioq.serial() && state->audio.sampq.nb_remaining() == 0)) &&
+            (!state->audio.audio_st || (state->audio.aud_decoder.finished == state->audio.audioq.serial() &&
+                state->audio.sampq.nb_remaining() == 0 &&
+                (!state->audio.renderQueue || state->audio.renderQueue->drained()))) &&
             (!state->video.video_st || (state->video.vid_decoder.finished == state->video.videoq.serial() && state->video.pictq.nb_remaining() == 0))) {
             trackLock.unlock();
-            m_callbacks.handleEndOfMedia();
+            if (!endOfMediaNotified) {
+                endOfMediaNotified = true;
+                m_callbacks.handleEndOfMedia();
+            }
+            WaitForReadSignal(state);
             continue;
         }
 
