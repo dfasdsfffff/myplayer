@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(MYPLAYER_BUILD_QT_APP "Build the Qt Widgets player" ON)
+option(MYPLAYER_BUILD_MONITOR "Build the multi-camera monitoring application" OFF)
 include(CTest)
 option(MYPLAYER_ENABLE_WARNINGS "Enable project warning flags" ON)
 option(MYPLAYER_ENABLE_SANITIZERS "Enable supported sanitizers" OFF)
@@ -42,6 +43,10 @@ if(MYPLAYER_BUILD_QT_APP)
 endif()
 
 add_subdirectory(play_core)
+
+if(MYPLAYER_BUILD_MONITOR)
+    add_subdirectory(apps/monitor)
+endif()
 
 if(MYPLAYER_BUILD_QT_APP)
     if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)

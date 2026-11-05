@@ -224,11 +224,12 @@ void StreamReader::Run(VideoState* state)
         av_find_best_stream(inputContext, AVMEDIA_TYPE_VIDEO,
             streamIndexes[AVMEDIA_TYPE_VIDEO], -1, nullptr, 0);
 
-    streamIndexes[AVMEDIA_TYPE_AUDIO] =
-        av_find_best_stream(inputContext, AVMEDIA_TYPE_AUDIO,
+    streamIndexes[AVMEDIA_TYPE_AUDIO] = state->session.source.enableAudio
+        ? av_find_best_stream(inputContext, AVMEDIA_TYPE_AUDIO,
             streamIndexes[AVMEDIA_TYPE_AUDIO],
             streamIndexes[AVMEDIA_TYPE_VIDEO],
-            nullptr, 0);
+            nullptr, 0)
+        : -1;
 
     streamIndexes[AVMEDIA_TYPE_SUBTITLE] =
         av_find_best_stream(inputContext, AVMEDIA_TYPE_SUBTITLE,

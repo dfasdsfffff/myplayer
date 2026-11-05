@@ -37,6 +37,7 @@ struct NetworkOptions {
 struct MediaSource {
     std::string location;
     NetworkOptions network;
+    bool enableAudio{true};
 };
 
 enum class PlaybackState {

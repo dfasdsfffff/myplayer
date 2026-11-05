@@ -1,0 +1,76 @@
+#include "xcamera_widget.h"
+
+#include "xcamera_config.h"
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QListWidget>
+#include <QListWidgetItem>
+
+namespace {
+
+bool IsCameraList(const QListWidget *list) {
+  return list && list->objectName() == QStringLiteral("cam_list");
+}
+
+} // namespace
+
+XCameraWidget::XCameraWidget(QWidget *parent) : CoreVideoWidget(parent) {
+  setAcceptDrops(true);
+}
+
+void XCameraWidget::dragEnterEvent(QDragEnterEvent *event) {
+  auto *cameraList = event
+                            ? qobject_cast<QListWidget *>(event->source())
+                            : nullptr;
+  if (!IsCameraList(cameraList)) {
+    if (event)
+      event->ignore();
+    return;
+  }
+
+  event->acceptProposedAction();
+}
+
+void XCameraWidget::dropEvent(QDropEvent *event) {
+  auto *cameraList = event
+                           ? qobject_cast<QListWidget *>(event->source())
+                           : nullptr;
+  if (!IsCameraList(cameraList)) {
+    if (event)
+      event->ignore();
+    return;
+  }
+
+  auto *item = cameraList->currentItem();
+  if (!item) {
+    event->ignore();
+    return;
+  }
+
+  bool roleIsValid = false;
+  const int roleIndex = item->data(Qt::UserRole).toInt(&roleIsValid);
+  const int index = roleIsValid ? roleIndex : cameraList->row(item);
+  if (index < 0) {
+    event->ignore();
+    return;
+  }
+
+  const XCameraData camera = XCameraConfig::Instance()->GetCam(index);
+  if (camera.sub_url[0] == '\0' || !Open(camera.sub_url)) {
+    event->ignore();
+    return;
+  }
+
+  event->acceptProposedAction();
+}
+
+bool XCameraWidget::Open(const char *url) {
+  if (!url || *url == '\0')
+    return false;
+
+  return open(QString::fromLocal8Bit(url), true);
+}
+
+void XCameraWidget::Draw() {
+  // Playback and SDL presentation are owned by CoreVideoWidget now.
+}
