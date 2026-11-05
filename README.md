@@ -78,12 +78,32 @@ scripts/package-portable.ps1  Portable Windows package build and verification
 
 ## Packaging
 
-MyPlayer is distributed only as a portable Windows archive. Build it with `scripts/package-portable.ps1`, extract the resulting ZIP, and run `myplayer.exe` from the extracted directory. No installer is built, maintained, or required.
+MyPlayer and MyPlayer Monitor are distributed as separate portable Windows x64 archives. No installer is required. Configure both applications, then package the Release build:
 
-Before shipping, follow:
+```powershell
+cmake -S . -B build -DMYPLAYER_BUILD_MONITOR=ON
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1 -BuildDir build -Version 1.1.0
+```
 
-- [Release checklist](docs/release-checklist.md)
-- [Player QA checklist](docs/player-qa-checklist.md)
+The script creates `dist/MyPlayer-1.1.0-windows-x64.zip` and
+`dist/MyPlayerMonitor-1.1.0-windows-x64.zip`, each with a `.sha256` file.
+It deploys Qt plugins, the MSVC runtime, third-party DLLs and license texts,
+then runs each staged executable with development dependency paths removed.
+The configured build must provide `PLAYERDEMO_QT_ROOT`, `VCPKG_INSTALLED_DIR`
+and `VCPKG_TARGET_TRIPLET`. Qt license texts default to the SDK's sibling
+`Src/LICENSES` directory; use `-QtLicenseDir` or `-CrtDir` to supply explicit
+license/runtime directories. Existing release outputs are never overwritten.
+
+Extract the entire archive into a writable directory and launch:
+
+- Player: `bin/myplayer.exe`.
+- Video monitor: `bin/myplayer_monitor.exe`; supports 1/4/9/16 preview layouts,
+  local files and RTSP/HTTP sources.
+
+Portable means no installation or separately installed Qt/VC runtime is needed;
+it does not mean that every user preference is stored beside the executable.
+Keep the included license and notice files. Corresponding project source is
+available from the matching release tag in the repository linked above.
 
 ## Playback Performance Baseline
 
