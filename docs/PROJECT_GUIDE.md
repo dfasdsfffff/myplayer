@@ -1,1109 +1,189 @@
-# MyPlayer 项目快速上手与架构说明
+# MyPlayer 开发指南
 
-本文面向第一次接触本仓库的开发者，目标是帮助你快速完成三件事：
+本文按当前源码说明应用边界、播放链路和定位入口，不是运行验证报告。配置、构建、运行、测试命令、安装与打包步骤统一见[根 README](../README.md)；不要把历史构建目录或已生成的可执行文件当作环境前提。
 
-1. 跑起来：知道如何配置、构建、运行和测试项目。
-2. 看明白：理解代码目录、模块职责、主要类和调用关系。
-3. 改得动：知道新增功能或排查问题时应该从哪里入手，以及为什么当前实现要这样分层。
+## 1. 两个应用与共享核心
 
----
-
-## 1. 项目定位
-
-`MyPlayer` 是一个基于 C++20、Qt Widgets、FFmpeg、SDL2 和 SoundTouch 的本地播放器示例项目。它来自 `itisyang/playerdemo`，当前仓库在原项目基础上做了二次整理，重点是把播放核心逐步从 Qt UI 中拆出来，形成可复用的 `play_core` 静态库。
-
-项目当前应用入口：
-
-- `MyPlayer`：Qt Widgets 桌面播放器，完整 UI，主入口在 `apps/qt_player/main.cpp`。
-
-公共播放能力集中在：
-
-- `play_core/`：播放核心、解封装、解码、同步、队列、音频处理、视频帧派发。
-
----
-
-## 2. 技术栈与外部依赖
-
-| 组件 | 作用 |
+| 层次 | 入口与职责 |
 | --- | --- |
-| C++20 | 主要开发语言，项目顶层 CMake 强制启用 C++20 |
-| CMake 3.20+ | 构建系统 |
-| Qt 6 Core/Gui/Widgets | Qt 版播放器 UI |
-| FFmpeg | 解封装、流选择、解码、重采样、像素格式转换、滤镜 |
-| SDL2 | 音频设备输出，Qt 显示区域上的视频渲染窗口/Renderer |
-| SoundTouch | 音频变速处理 |
-| sigslot | `play_core` 内部事件通知，避免播放核心依赖 Qt |
+| Qt 播放器 | `apps/qt_player/main.cpp` → `MainWid`；单媒体播放、播放列表、最近文件、设置、音轨/字幕选择和外置字幕 |
+| 视频监控 | `apps/monitor/main.cpp` → `XViewer`；多窗口预览、摄像机配置、分段录制、录像检索和回放 |
+| 公共播放核心 | `play_core/`，静态库 `play_core`；解封装、解码、队列、时钟、音频输出和视频/字幕数据派发，不依赖 Qt |
 
-FFmpeg、SDL2 和 SoundTouch 由 `vcpkg.json` 声明，并通过 vcpkg toolchain 按当前 triplet 构建。仓库中的 `lib/` 目录保留作历史二进制备份；当前构建仅从其中读取 header-only 的 sigslot：
+两个应用均使用 `PlaybackRuntime`，不是把播放器窗口嵌入监控程序。`VideoCtl::MakeInstance()` 创建独立实例，非单例；`RuntimeManager` 引用计数管理共享的 SDL 音频和 FFmpeg 网络初始化。
 
-```text
-PLAYERDEMO_DEPS_ROOT
-PLAYERDEMO_SIGSLOT_ROOT
-PLAYERDEMO_QT_ROOT
-PLAYERDEMO_OUTPUT_DIR
-```
+顶层选项 `MYPLAYER_BUILD_QT_APP`、`MYPLAYER_BUILD_MONITOR` 控制应用构建；监控另有独立入口 CMake。具体依赖与配置以[顶层 CMake](../CMakeLists.txt)、[核心 CMake](../play_core/CMakeLists.txt)、[监控 CMake](../apps/monitor/CMakeLists.txt)和根 README 为准。核心依赖 FFmpeg、SDL2、SoundTouch 和 header-only sigslot；播放器 UI 使用 Qt Widgets，字幕渲染另依赖 libass。不能因为 `play_core` 无 Qt 依赖，就认为默认整套测试也不需要 Qt。
 
----
+发行标签/压缩包版本不等于程序内部版本。目前源码中顶层 `project()`、两个 `main.cpp` 的应用版本以及 `GlobalHelper::GetAppVersion()` 仍使用 `1.0.0`；不要据此把 V1.1.0 发行包描述为已经完成内部版本统一。
 
-## 3. 构建与运行
+## 2. 类职责与定位入口
 
-### 3.1 推荐环境
+### 公共播放层
 
-Windows 下推荐：
-
-- Visual Studio 2026
-- Qt 6，例如 `C:/Qt/6.9.3/msvc2022_64`
-- vcpkg，并设置 `VCPKG_ROOT`
-- CMake 3.25+（`CMakePresets.json` 使用 version 6 schema）
-
-### 3.2 使用 Preset 构建
-
-仓库提供了 `CMakePresets.json`：
-
-```powershell
-cmake --preset windows-msvc-vcpkg
-cmake --build --preset windows-msvc-vcpkg-debug
-```
-
-Release：
-
-```powershell
-cmake --build --preset windows-msvc-vcpkg-release
-```
-
-如果 Qt 不在 CMake 默认搜索路径，可以显式指定：
-
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
-  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
-  -DPLAYERDEMO_QT_ROOT="C:/Qt/6.9.3/msvc2022_64"
-```
-
-### 3.3 输出文件
-
-默认输出到仓库根目录的 `bin/`：
-
-```text
-bin/myplayer_debug.exe
-bin/myplayer.exe
-```
-
-Windows 下构建后，CMake 会把 FFmpeg、SDL2、SoundTouch 运行时 DLL 复制到目标输出目录。
-
-### 3.4 测试
-
-顶层 CMake 当前注册了五个测试：
-
-```text
-playback_settings_tests
-playlistfile_tests
-play_core_refactor_tests
-network_playback_tests
-show_widget_tests
-```
-
-运行：
-
-```powershell
-ctest --preset windows-msvc-vcpkg-debug
-```
-
-或者：
-
-```powershell
-ctest --test-dir build -C Debug --output-on-failure
-```
-
----
-
-## 4. 目录结构
-
-```text
-playerdemo/
-├── apps/
-│   └── qt_player/             # Qt Widgets 版播放器
-├── play_core/                 # 播放核心静态库
-├── tests/                     # 单元/结构回归测试
-├── lib/                       # 随仓库提供的第三方依赖
-├── docs/                      # 文档、设计记录、实施计划
-├── bin/                       # 默认运行时输出目录
-├── CMakeLists.txt             # 顶层构建脚本
-├── CMakePresets.json          # Windows + MSVC + vcpkg 构建预设
-└── vcpkg.json                 # vcpkg 依赖声明
-```
-
-### 4.1 `apps/qt_player`
-
-Qt 版播放器主要由这些类组成：
-
-| 文件/类 | 职责 |
+| 文件/类型 | 当前职责 |
 | --- | --- |
-| `main.cpp` | 创建 `QApplication`，启动主窗口 |
-| `MainWid` | 主窗口，负责组合标题栏、播放区域、控制栏、播放列表、菜单和播放核心 |
-| `Title` | 自定义标题栏，处理关闭、最小化、最大化、全屏、打开文件和菜单入口 |
-| `Show` | 视频显示区域，负责接收核心输出的 BGRA 帧并通过 SDL 渲染 |
-| `CtrlBar` | 底部播放控制栏，负责进度、音量、播放/暂停、停止、循环模式、倍速 |
-| `Playlist` | 播放列表容器，负责添加、双击播放、上一首、下一首、随机播放 |
-| `MediaList` | 播放列表内部的 `QListWidget`，负责右键菜单、添加文件/目录、导入导出列表 |
-| `PlaylistFile` | M3U/M3U8 播放列表读写逻辑 |
-| `GlobalHelper` | 样式、图标、配置、播放设置、最近文件、播放位置等工具方法 |
-| `PlaybackRuntimeBridge` | 把 `play_core` 的 sigslot 事件转成 Qt signals，并投递到 Qt 主线程 |
-| `CustomSlider` | 支持点击/拖动即时触发的进度条/音量条 |
+| `playback_runtime.h/.cpp` / `PlaybackRuntime` | 拥有 `VideoCtl` 和控制接口，转发核心信号；析构先 `stopAndWait()` 再断开连接 |
+| `playback_controller.h/.cpp` / `PlaybackController` | 应用侧动作接口；`playback_controller_videoctl.cpp` 将动作绑定到 `VideoCtl`，不是播放工作线程 |
+| `videoctl.h/.cpp` / `VideoCtl` | 播放生命周期、刷新循环、组件开关、同步调度、seek/暂停/选轨命令执行、循环策略与重连编排 |
+| `media_session.h/.cpp` / `MediaSession` | 持有当前 `VideoState`，通过关闭回调释放会话 |
+| `stream_reader.h/.cpp` / `StreamReader` | 打开/探测输入、选流、解封装、路由 packet、处理 seek、EOF 与输入/解码错误上报 |
+| `decoder.h/.cpp` / `Decoder` | codec 上下文、packet serial、send/receive 解码协议与解码线程回收；字幕使用 FFmpeg 字幕解码接口 |
+| `decoder_workers.h/.cpp` / `DecoderWorkers` | 音频、视频、字幕 worker，将解码结果放入各自 `FrameQueue` |
+| `packet_queue.*` / `PacketQueue` | 带 SDL 锁/条件变量的 packet 队列，保存序列与计数，支持 abort/flush；flush 增加 serial |
+| `frame_queue.*` / `FrameQueue` | 有界帧队列，管理解码帧引用、字幕对象、读写等待和 keep-last 行为 |
+| `audio_output.*`、`audio_render_queue.*` | SDL 音频设备、重采样/PCM 准备、生产线程、PCM 环形队列与回调消费 |
+| `clock.*`、`media_sync.*` | 音频/视频/外部时钟、主时钟选择、显示延迟和外部时钟速度调整 |
+| `video_frame_converter.*`、`renderer_dispatcher.*` | 将 AVFrame 转为可跨线程持有的 `VideoFrame`，派发尺寸变化与视频帧；不创建应用显示窗口 |
+| `network_input.*`、`reconnect_controller.*` | 输入分类/选项/超时/错误映射/地址脱敏，以及可取消的重连等待 |
+| `hardware_decode.*` | Windows D3D11VA 设备与像素格式协商、硬件帧下载 |
+| `subtitle_dispatcher.*`、`subtitle_frame.h` | 将 FFmpeg 字幕复制为带起止时间的独立字幕数据 |
+| `playback_command_mailbox.*` | 汇总暂停切换、seek 和选轨请求，交给刷新循环消费 |
 
-### 4.2 `play_core`
+`VideoState` 不是一个全原子的状态机。它由 `SessionState`、`MediaClockState`、`AudioState`、`VideoTrackState`、`SubtitleState`、`FilterState` 组合：取消/暂停等跨线程标志使用原子量，seek 请求使用 `seek_mutex`，轨道组件使用 `trackMutex`；`VideoCtl` 另用 `m_streamMutex` 保护当前会话指针。修改字段时要跟随现有访问方的锁、队列与所有权规则，不能仅凭字段分组推断可并发访问。
 
-| 文件/类 | 职责 |
+### Qt 播放器
+
+- `MainWid` 组合窗口、菜单、列表、设置、`PlaybackRuntime` 与 `PlaybackRuntimeBridge`，处理打开来源、状态显示、轨道菜单和续播。
+- `PlaybackRuntimeBridge` 把原生 sigslot 通知投递到 Qt 对象线程。视频帧走 `LatestVideoFrameMailbox`，覆盖尚未呈现的旧帧并合并投递；其他通知使用 queued invoke。核心原生信号本身没有“自动切到 GUI 线程”的保证。
+- `Show` 在 Qt 主线程中使用原生子窗口上的 SDL renderer/texture，持有当前视频帧并叠加字幕；`CtrlBar` 负责播放控制和进度；`Title` 负责标题栏。
+- `Playlist` / `MediaList` 负责列表和导航，`PlaylistFile` 负责 M3U/M3U8；`media_format_registry.*` 统一文件筛选与音频/字幕类型判断。
+- `SettingWid` / `AppPreferences` 负责设置编辑、合法值整理和持久化；`GlobalHelper` 提供配置路径、窗口/列表/最近文件/播放位置存储等；`playback_status_presenter.*` 负责状态到用户提示的映射。
+- `SubtitleRenderer` 使用 libass 处理外置字幕与可到达的文字数据，并使用 SDL 合成字幕图像。
+
+### 监控应用
+
+- `XViewer` 管理分屏、摄像机列表、录制控制、日期/录像文件列表；`XCameraWidget` 是可接收摄像机拖放的预览窗口。
+- `CoreVideoWidget` 每次打开创建自己的 `PlaybackRuntime`，核心帧回调只更新互斥锁保护的最新帧；Qt 定时器约每 33 ms 取帧并进行 SDL 显示。它没有使用播放器的 `PlaybackRuntimeBridge` 或 `Show`。
+- 预览打开时使用静音模式，且 `MediaSource::enableAudio=false`，不是仍打开音频设备后只将音量设零。`XPlayVideo` 用 `CoreVideoWidget` 提供录像回放、暂停、seek、倍速。
+- `XCameraRecord` 是独立的 FFmpeg 录制路径，不通过 `VideoCtl` 取显示帧；`XCameraConfig` 管理摄像机数据。监控具体操作见[监控说明](../apps/monitor/README.md)。
+
+## 3. 从打开到呈现
+
+```text
+播放器 MainWid / 监控 CoreVideoWidget
+  → PlaybackRuntime::controller() → PlaybackController → VideoCtl
+  → StreamReader（读取线程）：open / probe / av_read_frame
+  → audioq / videoq / subtitleq（PacketQueue）
+  → DecoderWorkers（各轨解码线程）
+  → sampq / pictq / subpq（FrameQueue）
+
+音频：sampq → AudioRenderQueue 生产线程 → 重采样/PCM → 环形队列
+       → SDL 音频回调 → 音频设备、音频时钟
+视频：pictq → VideoCtl 刷新线程同步选帧 → VideoFrameConverter
+       → 核心信号 → 应用最新帧交接 → GUI 线程 SDL 呈现
+字幕：subpq → 核心时间选择/派发 → 播放器 SubtitleRenderer
+```
+
+### 打开、状态与错误
+
+`VideoCtl::StartPlay()` 先停止并等待旧的刷新线程，再创建会话/读取线程和刷新线程。返回 `true` 仅说明启动流程已建立，不代表网络已经连通、codec 已打开或首帧已显示；异步失败由 `SigPlaybackStatus` 通知。
+
+读取线程执行 `avformat_open_input()`、`avformat_find_stream_info()`、`av_find_best_stream()`，打开可用的音频/视频/字幕组件。至少需要成功打开音频或视频之一。`MediaInfo` 发布时包含时长、seek 能力、音轨/字幕轨元数据等；轨道列表不表示每种 codec 都已验证可解码。
+
+`PlaybackState` 声明了 `Opening`、`Buffering`、`Reconnecting`、`Playing`、`Failed`、`Stopped`。当前不能把它解释为覆盖所有 UI 行为的完整状态机：暂停通过独立的 `SigPauseStat` 通知；`Buffering` 虽被声明，当前核心没有发送该状态的路径；`Playing` 在流组件打开后发出，不是首帧呈现确认。解码 worker 的不可恢复错误写入 `decoderError`，读取线程统一将其转换为 `DecoderFailure` 状态。`AVERROR_INVALIDDATA` 是当前 `Decoder` 明确视为可恢复的错误，不能概括为所有解码错误都会被忽略。
+
+### 线程边界
+
+每个活跃会话可以有读取线程、刷新线程、音频/视频/字幕解码线程、额外的音频 PCM 生产线程，以及 SDL 自己的音频回调；未打开的轨道不会对应完整的处理链。Qt 主线程只负责 UI 和视频呈现，不执行常规解封装/解码。FFmpeg 自身还可能创建内部 codec 线程，因此不能写成固定的“三线程”或“五线程”模型。
+
+同步默认采用音频主时钟；没有音轨时 `MediaSync` 回退到外部时钟。视频刷新按 PTS、时钟差和帧持续时间决定延迟、丢弃旧 serial 或过晚的帧。界面秒数是主时钟的整数通知，不是逐帧呈现时间戳。
+
+## 4. 音频、视频与硬解的实际边界
+
+### 音频
+
+SDL 设备协商输出为 `AUDIO_S16SYS`。解码线程只产出音频帧；`AudioRenderQueue` 的生产线程调用 `AudioOutput::DecodeFrame()`，根据输入与设备格式使用 swresample，并在现有分支中调用 SoundTouch。SDL 回调从 PCM 环形队列读数据、在不足时补静音、按音量缩放，再按生产时钟、待播 PCM 和估算设备延迟更新时钟；它不再在回调内阻塞等待解码或执行重采样。
+
+倍速不能只看 UI 下拉框就推断所有格式处理一致。默认源码中 `CONFIG_AVFILTER` 为 0，CMake 没有为核心启用它；存在的 `atempo` / `setpts` 分支不等于默认播放链。SoundTouch 当前位于重采样分支内，EOF 尾部处理、不同输入格式与暂停恢复仍需针对真实媒体验证。核心 `set_play_speed()` 当前接受 `(0.1, 2.0]`，而偏好值整理接受 `[0.1, 2.0]`；不要把二者写成已统一的契约。
+
+### 视频帧与显示
+
+`VideoFrame` 有 `Bgra32`、`Yuv420P` 两种格式，不是统一 BGRA 拷贝：
+
+- 偶数宽高的 `AV_PIX_FMT_YUV420P` 保留 AVFrame 引用，通过共享 plane 所有权传给应用，支持各 plane 独立 stride。
+- 其他格式由缓存的 swscale context 转为 BGRA，使用 `bgra` 存储；转换检查尺寸、色彩空间/范围与转换结果。
+- 对象带 SAR、旋转、色彩空间/范围和不支持的 HDR transfer 标记。携带这些元数据不意味着每个显示后端都完整处理它们。
+- 播放器 `Show` 与监控 `CoreVideoWidget` 都支持 SDL IYUV/BGRA 纹理。两者均使用 `ComputeVideoDisplayRect()`；监控显示路径显式选择 YUV 色彩转换并使用 `SDL_RenderCopyEx()` 旋转，播放器 `Show` 当前使用 `SDL_RenderCopy()`，不能将两个后端的旋转/色彩行为写成完全一致。
+
+转换器复用空闲的 `VideoFrame` 对象，但 YUV 路径仍分配并引用 AVFrame，池全部被外部持有时也会创建新对象。界面最新帧邮箱避免旧帧在事件队列中无限积压，不会撤销此前已经完成的转换/引用开销，也不等价于无丢帧播放。
+
+HDR 的 PQ/HLG transfer 会被标记；核心有一次性提示，但没有完整 HDR 色调映射管线，不能宣称 HDR 正确显示。YUV 快路径也不会因该标记自动改走 BGRA，因此提示文本不应当作实际格式选择的证明。
+
+### 硬件解码
+
+`HardwareDecodeContext` 当前只实现 Windows D3D11VA。偏好有 `Auto`、`Disabled`、`D3D11VA`；其中 `D3D11VA` 只是启用偏好，不保证硬解成功。设备不可用/初始化失败会留下软件解码配置，像素格式协商失败也有回退行为。
+
+硬件 AVFrame 通过 `av_hwframe_transfer_data()` 下载到可复用的软件 AVFrame，之后仍走核心帧转换和 SDL 纹理上传。这不是 GPU 零拷贝。下载失败会返回解码错误；不能描述成任何运行中硬解故障都能自动无缝切换软件解码。
+
+## 5. seek、暂停、停止与 EOF
+
+- **控制请求**：暂停、seek、选轨先写入 `PlaybackCommandMailbox`，由刷新循环取出执行；输入 seek 再以完整请求交给读取线程。音量/倍速/停止有各自路径，并非所有操作都经邮箱。
+- **seek**：最终受 `CanSeek(MediaInfo)` 限制；读取线程调用 `avformat_seek_file()`，成功后 flush 各 packet 队列并增加 serial。解码器发现 serial 改变后 flush codec，消费方丢弃旧序列帧；音频环形队列使用 generation 防止旧 PCM 回填，并清理 SoundTouch 样本。不能简单写成“UI 直接清空全部帧并重启线程”。暂停时 seek 会请求单步刷新。
+- **暂停**：刷新线程更新 paused 标志及三个时钟，读取线程依据变化调用 `av_read_pause()` / `av_read_play()`；生产线程停止准备新的 PCM。暂停路径并没有直接调用 `AudioOutput::Pause()` 暂停 SDL 设备，因此已缓冲音频的行为仍应专项验证。
+- **停止**：`stop()` / `OnStop()` 发出取消并请求退出，不保证返回时全部资源已释放；`stopAndWait()` / `OnStopAndWait()` 还会 join 刷新线程。销毁会话先取消 I/O、唤醒读取和所有队列消费者、关闭音频输出，再 join 读取线程，逐个 abort/join 解码组件，最后释放状态。`SigStopFinished` 是资源清理后的通知，不应与停止请求混用。
+- **EOF**：读取 EOF 时为已启用轨道发送空 packet，让 codec 排空。正常结束判定等待音视频解码器当前 serial 完成、帧队列消耗完，以及音频 `renderQueue->drained()`（包含待播 PCM 和输出截止时间）。这不证明 SoundTouch/可选滤镜内部尾部已完整 flush。
+- **循环**：全部循环/随机模式向应用发“下一项/随机项”信号；单曲模式请求 seek；不循环模式触发停止。这些策略并不属于解封装器自动创建播放列表的能力。
+
+## 6. 网络来源与限制
+
+`MediaSource` 保存地址、`NetworkOptions` 和是否启用音频。来源分类识别 HTTP/HTTPS、RTSP、RTP、UDP，其他带 scheme 的地址归为其他网络来源；具体协议、容器和 codec 能否播放仍取决于构建出来的 FFmpeg。
+
+- 输入选项包含 probe/analyze、读超时；HTTP 支持 user-agent、headers 和 FFmpeg 重连选项；RTSP 支持 TCP/UDP 与连接超时。打开、探测、读取各自设置 `IoControl` deadline，由 FFmpeg interrupt callback 检查超时或取消。
+- 应用层 `ReconnectController` 对 `Timeout`、`NetworkUnavailable`、`ConnectionLost` 按次数和封顶指数退避重新打开会话，停止可以取消等待。HTTP 的 FFmpeg 内部重连与此路径不是同一层机制。
+- `NetworkOptions::stablePlaybackReset` 目前仅有字段声明，没有稳定播放后清零重连计数的实现，不应将其写成现成功能。
+- RTSP/RTP/UDP 按实时源处理，没有已知时长且不能 seek；其他来源由实际 AVIO seek 能力决定。HTTP 不必然是直播，也不必然可拖动进度。
+- 实时输入使用 `UseUnlimitedBuffer()` 绕过普通 packet 背压，不是固定容量的低延迟网络缓存策略；不要承诺长时间断续输入下内存始终有界。
+- `RedactMediaLocation()` 会遮蔽 URL userinfo 和部分已知敏感查询参数，但这不等于所有第三方日志、应用路径和配置文件自动脱敏。排查问题时分享日志/配置前仍需检查凭据。
+
+## 7. 字幕支持与明确限制
+
+核心 `SubtitleDispatcher::Copy()` 可复制位图以及 ASS/text 字段；但 `DecoderWorkers::Subtitle()` 当前只将 `AVSubtitle::format == 0` 的结果入队，其他格式释放后丢弃。因此不能仅凭 dispatcher 和 libass 的存在就宣称所有内嵌 ASS/SRT/文字字幕可用。内嵌字幕通过刷新时钟选择有效时间段，并在 seek、关闭字幕或停止时清除活动对象。
+
+播放器外置字幕入口在 `MainWid::OpenSubtitleFile()`、`Show::LoadExternalSubtitleFile()`；文件对话框列出 SRT/ASS/SSA。SRT 由本地简化解析器转为 ASS，ASS/SSA 交给 libass，再与视频经 SDL 合成；不承诺任意编码、任意 SRT 扩展语法都支持。`Show` 当前使用整数播放秒数作为字幕渲染时钟，即使 libass 内部缓存粒度更细，也不能称为已经实现毫秒级 UI 字幕同步。
+
+监控 `CoreVideoWidget` 没有连接字幕信号/叠加字幕渲染器，播放器外置字幕能力不能直接套用到监控预览或录像回放。
+
+## 8. 配置与持久化
+
+### 播放器
+
+`GlobalHelper::GetConfigFilePath()` 使用 `QStandardPaths::AppConfigLocation` 下的 `player_config.ini`，不是要求用户在程序目录预先建立 `config/`。首次目标不存在时会尝试从程序目录的旧 `config/player_config.ini` 迁移，迁移列表/最近文件时应用凭据过滤。
+
+同一 INI 中保存窗口、列表、最近文件、播放位置及 `preferences`。`AppPreferences` 保存音量、速度、循环、续播开关、网络超时/次数、RTSP transport、硬解偏好，并经过 `SanitizePreferences()` 整理。`GlobalHelper` 仍有旧 `play/*` 存取接口，不能把这些键当作设置页当前唯一来源。
+
+本地续播以 canonical 路径 SHA-1 作为位置键；`MainWid` 在进度变化时标脏并合并定时保存，切换/停止等路径调用 flush。网络打开路径不建立本地续播目标。恢复还需要可 seek、非直播、有有效时长以及 `ShouldResume()` 判定；接近结尾由 `ShouldClearResume()` 判定清除，不是任何文件都无条件跳回上次秒数。
+
+列表和最近文件写入使用 `MayPersistMediaLocation()` 过滤含敏感凭据的来源；导入/导出另见 `PlaylistFile` 与隐私相关测试。此规则不代表监控配置也采用同一种存储策略。
+
+### 监控
+
+`XViewer` 使用相对当前工作目录的 `monitor-cams.db`；名称虽是 `.db`，`XCameraConfig` 实际逐项保存 `XCameraData` 二进制结构，不是 SQLite，也不是播放器 INI。摄像机名称、主/辅码流、录制目录均在该记录中，地址可能包含明文凭据，应按敏感配置保护。它不是跨平台/跨结构布局的通用数据库格式。
+
+录像根目录来自摄像机的 `save_path`，`XViewer::StartRecord()` 再追加摄像机索引子目录并启动 `XCameraRecord`；不是统一写入播放器的配置目录。
+
+## 9. 测试分组与排查入口
+
+下面是按职责整理的入口，不是固定测试数量，也不是全部测试名称。注册条件、标签、超时、工作目录及 dummy/offscreen 环境应直接查[顶层 CMake 的测试区](../CMakeLists.txt)和[监控 CMake](../apps/monitor/CMakeLists.txt)。执行方式以根 README 为准。
+
+| 分组 | 示例与关注点 |
 | --- | --- |
-| `VideoCtl` | 播放引擎核心，负责打开文件、启动线程、控制播放、处理 seek/volume/speed/loop、派发事件 |
-| `PlaybackRuntime` | 面向 UI 层的运行时对象，持有 `VideoCtl` 和 `PlaybackController` |
-| `PlaybackController` | UI 调用播放核心的窄接口，用一组 `std::function` 转发命令 |
-| `CreatePlaybackController(VideoCtl&)` | 把 `PlaybackController` 的动作绑定到具体 `VideoCtl` 实例 |
-| `VideoState` | 当前媒体的完整播放状态，按 session/audio/video/subtitle/filter/clocks 分组 |
-| `MediaSession` | RAII 包装当前 `VideoState*`，负责切换媒体时关闭旧会话 |
-| `Decoder` | 封装 FFmpeg 解码循环，消费 `PacketQueue`，输出 `AVFrame`/`AVSubtitle` |
-| `PacketQueue` | 线程安全的压缩包队列，读线程写入，解码线程读取 |
-| `FrameQueue` | 线程安全的解码帧队列，解码线程写入，播放/刷新逻辑读取 |
-| `Clock` | 音频、视频、外部时钟的统一抽象 |
-| `MediaSync` | 音视频同步算法，选择主时钟并计算视频帧目标延迟 |
-| `RendererDispatcher` | 对外派发视频帧和尺寸变化事件 |
-| `VideoFrame` | UI 层可直接消费的视频帧数据，当前为 BGRA buffer |
-| `soundtouch_wrap` | SoundTouch C 接口包装 |
-| `XLogger` | 日志工具 |
-| `signal.h` | `sigslot::signal` 类型别名 |
-
----
-
-## 5. 总体架构
-
-当前项目最重要的架构边界是：播放核心不依赖 Qt，Qt 只是其中一个 UI。
-
-```mermaid
-flowchart LR
-    User["用户操作"] --> QtUI["Qt Widgets UI"]
-    QtUI --> Controller["PlaybackController"]
-    Controller --> VideoCtl["VideoCtl 播放核心"]
-    VideoCtl --> FFmpeg["FFmpeg 解封装/解码/转换"]
-    VideoCtl --> SDLAudio["SDL2 音频输出"]
-    VideoCtl --> Runtime["PlaybackRuntime signals"]
-    Runtime --> Bridge["PlaybackRuntimeBridge"]
-    Bridge --> QtUI
-    Bridge --> Show["Show SDL 视频渲染"]
-```
-
-这个分层解决的问题：
-
-- `VideoCtl` 可以被 Qt 或未来其他 UI 复用。
-- 播放核心线程不直接操作 Qt 控件，避免跨线程 UI 调用。
-- UI 只拿到 `PlaybackController`，不会直接依赖 `VideoCtl` 的大量内部方法。
-- 核心事件通过 `sigslot` 发出，再由 `PlaybackRuntimeBridge` 用 `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` 投递回 Qt 主线程。
-
----
-
-## 6. Qt 应用启动流程
-
-Qt 版启动入口：
-
-```text
-apps/qt_player/main.cpp
-  -> 创建 QApplication
-  -> 创建 MainWid
-  -> MainWid::Init()
-  -> show()
-  -> QApplication::exec()
-```
-
-`MainWid::Init()` 的关键工作：
-
-1. 调用 `PlaybackRuntime::Create()` 创建播放运行时。
-2. 从 runtime 获取 `PlaybackController`。
-3. 将 controller 传给 `Show`，使显示区域也能处理快捷键、右键菜单等控制操作。
-4. 恢复窗口状态、播放设置。
-5. 初始化播放列表、标题栏、显示区、控制栏。
-6. 调用 `ConnectSignalSlots()` 建立 UI 内部和 UI/核心之间的连接。
-7. 初始化菜单、全局事件过滤器和控制栏动画。
-
-核心代码关系：
-
-```text
-MainWid::Init()
-  -> PlaybackRuntime::Create()
-       -> VideoCtl::MakeInstance()
-       -> CreatePlaybackController(*VideoCtl)
-       -> PlaybackRuntime::connectSignals()
-  -> m_playbackController = &m_playbackRuntime->controller()
-  -> ui->ShowWid->SetPlaybackController(m_playbackController)
-```
-
----
-
-## 7. UI 到播放核心的命令链路
-
-以点击播放列表中的文件为例：
-
-```mermaid
-sequenceDiagram
-    participant Playlist
-    participant MainWid
-    participant Controller as PlaybackController
-    participant VideoCtl
-
-    Playlist->>MainWid: SigPlay(filePath)
-    MainWid->>Controller: play(filePath)
-    Controller->>VideoCtl: StartPlay(filePath)
-    VideoCtl->>VideoCtl: stream_open(filePath)
-    VideoCtl->>VideoCtl: 启动 ReadThread 和 LoopThread
-```
-
-控制栏操作类似：
-
-| 用户动作 | Qt signal | MainWid 转发 | VideoCtl 方法 |
-| --- | --- | --- | --- |
-| 播放/暂停 | `CtrlBar::SigPlayOrPause` | `controller.pause()` | `VideoCtl::OnPause()` |
-| 停止 | `CtrlBar::SigStop` | `controller.stop()` | `VideoCtl::OnStop()` |
-| 拖动进度 | `CtrlBar::SigPlaySeek(double)` | `controller.seek(percent)` | `VideoCtl::OnPlaySeek()` |
-| 调整音量 | `CtrlBar::SigPlayVolume(double)` | `controller.setVolume(percent)` | `VideoCtl::OnPlayVolume()` |
-| 倍速 | `CtrlBar::SigSpeedChanged(double)` | `controller.setSpeed(speed)` | `VideoCtl::set_play_speed()` |
-| 循环模式 | `CtrlBar::SigPlayLoopPolicyChanged` | `controller.setLoopPolicy(policy)` | `VideoCtl::set_play_loop_policy()` |
-| 上一首/下一首 | `SigBackwardPlay` / `SigForwardPlay` | 转给 `Playlist` | `Playlist::OnBackwardPlay()` / `OnForwardPlay()` |
-
-`PlaybackController` 的实现很轻：它只是保存一组 `std::function`，每个 public 方法先判断函数是否存在，再转发调用。这样 UI 只依赖一个稳定的小接口，不需要知道 `VideoCtl` 里的线程、队列、FFmpeg 状态。
-
----
-
-## 8. 播放核心生命周期
-
-### 8.1 创建
-
-```text
-PlaybackRuntime::Create()
-  -> VideoCtl::MakeInstance()
-       -> new VideoCtl()
-       -> VideoCtl::Init()
-            -> ConnectSignalSlots()
-            -> SDL_Init(SDL_INIT_AUDIO)
-       -> shared_ptr<VideoCtl>
-  -> new PlaybackRuntime(videoCtl)
-       -> CreatePlaybackController(*videoCtl)
-       -> connectSignals()
-```
-
-`VideoCtl` 构造函数中会：
-
-- 设置 `MediaSession` 的关闭回调为 `stream_close(state)`。
-- 设置 `RendererDispatcher` 的尺寸变化和帧回调。
-- 调用 `avdevice_register_all()`。
-- 使用全局引用计数初始化 FFmpeg network。
-
-`Init()` 中会：
-
-- 连接内部 signal。
-- 使用全局引用计数初始化 SDL audio。
-
-为什么要用引用计数：
-
-- 项目允许创建多个 `VideoCtl` 实例，不是真正单例。
-- FFmpeg network 和 SDL 是进程级资源，不能每个实例随意 init/deinit。
-- 引用计数保证第一个实例初始化，最后一个实例析构时清理。
-
-### 8.2 开始播放
-
-`VideoCtl::StartPlay(const std::string& fileName)` 是播放入口：
-
-1. 用 `m_playbackMutex` 串行化播放启动/停止。
-2. 校验文件名。
-3. 停止旧的刷新循环线程 `m_tPlayLoopThread`。
-4. 发出 `SigStartPlay(fileName)`，让 UI 更新标题等状态。
-5. 调用 `stream_open(fileName.c_str())` 创建新的 `VideoState`。
-6. 用 `MediaSession::reset(is)` 接管新状态，并关闭旧状态。
-7. 启动 `LoopThread()`，负责刷新、同步和帧显示。
-
-### 8.3 关闭
-
-关闭路径主要有三类：
-
-- UI 调用 `controller.stop()`，最终进入 `VideoCtl::OnStop()`。
-- `PlaybackRuntime::~PlaybackRuntime()` 调用 `m_controller.stopAndWait()`。
-- `VideoCtl::~VideoCtl()` 停止循环线程，释放 `MediaSession`，调用 `stream_close()`。
-
-`MediaSession` 是这里的关键保护：切换媒体或析构时，当前 `VideoState*` 只通过一个 RAII 对象管理，避免新旧播放状态混在一起。
-
----
-
-## 9. `VideoState` 的状态分组
-
-`VideoState` 是播放核心最重要的数据结构。旧式播放器常把所有状态放在一个巨大的结构体里，本项目已经拆分成多个小结构：
-
-```text
-VideoState
-├── MediaClockState clocks
-├── AudioState audio
-├── VideoTrackState video
-├── SubtitleState subtitle
-├── FilterState filters
-└── SessionState session
-```
-
-各分组职责：
-
-| 分组 | 内容 |
-| --- | --- |
-| `SessionState` | 读线程、abort/pause/seek/eof 状态、输入格式上下文、文件名、流索引、读线程条件变量 |
-| `MediaClockState` | 音频时钟、视频时钟、外部时钟、当前同步策略 |
-| `AudioState` | 音频队列、音频解码器、SDL 输出缓冲、重采样上下文、SoundTouch 句柄、音量、音频流 |
-| `VideoTrackState` | 视频帧队列、视频解码器、视频流、帧计时、丢帧统计、Sws 转换上下文、画面尺寸 |
-| `SubtitleState` | 字幕队列、字幕解码器、字幕流、字幕转换上下文 |
-| `FilterState` | FFmpeg 音视频滤镜图和输入/输出 filter context |
-
-为什么这样拆：
-
-- 减少“所有函数都访问所有字段”的混乱。
-- 让读代码时可以按音频、视频、字幕、同步、会话生命周期分块理解。
-- 方便测试：`play_core_refactor_tests.cpp` 通过 `static_assert` 固化了这些分组存在。
-- 方便后续继续把某些分组演进成类。
-
----
-
-## 10. 解封装、队列和解码线程
-
-播放核心采用典型的生产者/消费者模型：
-
-```mermaid
-flowchart TD
-    ReadThread["ReadThread: av_read_frame"] --> AudioPacketQ["audio PacketQueue"]
-    ReadThread --> VideoPacketQ["video PacketQueue"]
-    ReadThread --> SubtitlePacketQ["subtitle PacketQueue"]
-
-    AudioPacketQ --> AudioDecoder["audio_thread + Decoder"]
-    VideoPacketQ --> VideoDecoder["video_thread + Decoder"]
-    SubtitlePacketQ --> SubtitleDecoder["subtitle_thread + Decoder"]
-
-    AudioDecoder --> AudioFrameQ["audio FrameQueue"]
-    VideoDecoder --> VideoFrameQ["video FrameQueue"]
-    SubtitleDecoder --> SubtitleFrameQ["subtitle FrameQueue"]
-
-    AudioFrameQ --> SDLCallback["SDL audio callback"]
-    VideoFrameQ --> LoopThread["LoopThread/video_refresh"]
-```
-
-### 10.1 `ReadThread`
-
-`VideoCtl::ReadThread(VideoState* is)` 负责：
-
-1. 创建 `AVFormatContext`。
-2. 设置 `interrupt_callback`，让 abort 时可以打断 FFmpeg 阻塞读取。
-3. `avformat_open_input()` 打开文件。
-4. `avformat_find_stream_info()` 探测流信息。
-5. `av_find_best_stream()` 选择最佳音频、视频、字幕流。
-6. 调用 `stream_component_open()` 打开每个流。
-7. 循环调用 `av_read_frame()`。
-8. 根据 packet 的 stream index 放入 audio/video/subtitle `PacketQueue`。
-
-它不直接解码。这样做的原因是读取封装包和解码帧速度不同，必须用队列解耦，否则 UI seek、暂停、网络流缓冲都会很难处理。
-
-### 10.2 `PacketQueue`
-
-`PacketQueue` 保存压缩包 `AVPacket`，使用 SDL mutex/cond 实现线程安全：
-
-- `put()`：读线程写入 packet。
-- `get()`：解码线程读取 packet，可阻塞等待。
-- `abort()`：唤醒等待线程并让 get 返回退出。
-- `flush()`：清空队列。
-- `serial`：标记 seek 后的新数据代次，避免旧帧混入新位置。
-
-队列里保留了一些 public 字段，是为了兼容从 C 风格结构迁移到 C++ class 的过渡期。新代码应优先调用成员函数。
-
-### 10.3 `Decoder`
-
-`Decoder::decode_frame()` 包装 FFmpeg 新解码 API：
-
-```text
-PacketQueue::get()
-  -> avcodec_send_packet()
-  -> avcodec_receive_frame()
-```
-
-它处理这些情况：
-
-- packet 队列 abort。
-- seek 后 serial 变化。
-- `AVERROR(EAGAIN)`。
-- EOF/null packet。
-- 音频、视频、字幕三类解码差异。
-
-### 10.4 `FrameQueue`
-
-`FrameQueue` 保存解码后的 `AVFrame` 或 `AVSubtitle`：
-
-- `peek_writable()`：解码线程拿到可写 slot。
-- `push()`：写入完成后推进写索引并唤醒读者。
-- `peek_readable()`：消费线程等待可读帧。
-- `peek_last()` / `peek_next()`：视频同步时查看当前帧和下一帧。
-- `next()`：消费当前帧。
-
-它是固定大小环形队列，适合播放器场景：不追求无限缓存，而是控制延迟和内存。
-
----
-
-## 11. 音频路径
-
-音频从文件到扬声器的路径：
-
-```text
-ReadThread
-  -> audio PacketQueue
-  -> audio_thread()
-  -> Decoder::decode_frame()
-  -> audio FrameQueue
-  -> SDL audio callback
-  -> audio_decode_frame()
-  -> swr_convert()
-  -> SoundTouch 变速
-  -> SDL_MixAudioFormat()
-```
-
-关键函数：
-
-| 函数 | 作用 |
-| --- | --- |
-| `stream_component_open()` | 打开音频流、创建 codec context、启动音频解码线程、打开 SDL audio device |
-| `audio_thread()` | 解码音频 packet，生成音频 frame，写入 `sampq` |
-| `sdl_audio_callback()` | SDL 请求音频数据时回调，向 SDL stream 填充 PCM |
-| `audio_decode_frame()` | 从音频帧队列取 frame，处理同步、重采样、变速和缓冲 |
-| `synchronize_audio()` | 根据主时钟调整音频采样数量，帮助音视频同步 |
-| `set_play_speed()` | 修改播放速度，音频通过 SoundTouch 或滤镜链处理 |
-
-为什么音频用 SDL callback：
-
-- SDL audio 设备按自己的节奏拉取数据。
-- 播放器只需要在回调中及时提供 PCM。
-- 音频时钟天然适合作为默认主时钟，因为听觉对音频抖动更敏感。
-
----
-
-## 12. 视频路径与渲染
-
-视频从文件到 Qt 界面的路径：
-
-```text
-ReadThread
-  -> video PacketQueue
-  -> video_thread()
-  -> Decoder::decode_frame()
-  -> queue_picture()
-  -> video FrameQueue
-  -> LoopThread/video_refresh()
-  -> video_display()
-  -> emit_video_frame()
-  -> sws_scale(..., AV_PIX_FMT_BGRA)
-  -> RendererDispatcher
-  -> PlaybackRuntimeBridge
-  -> Show::OnVideoFrame()
-  -> SDL_UpdateTexture()
-  -> SDL_RenderPresent()
-```
-
-### 12.1 `video_thread()`
-
-`video_thread()` 消费视频 packet，解码得到 `AVFrame`，计算：
-
-- `pts`：展示时间戳。
-- `duration`：帧持续时间。
-- `serial`：当前 packet 队列代次。
-
-然后调用 `queue_picture()` 放入视频帧队列。
-
-如果启用 `CONFIG_AVFILTER`，会在帧尺寸、格式、serial 或滤镜索引变化时重建滤镜图，并通过 `setpts` 实现视频倍速。
-
-### 12.2 `LoopThread()` 与 `video_refresh()`
-
-`LoopThread()` 是播放刷新循环，它会周期性调用 `video_refresh()`。`video_refresh()` 根据当前主时钟、视频帧 pts 和目标 delay 决定：
-
-- 当前帧是否该显示。
-- 是否要等待。
-- 是否因为太慢需要丢帧。
-- 播放结束时根据循环策略触发下一首、随机或停止。
-
-### 12.3 `emit_video_frame()`
-
-`emit_video_frame()` 从 `FrameQueue` 当前帧构造 UI 友好的 `VideoFrame`：
-
-1. 创建 `std::shared_ptr<VideoFrame>`。
-2. 申请 `width * height * 4` 的 BGRA buffer。
-3. 用 `sws_getCachedContext()` 获取/复用像素格式转换上下文。
-4. 用 `sws_scale()` 把 FFmpeg 原始像素格式转换为 `AV_PIX_FMT_BGRA`。
-5. 调用 `RendererDispatcher::dispatchFrame(frame)`。
-
-为什么转换成 BGRA：
-
-- UI 层无需理解 YUV、NV12 等复杂像素格式。
-- Qt/SDL/D3D texture 都容易消费 32-bit BGRA/RGBA buffer。
-- 核心与渲染层之间的数据契约更简单。
-
-### 12.4 `Show` 如何显示视频
-
-`Show` 接收 `PlaybackRuntimeBridge::SigVideoFrame` 后：
-
-1. 保存当前 `VideoFrame`。
-2. 调用 `RenderCurrentFrame()`。
-3. 如果 SDL renderer/texture 不存在则懒初始化。
-4. 当帧尺寸变化时重建 SDL texture。
-5. `SDL_UpdateTexture()` 更新 BGRA 数据。
-6. `SDL_RenderCopy()` + `SDL_RenderPresent()` 显示。
-
-`Show::ChangeShow()` 根据视频宽高比调整内部 label 的 geometry，确保画面居中并保持比例。
-
-为什么在 Qt 控件里再用 SDL 渲染：
-
-- SDL 渲染 texture 简单直接，适合频繁刷新视频帧。
-- Qt 负责窗口、布局、菜单、交互；SDL 负责高频像素显示。
-- `SDL_CreateWindowFrom(ui->label->winId())` 可以把 SDL renderer 挂到 Qt 子控件上。
-
----
-
-## 13. 音视频同步
-
-同步逻辑集中在 `MediaSync`：
-
-| 函数 | 作用 |
-| --- | --- |
-| `get_master_sync_type()` | 根据配置和流是否存在选择主时钟 |
-| `get_master_clock()` | 返回当前主时钟时间 |
-| `check_external_clock_speed()` | 根据队列缓冲情况调节外部时钟速度 |
-| `compute_target_delay()` | 根据视频时钟与主时钟的差值修正视频帧 delay |
-| `vp_duration()` | 根据当前帧和下一帧 pts 计算当前帧持续时间 |
-| `update_video_pts()` | 更新视频时钟并同步外部时钟 |
-
-默认策略是 `AV_SYNC_AUDIO_MASTER`，即音频为主时钟。如果没有音频流，会回退到外部时钟。
-
-为什么默认音频主时钟：
-
-- 人耳对音频卡顿、变调更敏感。
-- 音频设备的回调节奏相对稳定。
-- 视频帧可以通过延迟/重复/丢帧追赶音频，体验上更可接受。
-
----
-
-## 14. 事件系统：sigslot 到 Qt signal
-
-播放核心用 `signal.h` 中的别名：
-
-```cpp
-template<typename... Args>
-using Signal = sigslot::signal<Args...>;
-```
-
-`VideoCtl` 发出的核心事件包括：
-
-```text
-SigPlayMsg
-SigFrameDimensionsChanged
-SigVideoFrame
-SigVideoTotalSeconds
-SigVideoPlaySeconds
-SigVideoVolume
-SigPauseStat
-SigStop
-SigStopFinished
-SigStartPlay
-SigPlayNextOne
-SigRandomPlayOne
-```
-
-事件转发链路：
-
-```text
-VideoCtl::SigVideoFrame
-  -> PlaybackRuntime::SigVideoFrame
-  -> PlaybackRuntimeBridge::SigVideoFrame
-  -> Show::OnVideoFrame
-```
-
-`PlaybackRuntimeBridge` 的实现重点：
-
-- 保存 `sigslot::scoped_connection`，析构或 `detach()` 时自动断开。
-- 使用 `QPointer<PlaybackRuntimeBridge>` 防止异步投递时对象已销毁。
-- 使用 `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` 把事件投递到 Qt 主线程。
-
-为什么需要 bridge：
-
-- `VideoCtl` 的事件可能来自读线程、解码线程或刷新线程。
-- Qt 控件只能在 UI 主线程访问。
-- 直接从核心线程调用 Qt slot 会产生随机崩溃或 UI 状态竞争。
-
----
-
-## 15. 播放列表与文件格式
-
-播放列表相关类：
-
-| 类 | 作用 |
-| --- | --- |
-| `MediaList` | 列表控件和右键菜单 |
-| `Playlist` | 播放列表业务逻辑 |
-| `PlaylistFile` | M3U/M3U8 读写 |
-
-### 15.1 添加和播放文件
-
-`Playlist::OnAddFileAndPlay()`：
-
-1. 调用 `AddFileItem()`。
-2. 校验是否支持的媒体扩展名。
-3. 校验文件存在且是普通文件。
-4. 使用 canonical path 去重。
-5. 创建 `QListWidgetItem`。
-6. 复用 `on_List_itemDoubleClicked()` 发出 `SigPlay(filePath)`。
-
-支持的扩展名：
-
-```text
-.mkv .rmvb .mp4 .avi .flv .wmv .3gp
-```
-
-### 15.2 M3U/M3U8 读取
-
-`PlaylistFile::ReadM3u()` 做了比较宽容的兼容处理：
-
-- 先按 UTF-8 读取，如果出现 replacement character，再按本地编码读取。
-- 支持相对路径，基于播放列表文件所在目录解析。
-- 支持 `file:///` URL。
-- 支持百分号编码路径。
-- 支持 `#EXTINF` 标题回退，用于某些播放器导出的列表只有标题没有路径的情况。
-- 对文件名做大小写不敏感匹配。
-- 去重并返回 canonical path。
-
-为什么实现复杂：
-
-- 现实里的 M3U 文件并不总是规范。
-- VLC 等工具可能把真实路径放在下一行，也可能只在 `#EXTINF` 标题里保留文件名。
-- 用户导入播放列表时更关心“能不能识别”，而不是格式是否严格。
-
-### 15.3 M3U8 写出
-
-`PlaylistFile::WriteM3u8()` 使用 `QSaveFile`：
-
-- 写入 UTF-8。
-- 第一行写 `#EXTM3U`。
-- 每个文件写 canonical native path。
-- `commit()` 成功后才替换目标文件。
-
-为什么用 `QSaveFile`：
-
-- 避免写到一半失败导致原播放列表损坏。
-- 这是保存配置/列表类文件时更安全的做法。
-
----
-
-## 16. 设置、样式和资源
-
-### 16.1 配置
-
-`GlobalHelper` 负责：
-
-- 播放列表保存/读取。
-- 音量保存/读取。
-- 窗口 geometry/state 保存/恢复。
-- 播放设置保存/读取：音量、循环模式、倍速。
-- 最近文件保存/读取。
-- 播放位置保存/读取。
-- 时间格式化。
-
-这些设置通过 Qt 配置机制保存，UI 层不直接操作文件细节。
-
-### 16.2 样式
-
-Qt 样式文件位于：
-
-```text
-apps/qt_player/res/qss/
-```
-
-其中 `design-system.css` 定义全局设计 token，各组件 QSS 再叠加自己的样式。`GlobalHelper::GetThemeStr()` 会把设计系统样式和组件样式组合起来。
-
-资源清单在：
-
-```text
-apps/qt_player/mainwid.qrc
-```
-
-新增图标、字体、QSS、JSON 菜单时要同步检查 qrc。
-
-### 16.3 菜单
-
-菜单 JSON：
-
-```text
-apps/qt_player/res/menu.json
-```
-
-`MainWid::InitMenu()` 读取 JSON，`MenuJsonParser()` 递归创建 `QMenu` 和 `QAction`，`ConnectMenuAction()` 根据 action 配置连接到具体 slot。
-
----
-
-## 17. 关键类速查
-
-### 17.1 `PlaybackRuntime`
-
-位置：
-
-```text
-play_core/playback_runtime.h
-play_core/playback_runtime.cpp
-```
-
-职责：
-
-- 创建并持有 `VideoCtl`。
-- 创建 `PlaybackController`。
-- 把 `VideoCtl` 的 signals 转发为 runtime 自己的 signals。
-- 析构时调用 `stopAndWait()`，确保后台播放停止。
-
-它是 UI 层最应该持有的播放核心对象。
-
-### 17.2 `PlaybackController`
-
-位置：
-
-```text
-play_core/playback_controller.h
-play_core/playback_controller.cpp
-play_core/playback_controller_videoctl.cpp
-```
-
-职责：
-
-- 为 UI 提供稳定、窄的控制接口。
-- 不拥有播放状态。
-- 不依赖 FFmpeg/SDL/Qt。
-- 当前具体实现通过 `CreatePlaybackController(VideoCtl&)` 绑定到 `VideoCtl`。
-
-新增 UI 控制命令时，一般需要：
-
-1. 在 `PlaybackController::Actions` 增加一个 `std::function`。
-2. 在 `PlaybackController` 增加 public 方法。
-3. 在 `CreatePlaybackController(VideoCtl&)` 绑定到 `VideoCtl` 方法。
-4. 在 Qt UI 中调用 controller 方法。
-
-### 17.3 `VideoCtl`
-
-位置：
-
-```text
-play_core/videoctl.h
-play_core/videoctl.cpp
-```
-
-职责：
-
-- 播放核心的调度中心。
-- 管理当前 `VideoState`。
-- 启动/停止读线程、音频解码线程、视频解码线程、字幕解码线程、刷新循环线程。
-- 处理播放、暂停、停止、seek、音量、倍速、循环模式、切换音轨/字幕。
-- 通过 signals 把进度、音量、暂停状态、视频帧、播放结束等事件发给上层。
-
-需要注意：
-
-- `VideoCtl` 很大，是历史代码和新分层共存的中心。
-- 新增 UI 功能时不要直接把 Qt 类型引入这里。
-- 新增核心事件时用 `Signal<...>`，再由 bridge 转成 Qt signal。
-- 修改线程、队列、生命周期时必须跑测试，并尽量增加回归测试。
-
-### 17.4 `VideoState`
-
-位置：
-
-```text
-play_core/video_state.h
-```
-
-职责：
-
-- 保存当前媒体播放所需的全部运行状态。
-- 通过析构函数释放部分资源，例如读线程、FFmpeg context、SDL cond/mutex、SoundTouch、SWR/SWS context。
-
-它不是 UI 状态，也不是全局播放器状态；它代表“当前打开的一个媒体会话”。
-
-### 17.5 `RendererDispatcher`
-
-位置：
-
-```text
-play_core/renderer_dispatcher.h
-play_core/renderer_dispatcher.cpp
-```
-
-职责：
-
-- 接收核心生成的 `VideoFrame`。
-- 如果帧尺寸变化，先通知尺寸变化回调。
-- 再通知视频帧回调。
-- 忽略空帧或非法尺寸帧。
-
-这个类把 `emit_video_frame()` 中的“帧派发策略”抽了出来，便于测试。
-
-### 17.6 `PlaybackRuntimeBridge`
-
-位置：
-
-```text
-apps/qt_player/playback_runtime_bridge.h
-apps/qt_player/playback_runtime_bridge.cpp
-```
-
-职责：
-
-- 将 `PlaybackRuntime` 的 sigslot signals 转换成 Qt signals。
-- 保证事件在 Qt 主线程执行。
-- 保护对象生命周期，避免异步 lambda 使用已销毁对象。
-
-只要事件要进入 Qt 控件，就应该经过它。
-
----
-
-## 18. 常见开发任务入口
-
-### 18.1 新增一个播放控制按钮
-
-例如新增“快进 30 秒”：
-
-1. 在 `PlaybackController::Actions` 增加动作。
-2. 在 `PlaybackController` 增加 public 方法。
-3. 在 `CreatePlaybackController(VideoCtl&)` 绑定到 `VideoCtl`。
-4. 在 `VideoCtl` 增加对应控制方法，内部调用 seek。
-5. 在 `CtrlBar` 或 `Show` 增加 Qt signal。
-6. 在 `MainWid::ConnectSignalSlots()` 连接到 controller。
-7. 增加或更新测试。
-
-不要让按钮直接调用 `VideoCtl`，否则 UI 和核心会重新耦合。
-
-### 18.2 新增核心事件给 UI
-
-例如新增“当前音轨名称变化”：
-
-1. 在 `VideoCtl` 增加 `Signal<const std::string&> SigAudioTrackNameChanged`。
-2. 在合适的核心位置触发 signal。
-3. 在 `PlaybackRuntime` 增加同名 signal，并在 `connectSignals()` 转发。
-4. 在 `PlaybackRuntimeBridge` 增加 Qt signal，并在 `attach()` 中用 `QMetaObject::invokeMethod` 转发。
-5. 在 `MainWid::ConnectSignalSlots()` 连接到对应 UI slot。
-
-### 18.3 修改视频渲染
-
-优先查看：
-
-```text
-play_core/videoctl.cpp          # emit_video_frame()
-play_core/renderer_dispatcher.* # 帧派发
-apps/qt_player/show.cpp         # SDL texture 渲染
-```
-
-如果只是 UI 显示策略，比如铺满、等比、背景色，通常改 `Show`。如果是核心输出格式，比如 BGRA 改 RGBA，要同步检查 Qt 渲染入口。
-
-### 18.4 修改音频变速
-
-优先查看：
-
-```text
-play_core/videoctl.cpp          # set_play_speed(), audio_decode_frame(), audio_thread()
-play_core/soundtouch_wrap.*     # SoundTouch 封装
-```
-
-注意音频和视频都要处理速度：
-
-- 音频需要变速但尽量不变调。
-- 视频需要调整帧展示时间。
-- UI 需要保存/恢复倍速设置。
-
-### 18.5 修改播放列表导入导出
-
-优先查看：
-
-```text
-apps/qt_player/playlistfile.cpp
-tests/playlistfile_tests.cpp
-```
-
-这个模块有相对独立的测试，适合先写失败用例再改实现。
-
----
-
-## 19. 测试说明
-
-### 19.1 `playlistfile_tests`
-
-覆盖：
-
-- 标准 M3U/M3U8 读取。
-- `file:///` URL。
-- VLC 风格 `#EXTINF` 标题回退。
-- M3U8 导出后再读回。
-
-这类逻辑不依赖真实播放器，适合快速回归。
-
-### 19.2 `play_core_refactor_tests`
-
-覆盖：
-
-- `PlaybackRuntime` 和 `PlaybackController` 的类型边界。
-- `VideoState` 分组结构。
-- `MediaSession` reset/release 生命周期。
-- `MediaSync` 基础行为。
-- `RendererDispatcher` 尺寸变化与空帧过滤。
-- `PlaybackController` 动作转发。
-
-这个测试的价值是防止重构时破坏架构边界。
-
-### 19.3 `show_widget_tests`
-
-当前主要检查 `Show` 相关实现/资源是否满足预期。它更偏 UI 结构回归，不覆盖真实视频播放。
-
----
-
-## 20. 排查问题指南
-
-### 20.1 CMake 找不到 Qt
-
-检查 `PLAYERDEMO_QT_ROOT` 或 `CMAKE_PREFIX_PATH`：
-
-```powershell
-cmake -S . -B build -DPLAYERDEMO_QT_ROOT="C:/Qt/6.9.3/msvc2022_64"
-```
-
-### 20.2 运行时缺 DLL
-
-确认构建后输出目录包含：
-
-- FFmpeg DLL：来自 `lib/ffmpeg/bin/*.dll`
-- SDL2 DLL：来自 `lib/SDL2/lib/x64/SDL2.dll`
-- SoundTouch DLL：来自 `lib/soundtouch-2.3.3/lib/SoundTouchDLL_x64.dll`
-
-如果没有，检查 `PLAYERDEMO_*_ROOT` 是否指向正确目录。
-
-### 20.4 播放有声音无画面
-
-优先检查：
-
-1. `video_thread()` 是否成功解码并调用 `queue_picture()`。
-2. `LoopThread()` / `video_refresh()` 是否调用 `video_display()`。
-3. `emit_video_frame()` 是否成功创建 BGRA frame。
-4. `RendererDispatcher` 是否触发 `SigVideoFrame`。
-5. `PlaybackRuntimeBridge` 是否投递到 Qt 主线程。
-6. `Show::EnsureSdlRenderer()` 是否创建 SDL renderer 成功。
-7. `Show::RenderCurrentFrame()` 是否创建 texture 并 `SDL_RenderPresent()`。
-
-### 20.5 UI 偶发崩溃
-
-重点检查是否有核心线程直接操作 Qt 对象。正确路径必须是：
-
-```text
-VideoCtl signal
-  -> PlaybackRuntime signal
-  -> PlaybackRuntimeBridge
-  -> Qt queued signal
-  -> QWidget slot
-```
-
-不要从 `VideoCtl`、读线程、解码线程或 SDL callback 中直接访问 QWidget。
-
-### 20.6 seek 后画面或声音错乱
-
-重点检查：
-
-- `PacketQueue::serial` 是否更新。
-- 解码器是否丢弃旧 serial 的 packet/frame。
-- `FrameQueue` 是否 flush。
-- `VideoState::session.seek_req/seek_pos/seek_rel` 是否正确设置。
-- 音频、视频、字幕三个队列是否同步处理 seek。
-
----
-
-## 21. 当前实现的主要设计取舍
-
-### 21.1 为什么不是纯 Qt Multimedia
-
-项目目标是学习和控制底层播放流程。FFmpeg + SDL 的方式可以直接处理：
-
-- 解封装和流选择。
-- 解码线程。
-- 音视频同步。
-- 自定义变速。
-- 队列、seek、循环策略。
-- 跨 UI 复用核心。
-
-Qt Multimedia 更适合快速做播放器应用，但不利于展示和修改底层播放机制。
-
-### 21.2 为什么播放核心不依赖 Qt
-
-`play_core` 是静态库，供 Qt 应用使用。核心不依赖 Qt 后：
-
-- 更容易测试。
-- 更容易复用到其他 UI。
-- 可以避免 Qt 主线程规则污染底层播放逻辑。
-- 构建边界更清晰。
-
-### 21.3 为什么还保留一些 C 风格代码
-
-播放器核心明显继承了 FFmpeg 示例播放器一类的写法。FFmpeg/SDL 本身就是 C API，保留部分 C 风格可以减少迁移风险。当前仓库采用的是渐进式重构：
-
-- 先把 `PacketQueue`、`FrameQueue`、`Clock` 封装成类。
-- 再把 `VideoState` 分组。
-- 再通过 `PlaybackRuntime` / `PlaybackController` 隔离 UI。
-- 后续可以继续拆小 `VideoCtl`。
-
-这种做法比一次性大改更安全，因为播放核心涉及多线程、设备回调和外部 C 库资源生命周期。
-
-### 21.4 为什么使用 `shared_ptr<VideoFrame>`
-
-视频帧从核心线程传到 UI 主线程，中间有异步投递。使用 `std::shared_ptr<VideoFrame>` 可以：
-
-- 避免复制大 buffer。
-- 保证异步投递期间数据仍然存活。
-- 让 Qt bridge 和 UI slot 都可以安全持有同一帧。
-
----
-
-## 22. 建议的阅读顺序
-
-如果你是第一次看这个项目，建议按这个顺序读：
-
-1. `CMakeLists.txt`：先知道目标、依赖和输出。
-2. `play_core/playback_runtime.*`：理解 UI 应该怎样拿到播放能力。
-3. `play_core/playback_controller.*` 和 `play_core/playback_controller_videoctl.cpp`：理解控制命令如何绑定。
-4. `apps/qt_player/mainwid.cpp` 的 `Init()` 和 `ConnectSignalSlots()`：理解 Qt UI 如何连接核心。
-5. `play_core/video_state.h`：理解播放状态被分成哪些部分。
-6. `play_core/videoctl.cpp` 的 `StartPlay()`、`stream_open()`、`ReadThread()`：理解播放启动。
-7. `play_core/packet_queue.*`、`frame_queue.*`、`decoder.*`：理解数据如何在线程之间流动。
-8. `play_core/media_sync.*`：理解音视频同步。
-9. `play_core/videoctl.cpp` 的 `emit_video_frame()` 和 `apps/qt_player/show.cpp`：理解画面如何显示。
-10. `apps/qt_player/playlistfile.cpp` 和对应测试：作为相对独立模块练手。
-
----
-
-## 23. 维护约定
-
-建议后续开发遵守这些规则：
-
-- UI 层不要直接包含或操作 FFmpeg/SDL 内部状态。
-- `play_core` 不要引入 Qt 类型。
-- 跨线程进入 Qt UI 必须经过 queued signal 或等价机制。
-- 新增播放核心命令优先走 `PlaybackController`。
-- 新增核心事件优先走 `VideoCtl -> PlaybackRuntime -> PlaybackRuntimeBridge`。
-- 修改 `VideoCtl` 生命周期、队列、seek、线程退出时必须运行测试。
-- 修改播放列表解析时必须补充 `playlistfile_tests`。
-- 修改架构边界时必须补充或更新 `play_core_refactor_tests`。
-
----
-
-## 24. 快速索引
-
-| 你要做什么 | 从哪里开始 |
-| --- | --- |
-| 跑项目 | `CMakePresets.json`、顶层 `CMakeLists.txt` |
-| 看 Qt 启动 | `apps/qt_player/main.cpp`、`apps/qt_player/mainwid.cpp` |
-| 看播放核心入口 | `play_core/playback_runtime.cpp`、`play_core/videoctl.cpp` |
-| 看 UI 控制播放 | `play_core/playback_controller.*`、`apps/qt_player/mainwid.cpp` |
-| 看视频显示 | `play_core/renderer_dispatcher.*`、`apps/qt_player/show.cpp` |
-| 看音频输出 | `play_core/videoctl.cpp` 的 `audio_open()`、`audio_decode_frame()` |
-| 看同步算法 | `play_core/media_sync.*` |
-| 看队列 | `play_core/packet_queue.*`、`play_core/frame_queue.*` |
-| 看播放列表 | `apps/qt_player/playlist.*`、`playlistfile.*` |
-| 看测试 | `tests/playlistfile_tests.cpp`、`tests/play_core_refactor_tests.cpp` |
-
+| 核心结构、并发和生命周期 | `play_core_refactor_tests`、`playback_command_mailbox_tests`、`clock_concurrency_tests`、`playback_lifecycle_stress_tests`（`STRESS_TESTS` 标签） |
+| 解码、读取与音频 | `decoder_workers_tests`、`stream_reader_tests`、`audio_output_tests`、`audio_render_queue_tests`、`soundtouch_wrap_tests`、`filter_configurator_tests` |
+| 媒体与显示契约 | `media_info_tests`、`video_frame_format_tests`、`video_geometry_tests`、`hardware_decode_policy_tests`、`track_switching_tests`、字幕 dispatcher/renderer 测试 |
+| 网络与端到端播放 | `network_playback_tests`、`reconnect_controller_tests`；`playback_integration_tests`、`network_integration_tests` 标记 `INTEGRATION`，`media_compatibility_tests` 另标记 `COMPATIBILITY` |
+| 播放器 UI、列表与设置 | preferences/settings、resume、列表导航/文件/隐私、最新帧邮箱、`main_window_behavior_tests`、`show_widget_tests` 等；部分是源码契约检查而非真实窗口呈现测试 |
+| 构建、安装与入口 | CMake 配置、发行元数据、安装布局、播放器 smoke test；不能替代实际发行包运行和手工播放 |
+| 监控 | `MONITOR_BUILD_TESTS` 控制多路播放/录制集成测试及监控窗口 smoke test |
+
+新增功能时从对应测试文件和 CMake 注册条件一起定位；不要将存在测试文件等同于本次已经运行通过。网络集成、硬解设备、可见 GUI、长时播放和性能指标需要相应环境与专项验证。
+
+## 10. 常见修改的起点
+
+- 打开文件/URL、最近文件、续播、错误提示：`apps/qt_player/mainwid.cpp`、`playback_status_presenter.cpp`、`globalhelper.cpp`。
+- 输入阻塞、超时、重连、网络 seek：`play_core/network_input.cpp`、`stream_reader.cpp`、`reconnect_controller.cpp`、`VideoCtl::LoopThread()`。
+- seek 后旧帧/旧音频、停止卡住、EOF 丢尾：`VideoCtl::stream_seek()` / `stream_close()`、`StreamReader::Run()`、`Decoder::decode_frame()`、`AudioRenderQueue` 的 generation/drained 规则。
+- 色彩/画幅/纹理上传：`video_frame_converter.cpp`、`video_frame.h`、播放器 `show.cpp` 与监控 `core_video_widget.cpp` 分别检查，不能只改其中一个就宣称全应用一致。
+- 内嵌/外置字幕：`decoder_workers.cpp`、`subtitle_dispatcher.cpp`、`subtitle_renderer.cpp`、`Show` 的时间来源。
+- 摄像机配置、录像、回放：`apps/monitor/xcamera_config.cpp`、`xcamera_record.cpp`、`xviewer.cpp`、`xplayvideo.cpp`。
+
+[播放核心评审记录](playback-core-review.md)保留历史待验证线索，不是当前缺陷清单或本次重新审计的结论。

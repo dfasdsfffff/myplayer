@@ -6,15 +6,21 @@ MyPlayer is a maintained fork and productized build of the original
 
 Product identity:
 
-- Display name: MyPlayer
-- Internal name: myplayer
-- Project repository: https://github.com/dfasdsfffff/playerdemo-master
+- Display names: MyPlayer; MyPlayer Monitor
+- Executables: myplayer; myplayer_monitor
+- Project repository: https://github.com/dfasdsfffff/myplayer
+- Gitee mirror: https://gitee.com/hu-xiao-yun/myplayer
 
 Upstream attribution:
 
 - Original project: https://github.com/itisyang/playerdemo
 - Original author: itisyang
 - Original homepage: https://itisyang.github.io/playerdemo/
+
+- Monitor UI/calendar/camera configuration and reference icons were adapted
+  from the supplied h265-ffmpeg/2_project/xviewer reference project.
+  Its Apache-2.0 text is preserved at
+  apps/monitor/REFERENCE-LICENSE.txt in the source repository.
 
 License:
 
@@ -30,6 +36,8 @@ Third-party components:
 - SoundTouch: audio tempo, pitch, and rate processing.
 - sigslot: signal/slot utility library.
 - Qt 6: desktop UI framework.
+- libass: ASS/SSA subtitle rendering in the player, with its transitive
+  font/text-rendering dependencies.
 
 Keep each third-party component's own license file with binary and source
 distributions. This notice is a summary, not a replacement for the full

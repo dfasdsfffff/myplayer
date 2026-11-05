@@ -1,7 +1,13 @@
 # Third-Party Notices
 
-MyPlayer includes or links to third-party components. Keep this file with
-binary distributions together with each component's complete license text.
+MyPlayer and MyPlayer Monitor include or link to third-party components.
+Keep this file with binary distributions and each component's complete
+license text. The portable license paths below describe the dual-application
+archives produced by `scripts/package-portable.ps1`, not a bare build tree.
+That script copies the configured dependency installation's copyright files;
+actual linked/deployed versions depend on the build. The monitor's optional
+standalone bundled-dependency build has a separate deployment path and is not
+automatically a complete licensed portable package.
 
 ## FFmpeg
 
@@ -33,16 +39,45 @@ Source is included under `lib/sigslot-1.2.3/` in the project repository.
 
 ## Qt 6
 
-Used for the Qt Widgets desktop interface. Complete license texts are included
-under `licenses/Qt/`. Qt source: <https://download.qt.io/archive/qt/6.9/6.9.3/>.
+Used for both Qt Widgets desktop interfaces. Complete license texts are
+included under `licenses/Qt/` by the portable packaging script. The published
+V1.1.0 Windows packages used Qt 6.9.3:
+<https://download.qt.io/archive/qt/6.9/6.9.3/>.
+For another Qt build, distribute the matching license texts and corresponding
+source/other materials required by the applicable license.
 
 ## libass And Transitive Dependencies
 
-libass renders ASS/SSA subtitles. Portable archives include its license text
-as `licenses/libass-copyright`, together with the copyright/license texts
-for the deployed vcpkg dependency set (including FreeType, FriBidi, HarfBuzz,
-libpng, zlib, Brotli, bzip2, OpenSSL, libiconv and libevent).
-libass source: <https://github.com/libass/libass>.
+libass renders ASS/SSA subtitles in MyPlayer; it is not a dependency of the
+monitor's standalone playback core. The manifest still declares libass even
+when configuring without the player UI.
+
+Portable archives include `licenses/libass-copyright` and copyright/license
+texts from the configured vcpkg installation (including FreeType, FriBidi,
+HarfBuzz, libpng, zlib, Brotli, bzip2, OpenSSL, libiconv and libevent when
+present). This is an installation inventory, not proof that every DLL is used
+by both executables. libass source: <https://github.com/libass/libass>.
 
 The Windows packages also include Microsoft's app-local Visual C++ runtime
 redistributable DLLs and Qt's deployed graphics support DLLs.
+
+## Monitor Reference Code And Resources
+
+The monitor UI, calendar, camera configuration and reference icons were adapted
+from the supplied `h265-ffmpeg/2_project/xviewer` reference project under
+Apache-2.0. The complete license is preserved in the source repository at
+`apps/monitor/REFERENCE-LICENSE.txt`. Preserve applicable attribution and
+license notices when distributing these components.
+
+The current install/portable scripts do not automatically copy that reference
+license into the monitor archive. Carry it with monitor binary distributions;
+the packaging smoke check is not a license-compliance check.
+
+## Source Distribution
+
+Project source is maintained at <https://github.com/dfasdsfffff/myplayer> and
+mirrored at <https://gitee.com/hu-xiao-yun/myplayer>. Use the matching release
+tag for project source. Upstream links in this document identify components;
+they do not replace the obligation to provide complete corresponding source,
+build materials, notices or other required distribution materials under each
+applicable license.

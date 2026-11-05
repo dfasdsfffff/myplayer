@@ -1,146 +1,143 @@
-# MyPlayer
+# MyPlayer 与 MyPlayer Monitor
 
-MyPlayer is a C++20 desktop media player built with Qt Widgets, FFmpeg, SDL2, and SoundTouch. The internal executable and CMake product name is `myplayer`.
+本仓库包含两个 Windows 桌面软件，共用 C++20 播放核心 `play_core`：
 
-This repository is based on the original GPL project [`itisyang/playerdemo`](https://github.com/itisyang/playerdemo). The product name, UI branding, build outputs, and packaging metadata have been changed for this maintained fork, while upstream attribution and GPL licensing are preserved.
+| 软件 | 用途 | 源码入口 | CMake 目标 |
+| --- | --- | --- | --- |
+| MyPlayer | 媒体播放、播放列表、字幕、播放设置 | `apps/qt_player/main.cpp` | `myplayer` |
+| MyPlayer Monitor | 多路视频预览、设备管理、录像与录像回放 | `apps/monitor/main.cpp` | `myplayer_monitor` |
 
-Project repository and source distribution:
+技术栈：Qt 6 Widgets、FFmpeg、SDL2、SoundTouch、sigslot；播放器另用 libass 渲染字幕。项目基于 GPL 上游 [itisyang/playerdemo](https://github.com/itisyang/playerdemo)，保留原作者归属与许可证。
 
-- <https://github.com/dfasdsfffff/playerdemo-master>
+- 主仓库：<https://github.com/dfasdsfffff/myplayer>
+- Gitee 镜像：<https://gitee.com/hu-xiao-yun/myplayer>
+- GitHub 发行版：<https://github.com/dfasdsfffff/myplayer/releases>
+- [开发与架构指南](docs/PROJECT_GUIDE.md)
+- [监控软件使用、配置与独立构建](apps/monitor/README.md)
+- [播放核心历史检查记录](docs/playback-core-review.md)
+- [第三方组件与许可证](THIRD-PARTY-NOTICES.md)
 
-## Features
+## 下载与运行
 
-- Local audio/video playback through FFmpeg decoding and SDL2 output.
-- Qt Widgets main application with playlist, playback controls, custom title bar, settings, and about dialog.
+`V1.1.0` 提供两个独立的 Windows x64 Release 免安装包：
 
-- Network stream support for HTTP(S), RTSP, RTP, UDP, and related playback sources.
-- Playlist import/export support for local files and network stream URLs.
-- Playback speed and audio processing support through SoundTouch.
-- `play_core/` library that keeps playback runtime logic separate from the Qt UI layer.
+| 文件 | 完整解压后启动 |
+| --- | --- |
+| `MyPlayer-1.1.0-windows-x64.zip` | `bin/myplayer.exe` |
+| `MyPlayerMonitor-1.1.0-windows-x64.zip` | `bin/myplayer_monitor.exe` |
 
-## Build
+每个 ZIP 均附有 `.sha256` 校验文件。下载后可用 `Get-FileHash <ZIP路径> -Algorithm SHA256` 比对。保留整个目录结构，不要只复制 EXE。包中包含 Qt 插件、媒体依赖、app-local MSVC 运行库和许可证，不需要另装 Qt 或 VC++ 运行库；录像等写入操作需要目录写权限。
 
-Requirements:
+“免安装”是部署方式，不代表所有设置都保存在程序旁边。播放器设置与监控配置的存储方式不同，见开发指南及监控 README。
 
-- CMake 3.25 or newer (required by the version 6 CMake Presets schema).
-- C++20 compiler. Windows builds use Visual Studio 2026 (MSVC).
-- Qt 6 with Core, Gui, and Widgets.
-- vcpkg, which resolves FFmpeg, SDL2, and SoundTouch from the manifest.
+发行包版本与程序内版本目前尚未统一：已发布包和标签为 `1.1.0` / `V1.1.0`，顶层/监控 CMake 项目及两个 `main.cpp` 中的应用版本仍为 `1.0.0`。包名参数不会自动更新这些代码元数据。
 
+截至本次文档同步，GitHub 已发布 `V1.1.0` 及附件；Gitee 已同步源码与标签，但尚未创建对应发行页。
 
-Typical Windows build:
+## 从源码构建
+
+以下 PowerShell 命令均从仓库根目录执行。`build/`、`bin/`、`.cache/` 都是生成目录，干净检出或清理后不存在是正常的；不要依赖历史构建缓存或其他机器的绝对路径。
+
+### 环境与依赖
+
+- CMake 项目及 Preset schema 最低要求 **3.25**，但下文默认的 [Visual Studio 18 2026 生成器](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2018%202026.html) 从 **CMake 4.2** 才提供；照用该生成器时需 **4.2+**。
+- C++20 编译器。默认 Preset 使用 **Visual Studio 18 2026**、MSVC x64；需安装桌面 C++ 工作负载及 Windows SDK。
+- Qt 6 Core/Gui/Widgets；监控程序明确要求 **Qt 6.8+**。现有 Windows 发行使用 Qt **6.9.3 / msvc2022_64**，这是 Qt SDK 目录名，不是本仓库 Preset 的 VS 生成器名称。
+- vcpkg，设置 `VCPKG_ROOT` 为其根目录。`vcpkg.json` 声明 FFmpeg、libass、SDL2、SoundTouch；sigslot 使用仓库内的头文件。
+- 播放器通过 `pkg_check_modules(LIBASS ... libass)` 查找 libass，需要可用的 pkg-config/pkgconf 及与当前 Release/Debug、x64 依赖相匹配的元数据。
+
+顶层构建默认从配置好的依赖安装前缀查找 FFmpeg/SDL2/SoundTouch，**不会自动用 `lib/` 中的二进制替代缺失的 vcpkg 包**。仅监控独立构建有 `MONITOR_USE_BUNDLED_DEPS` 开关。
+
+### 构建两个软件
+
+将以下两个路径替换为本机实际安装目录；首次配置会由 vcpkg 安装 manifest 依赖，可能需要下载和编译：
 
 ```powershell
-cmake -S . -B build -DPLAYERDEMO_QT_ROOT="C:/Qt/6.9.3/msvc2022_64"
-cmake --build build --config Debug
-ctest --test-dir build -C Debug --output-on-failure
+$env:VCPKG_ROOT = "C:/src/vcpkg"
+$qtRoot = "C:/Qt/6.9.3/msvc2022_64"
+
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64 `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+  -DVCPKG_TARGET_TRIPLET=x64-windows `
+  -DPLAYERDEMO_QT_ROOT="$qtRoot" `
+  -DMYPLAYER_BUILD_MONITOR=ON `
+  -DMONITOR_BUILD_TESTS=ON
+
+cmake --build build --config Release --target myplayer myplayer_monitor
 ```
 
-The standard CMake options are:
-
-- `MYPLAYER_BUILD_QT_APP` — build the Qt Widgets application (default: `ON`).
-- `BUILD_TESTING` — build and register CTest targets (default: `ON`).
-- `MYPLAYER_ENABLE_WARNINGS` — enable project warning flags (default: `ON`).
-- `MYPLAYER_ENABLE_SANITIZERS` — enable supported Address/Undefined Behavior Sanitizers (default: `OFF`).
-
-For a Qt-free playback-core configuration, use:
+也可以使用现有 Preset，并显式打开监控目标：
 
 ```powershell
-cmake -S . -B build-core -DMYPLAYER_BUILD_QT_APP=OFF -DBUILD_TESTING=OFF
+cmake --preset windows-msvc-vcpkg -A x64 -T host=x64 `
+  -DPLAYERDEMO_QT_ROOT="$qtRoot" `
+  -DMYPLAYER_BUILD_MONITOR=ON -DMONITOR_BUILD_TESTS=ON
+cmake --build --preset windows-msvc-vcpkg-release
 ```
 
-Build outputs:
+Preset 本身只显式启用播放器，不会自动启用监控；Release 没有对应的 test preset，测试时使用下面的 `ctest --test-dir ... -C Release`。
+
+默认的 VS 多配置输出：
 
 ```text
-bin/myplayer_debug.exe
-bin/myplayer.exe
+bin/myplayer.exe                         # Release 播放器
+bin/myplayer_debug.exe                   # Debug 播放器
+build/apps/monitor/Release/myplayer_monitor.exe
+build/apps/monitor/Debug/myplayer_monitor.exe
 ```
 
-The `PLAYERDEMO_*` CMake cache variables are kept for compatibility with the existing build scripts:
+播放器构建会复制可由 CMake 目标识别的运行库及 Qt platform 插件，监控构建还会调用 `windeployqt`。构建输出不等于完整免安装发行包；第三方 DLL 的间接依赖、Qt 插件、MSVC 运行库及许可证部署见“打包”。
 
-- `PLAYERDEMO_DEPS_ROOT` (retained for the bundled sigslot headers)
-- `PLAYERDEMO_SIGSLOT_ROOT`
-- `PLAYERDEMO_QT_ROOT`
-- `PLAYERDEMO_OUTPUT_DIR`
+### 构建开关
 
-## Project Layout
+| 选项 | 默认值 | 作用 |
+| --- | --- | --- |
+| `MYPLAYER_BUILD_QT_APP` | `ON` | 播放器及对应 UI 测试 |
+| `MYPLAYER_BUILD_MONITOR` | `OFF` | 顶层构建中加入监控软件 |
+| `BUILD_TESTING` | `ON` | 顶层 CTest 测试；不替代监控专用开关 |
+| `MONITOR_BUILD_TESTS` | `OFF` | 监控集成测试和窗口 smoke 测试，需启用监控子项目 |
+| `MYPLAYER_ENABLE_WARNINGS` | `ON` | 项目警告设置 |
+| `MYPLAYER_ENABLE_SANITIZERS` | `OFF` | 支持的编译器上的 ASan/UBSan，非 Windows GUI 验证 |
 
-```text
-apps/qt_player/       Qt Widgets application
-play_core/            Playback runtime, decoding, queues, clocks, networking
-tests/                Build and behavior regression tests
-lib/                  Bundled third-party dependency roots
-docs/                 Developer, release, and QA documentation
-LICENSE               GPL license text
-NOTICE                Attribution and third-party notice summary
-scripts/package-portable.ps1  Portable Windows package build and verification
-```
+`PLAYERDEMO_QT_ROOT` 指向 Qt SDK 前缀；`PLAYERDEMO_OUTPUT_DIR` 只控制播放器默认运行输出位置；`PLAYERDEMO_SIGSLOT_ROOT` 默认指向 `lib/sigslot-1.2.3`。`PLAYERDEMO_DEPS_ROOT` 不是启用顶层 bundled 二进制依赖的开关。
 
-## Packaging
-
-MyPlayer and MyPlayer Monitor are distributed as separate portable Windows x64 archives. No installer is required. Configure both applications, then package the Release build:
+### 仅播放核心
 
 ```powershell
-cmake -S . -B build -DMYPLAYER_BUILD_MONITOR=ON
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1 -BuildDir build -Version 1.1.0
+cmake -S . -B build-core -G "Visual Studio 18 2026" -A x64 `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+  -DVCPKG_TARGET_TRIPLET=x64-windows `
+  -DMYPLAYER_BUILD_QT_APP=OFF -DMYPLAYER_BUILD_MONITOR=OFF `
+  -DBUILD_TESTING=ON
+cmake --build build-core --config Release
+ctest --test-dir build-core -C Release --output-on-failure
 ```
 
-The script creates `dist/MyPlayer-1.1.0-windows-x64.zip` and
-`dist/MyPlayerMonitor-1.1.0-windows-x64.zip`, each with a `.sha256` file.
-It deploys Qt plugins, the MSVC runtime, third-party DLLs and license texts,
-then runs each staged executable with development dependency paths removed.
-The configured build must provide `PLAYERDEMO_QT_ROOT`, `VCPKG_INSTALLED_DIR`
-and `VCPKG_TARGET_TRIPLET`. Qt license texts default to the SDK's sibling
-`Src/LICENSES` directory; use `-QtLicenseDir` or `-CrtDir` to supply explicit
-license/runtime directories. Existing release outputs are never overwritten.
+播放核心不链接 Qt，但仍需 FFmpeg、SDL2、SoundTouch 和 sigslot。关闭 UI 不会自动精简 `vcpkg.json` 的安装依赖。
 
-Extract the entire archive into a writable directory and launch:
+## 测试与验证
 
-- Player: `bin/myplayer.exe`.
-- Video monitor: `bin/myplayer_monitor.exe`; supports 1/4/9/16 preview layouts,
-  local files and RTSP/HTTP sources.
-
-Portable means no installation or separately installed Qt/VC runtime is needed;
-it does not mean that every user preference is stored beside the executable.
-Keep the included license and notice files. Corresponding project source is
-available from the matching release tag in the repository linked above.
-
-## Playback Performance Baseline
-
-Build Release first, then run from an interactive Windows desktop:
+只构建两个应用目标不会同时构建全部测试。需要测试时先构建当前配置的全部目标：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/benchmark-video-presentation.ps1 `
-  -Player bin/myplayer.exe -Ffmpeg ffmpeg -RunMs 10000 -TimeoutMs 30000
+cmake --build build --config Release
+ctest --test-dir build -C Release -N
+ctest --test-dir build -C Release --output-on-failure
 ```
 
-The script generates 1080p60 and 4K60 H.264 fixtures, runs the actual Qt/SDL
-player, and writes `.cache/benchmarks/baseline.json`, per-player reports,
-process CPU/memory samples, and logs. FFmpeg null-output decoding is recorded
-separately as a reference, not as player presentation performance.
-Use `-SkipFixtureGeneration` to reuse fixtures and `-SkipDecodeReference` to
-omit that reference.
+测试按构建开关分组，实际注册项以顶层和监控目录的 `CMakeLists.txt`、`ctest -N` 为准，不维护固定测试数量。
 
-To measure an existing local video directly:
+- 播放核心：队列、命令邮箱、解码、音频输出、seek/生命周期、网络读取、硬解策略和媒体兼容性等。
+- 播放器：播放列表、隐私处理、设置、字幕、主窗口和视频呈现等；部分使用 offscreen/dummy 后端。
+- 监控：`monitor_integration_tests` 和 `monitor_window_smoke_test`，仅在 `MONITOR_BUILD_TESTS=ON` 时注册。
+- `myplayer --smoke-test` 只创建 QApplication 和播放运行时后退出，**不会打开完整播放器主窗口，也不会播放媒体**。
+- 监控 `--smoke-test` 会显示窗口并在约一秒后退出；未传入视频源时不能证明实际解码、联网或录像可用。
 
-```powershell
-bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
-  --benchmark-output C:/existing-directory/player.json `
-  --benchmark-run-ms 10000 --benchmark-timeout-ms 30000
-```
+CI 定义见 [.github/workflows/windows-build.yml](.github/workflows/windows-build.yml) 和 [Clang sanitizers workflow](.github/workflows/clang-sanitizers.yml)。当前 Windows workflow 尚未启用监控，却调用要求双应用的打包脚本，并仍传入包版本 `1.0.0`；不能把该 workflow 视为已经同步或通过验证的双软件发行流程。本文档不修改 CI 实现。
 
-Benchmark mode uses software decoding, speed 1, no looping/resume, and a
-requested 1280×720 window. Reports distinguish GUI-delivered frames from
-successful SDL-present returns; neither proves physical screen visibility or
-counts decoder drops. CPU percentages use one logical core as 100%; memory
-peaks are periodic samples. These video-only fixtures do not measure audio/video
-drift. Compare repeated runs on the same machine, display setup, configuration,
-and media; a short run does not establish long-term stability.
+### 媒体兼容性与硬解回退
 
-## Media Compatibility And Hardware Fallback
-
-Build the acceptance runners and run the matrix with a caller-provided FFmpeg
-executable that includes libx264, libx265, AAC, and MPEG4 encoders:
+需 `BUILD_TESTING=ON`。外部 `ffmpeg` 命令行工具与链接的 FFmpeg 库是两件事；以下脚本要求外部工具支持 libx264、libx265、AAC、MPEG4，MP3 用例取决于编码器可用性：
 
 ```powershell
 cmake --build build --config Release --target media_compatibility_tests hardware_decode_policy_tests
@@ -148,34 +145,75 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-media-compati
   -BuildDir build -Configuration Release -Ffmpeg ffmpeg
 ```
 
-Each run creates an isolated directory under `.cache/media-compatibility/`.
-`compatibility.json` aggregates runtime playback results and separate
-`HardwareDecodeContext` decoding/transfer evidence. Fixtures include H.264/AAC
-MP4, Main8 H.265 MKV, MPEG4 AVI, WAV, AAC, MP3 when the generator supports it,
-invalid bytes, and an unusable ftyp-only MP4.
+脚本在 `.cache/media-compatibility/<独立运行目录>/` 生成样本、日志与 `compatibility.json`。运行时播放结果与直接硬解/帧传输结果分开记录。软件回退成功不等于覆盖了 GPU 硬解；这些用例不能代替扬声器输出、音画同步、所有 GPU/编码档次或真实网络源验收。
 
-Runtime cases check decoded frame storage/dimensions, audio metadata, timed
-natural completion, and failure behavior using dummy SDL sinks. Runtime frame
-callbacks can repeat for redraws; only the separate direct-context decoder
-asserts exact decoded-frame counts. Its adapter identity is read from an actual
-hardware frame's D3D11 device, not inferred from installed GPUs. A successful
-software fallback is not hardware coverage. These checks do not establish
-speaker output, audio/video synchronization, all adapters/profiles, or release
-readiness. The no-argument CTest cases need neither external encoders nor a GPU.
+### 视频呈现性能
 
-## License And Attribution
+在可交互的 Windows 桌面运行 Release 播放器；需要外部 `ffmpeg` 提供 libx264：
 
-MyPlayer is distributed under the GNU General Public License because it is based on GPL-licensed upstream code from `itisyang/playerdemo`.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/benchmark-video-presentation.ps1 `
+  -Player bin/myplayer.exe -Ffmpeg ffmpeg -RunMs 10000 -TimeoutMs 30000
+```
 
-Keep these files in source and binary distributions:
+脚本生成 1080p60/4K60 视频，输出 `.cache/benchmarks/baseline.json`、播放报告、进程 CPU/内存采样和日志。`-SkipFixtureGeneration` 复用已存在的样本；`-SkipDecodeReference` 跳过 FFmpeg null-output 解码对照。
 
-- `LICENSE`
-- `NOTICE`
-- Third-party license files under `lib/`
-- Corresponding source code or a clear written source offer, as required by GPL
+已有视频也可直接测量，先创建报告目录：
 
-Original upstream:
+```powershell
+New-Item -ItemType Directory -Force .cache/benchmarks | Out-Null
+bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
+  --benchmark-output .cache/benchmarks/player.json `
+  --benchmark-run-ms 10000 --benchmark-timeout-ms 30000
+```
 
-- Project: [`itisyang/playerdemo`](https://github.com/itisyang/playerdemo)
-- Author: [`itisyang`](https://github.com/itisyang)
-- Homepage: <https://itisyang.github.io/playerdemo/>
+基准模式请求软件解码、1 倍速、关闭循环/断点恢复及 1280×720 窗口。GUI 收到的帧数与 SDL 呈现调用返回数分别统计，不是解码帧/丢帧计数，也不证明屏幕实际可见。CPU 以一个逻辑核心为 100%；纯视频样本不测音画同步，短时结果不是长期稳定性结论。
+
+## 双软件免安装打包
+
+使用上文的 **Windows x64 / Visual Studio 多配置生成器** 同时启用两个应用；需要完整依赖安装目录、Qt 的 `windeployqt.exe`、Qt 许可证文本和可再分发的 MSVC CRT DLL。打包脚本目前按 VS 的 `apps/monitor/Release/` 布局查找监控 EXE，不承诺支持 Ninja 或仅监控 standalone 构建。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1 `
+  -BuildDir build -Configuration Release -Version 1.1.1
+```
+
+`1.1.1` 仅是下一次打包的示例参数，不代表已经发布该版本。现有 `1.1.0` 包已存在时，脚本拒绝覆盖，需移动旧输出或使用未占用版本。
+
+脚本会：构建两个应用；安装基础运行目录；分别部署 Qt 插件与 app-local MSVC CRT；复制依赖许可证；在移除开发搜索路径后运行各自的 smoke 模式；生成两个 ZIP 和 SHA-256 文件。它**不会**自动提交源码、创建 Git 标签或发布 GitHub/Gitee 发行页，也不会实际验证媒体播放/录像或干净虚拟机兼容性。
+
+相关缓存项与可选参数：
+
+- `PLAYERDEMO_QT_ROOT`、`VCPKG_INSTALLED_DIR`、`VCPKG_TARGET_TRIPLET` 必须对应本次构建的有效路径；后两项通常由 vcpkg toolchain 设置。
+- `-QtLicenseDir` 默认使用 Qt SDK 前缀的同级 `Src/LICENSES`；只安装运行 SDK、未安装 Qt 源码时，这个目录可能不存在，需要显式提供完整许可文本。
+- `-CrtDir` 可指定 `Microsoft.VC*.CRT` 的 x64 目录；未指定时，脚本从 `CMAKE_GENERATOR_INSTANCE` 指向的 VS 安装下选取可用的最新版本。
+- `-Configuration` 只接受 `Release`；`-Version` 默认 `1.1.0`，只控制包名。
+
+许可部署还有一处已知缺口：监控参考代码的 Apache-2.0 完整文本保存在
+`apps/monitor/REFERENCE-LICENSE.txt`，但当前安装/打包脚本尚未自动复制该文件。
+分发监控软件时仍须携带这份文本及所需归属说明，不能把脚本 smoke 成功当成
+已经完成全部许可合规检查；见[第三方说明](THIRD-PARTY-NOTICES.md)。
+
+本地 `dist/` 当前保留已发布 1.1.0 的两个 ZIP 和校验文件；构建与缓存目录可以重建，不应作为文档的隐含前置条件。
+
+## 目录与维护入口
+
+```text
+apps/qt_player/    播放器 Qt UI、字幕渲染、设置、播放基准
+apps/monitor/      监控 Qt UI、设备配置、录像与回放
+play_core/         公共播放运行时、解封装/解码、队列、时钟、网络输入
+cmake/             告警与安装规则
+scripts/           双软件打包、媒体兼容性和性能验证脚本
+tests/             播放核心及播放器回归/集成测试
+docs/              开发指南、历史检查记录与设计文件
+lib/               sigslot 及监控 standalone 可选 Windows 依赖备份
+dist/              本地发行产物（不作为源码依赖）
+```
+
+`docs/design/*.pen` 是设计稿，不是运行时代码或由 CMake 自动生成的界面。界面实际实现以 C++、Qt `.ui`、资源文件为准。
+
+## 许可证与归属
+
+本项目继承原项目的 GPL 许可。分发二进制时需保留 `LICENSE`、`NOTICE`、`THIRD-PARTY-NOTICES.md`、各依赖的完整许可文本，并按适用许可提供对应源码/源码获取方式；不能仅凭一个上游首页链接就认定满足全部分发义务。
+
+原项目：[itisyang/playerdemo](https://github.com/itisyang/playerdemo)，作者 [itisyang](https://github.com/itisyang)，主页 <https://itisyang.github.io/playerdemo/>。
