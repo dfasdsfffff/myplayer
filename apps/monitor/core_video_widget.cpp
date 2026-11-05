@@ -4,6 +4,7 @@
 #include <SDL.h>
 #include <QMetaObject>
 #include <QPaintEvent>
+#include <QPainter>
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -171,6 +172,21 @@ void CoreVideoWidget::present() {
     ++presentedFrames_;
 }
 
-void CoreVideoWidget::paintEvent(QPaintEvent*) { present(); }
+void CoreVideoWidget::paintEvent(QPaintEvent*) {
+    if (!renderer_) {
+        QPainter painter(this);
+        painter.fillRect(rect(), QColor("#263039"));
+        painter.fillRect(QRect(0, 0, width(), 20), QColor("#111820"));
+        painter.setPen(QColor("#a5b0bb"));
+        QFont font = painter.font();
+        font.setPixelSize(11);
+        painter.setFont(font);
+        painter.drawText(QRect(8, 0, width() - 16, 20), Qt::AlignVCenter, tr("预览窗口"));
+        painter.setPen(QColor("#8996a3"));
+        painter.drawText(rect(), Qt::AlignCenter, tr("拖入摄像机开始预览"));
+        return;
+    }
+    present();
+}
 void CoreVideoWidget::resizeEvent(QResizeEvent* event) { QWidget::resizeEvent(event); present(); }
 void CoreVideoWidget::showEvent(QShowEvent* event) { QWidget::showEvent(event); present(); }

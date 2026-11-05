@@ -1,0 +1,1670 @@
+{
+  "version": "2.21",
+  "children": [
+    {
+      "type": "frame",
+      "id": "cArcj",
+      "x": 3,
+      "y": 0,
+      "name": "监控中心",
+      "clip": true,
+      "width": 1437,
+      "height": 823,
+      "fill": "#171A1F",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "SuUcO",
+          "name": "顶部导航",
+          "width": "fill_container",
+          "height": 34,
+          "fill": "#25282D",
+          "padding": [
+            0,
+            10
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "B4V8Ej",
+              "name": "品牌",
+              "fill": "#E6E6E6",
+              "content": "MyPlayer 多路监控     文件(F)   视图(V)   录像(R)   帮助(H)",
+              "fontFamily": "Arial",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "NnPZZ",
+              "name": "当前页",
+              "fill": "#D6D6D6",
+              "fontFamily": "Arial",
+              "fontSize": 12,
+              "fontWeight": "semibold"
+            },
+            {
+              "type": "text",
+              "id": "W3oKh",
+              "name": "在线概况",
+              "fill": "#25282D",
+              "fontFamily": "Inter",
+              "fontSize": 1,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "XVbif",
+              "name": "系统状态",
+              "fill": "#35C88A",
+              "content": "● 监控中",
+              "fontFamily": "Arial",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "TbpEd",
+              "name": "当前时间",
+              "fill": "#C7CDD3",
+              "content": "14:32:08",
+              "fontFamily": "Arial",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "JYSuz",
+          "name": "工具栏",
+          "width": "fill_container",
+          "height": 38,
+          "fill": "#202328",
+          "gap": 10,
+          "padding": [
+            0,
+            10
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "Fuh3j",
+              "name": "标题",
+              "fill": "#E6E6E6",
+              "content": "实时预览",
+              "fontFamily": "Arial",
+              "fontSize": 13,
+              "fontWeight": "semibold"
+            },
+            {
+              "type": "frame",
+              "id": "g7PfC",
+              "name": "1分屏",
+              "width": 48,
+              "height": 26,
+              "fill": "#2C3138",
+              "cornerRadius": 2,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "WqNWU",
+                  "name": "标签",
+                  "fill": "#A5B0BB",
+                  "content": "1分屏",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "semibold"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WCWK7",
+              "name": "4分屏",
+              "width": 48,
+              "height": 26,
+              "fill": "#2C3138",
+              "cornerRadius": 2,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ar2BD",
+                  "name": "标签",
+                  "fill": "#A5B0BB",
+                  "content": "4分屏",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "semibold"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "g2jWn",
+              "name": "9分屏",
+              "width": 48,
+              "height": 26,
+              "fill": "#24573F",
+              "cornerRadius": 2,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ne6m2",
+                  "name": "标签",
+                  "fill": "#35C88A",
+                  "content": "9分屏",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "semibold"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "MKmq4",
+              "name": "16分屏",
+              "width": 48,
+              "height": 26,
+              "fill": "#2C3138",
+              "cornerRadius": 2,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ov8Ku",
+                  "name": "标签",
+                  "fill": "#A5B0BB",
+                  "content": "16分屏",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "semibold"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "w8lcE",
+              "name": "录像操作",
+              "width": 104,
+              "height": 26,
+              "fill": "#2C3138",
+              "cornerRadius": 2,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "JW8Je",
+                  "name": "全部录像按钮",
+                  "fill": "#E8EDF2",
+                  "content": "⏺  全部录像",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "semibold"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ikHLF",
+          "name": "监控内容区",
+          "width": "fill_container",
+          "height": 742,
+          "fill": "#11151A",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Cuinj",
+              "name": "相机列表侧栏",
+              "width": 208,
+              "height": "fill_container",
+              "fill": "#202328",
+              "layout": "vertical",
+              "gap": 10,
+              "padding": 12,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "qQocD",
+                  "name": "列表标题",
+                  "fill": "#E8EDF2",
+                  "content": "设备列表",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "semibold"
+                },
+                {
+                  "type": "frame",
+                  "id": "V3Wsd6",
+                  "name": "搜索框",
+                  "width": "fill_container",
+                  "height": 34,
+                  "fill": "#202830",
+                  "cornerRadius": 4,
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CZyon",
+                      "name": "搜索提示",
+                      "fill": "#8996A3",
+                      "content": "⌕  搜索设备",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "K8cp5",
+                  "name": "设备分组",
+                  "fill": "#A5B0BB",
+                  "content": "⌄  园区摄像头  ·  09",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "semibold"
+                },
+                {
+                  "type": "frame",
+                  "id": "P9DiT",
+                  "name": "设备行 - 东门入口",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "wa8dx",
+                      "name": "连接状态灯",
+                      "fill": "#35C88A",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "bd18N",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "东门入口",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VFobz",
+                      "name": "状态文字",
+                      "fill": "#35C88A",
+                      "content": "在线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "PBzqS",
+                  "name": "设备行 - 大厅全景",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "e7jok",
+                      "name": "连接状态灯",
+                      "fill": "#35C88A",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "lEKyD",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "大厅全景",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "n3cTul",
+                      "name": "状态文字",
+                      "fill": "#35C88A",
+                      "content": "在线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "pM1e4",
+                  "name": "设备行 - 停车场 A 区",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "NUMHD",
+                      "name": "连接状态灯",
+                      "fill": "#35C88A",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "vBiIm",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "停车场 A 区",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "G8lEx",
+                      "name": "状态文字",
+                      "fill": "#35C88A",
+                      "content": "在线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "b1hsh",
+                  "name": "设备行 - 装卸平台",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "LsHMr",
+                      "name": "连接状态灯",
+                      "fill": "#35C88A",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "RicmD",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "装卸平台",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TNcVb",
+                      "name": "状态文字",
+                      "fill": "#35C88A",
+                      "content": "在线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "SoGsl",
+                  "name": "设备行 - 仓库通道 01",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "Fd6Kz",
+                      "name": "连接状态灯",
+                      "fill": "#35C88A",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "WDY3b",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "仓库通道 01",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Xi8B3",
+                      "name": "状态文字",
+                      "fill": "#35C88A",
+                      "content": "在线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "pra8E",
+                  "name": "设备行 - 仓库通道 02",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "sl0IT",
+                      "name": "连接状态灯",
+                      "fill": "#35C88A",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "j1Ec5",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "仓库通道 02",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "txeq5",
+                      "name": "状态文字",
+                      "fill": "#35C88A",
+                      "content": "在线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n0pVVF",
+                  "name": "设备行 - 办公区走廊",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "Q9ulL",
+                      "name": "连接状态灯",
+                      "fill": "#35C88A",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "pReZY",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "办公区走廊",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kJ242",
+                      "name": "状态文字",
+                      "fill": "#35C88A",
+                      "content": "在线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eTRxE",
+                  "name": "设备行 - 周界西侧",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "twmhS",
+                      "name": "连接状态灯",
+                      "fill": "#35C88A",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "UEuYz",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "周界西侧",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "LQDGS",
+                      "name": "状态文字",
+                      "fill": "#35C88A",
+                      "content": "在线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "BRBJ0",
+                  "name": "设备行 - 后门入口",
+                  "width": "fill_container",
+                  "height": 32,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "Xy5jR",
+                      "name": "连接状态灯",
+                      "fill": "#F06B68",
+                      "width": 7,
+                      "height": 7
+                    },
+                    {
+                      "type": "text",
+                      "id": "LrBgo",
+                      "name": "相机名称",
+                      "fill": "#D7DEE5",
+                      "content": "后门入口",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "frkqJ",
+                      "name": "状态文字",
+                      "fill": "#F06B68",
+                      "content": "离线",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "R1oKA3",
+              "name": "视频监控区",
+              "width": 1204,
+              "height": "fill_container",
+              "fill": "#171A1F",
+              "layout": "vertical",
+              "gap": 6,
+              "padding": 8,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "JThi1",
+                  "name": "九宫格画面",
+                  "width": "fill_container",
+                  "height": 680,
+                  "fill": "#2B343E",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "padding": 2,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "BHoio",
+                      "name": "画面行 1",
+                      "width": "fill_container",
+                      "height": 221,
+                      "fill": "#2B343E",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "j14XW",
+                          "name": "画面 - 东门入口",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#202A31",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "dldu7",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "jlaRa",
+                                  "name": "实时状态",
+                                  "fill": "#35C88A",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "L8vb7d",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "东门入口",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "A6MJU",
+                                  "name": "流状态",
+                                  "fill": "#35C88A",
+                                  "content": "LIVE",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "DAhD5",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#26353A",
+                              "justifyContent": "center",
+                              "alignItems": "center"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "cJS1t",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "yFQT2",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "qNbEP",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "25 fps",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "v9g7L",
+                          "name": "画面 - 大厅全景",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#202A31",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "j8QjK",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "XpjQk",
+                                  "name": "实时状态",
+                                  "fill": "#35C88A",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "cBbTG",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "大厅全景",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "YcVT5",
+                                  "name": "流状态",
+                                  "fill": "#35C88A",
+                                  "content": "LIVE",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "lq16D",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#26353A",
+                              "justifyContent": "center",
+                              "alignItems": "center"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "LQ5a8",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "Ti5Ks",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "buU9Q",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "25 fps",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "vmY4W",
+                          "name": "画面 - 停车场 A 区",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#202A31",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "cTFxF",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "vD5Mo",
+                                  "name": "实时状态",
+                                  "fill": "#35C88A",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "M0XqnV",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "停车场 A 区",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "g8BpBy",
+                                  "name": "流状态",
+                                  "fill": "#35C88A",
+                                  "content": "LIVE",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Foxho",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#26353A",
+                              "justifyContent": "center",
+                              "alignItems": "center"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "WfJQm",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "nD8Sj",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "wC2xR",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "25 fps",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wLY39",
+                      "name": "画面行 2",
+                      "width": "fill_container",
+                      "height": 221,
+                      "fill": "#2B343E",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "PL70l",
+                          "name": "画面 - 装卸平台",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#202A31",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "RMyor",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "UaChn",
+                                  "name": "实时状态",
+                                  "fill": "#35C88A",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "g8cgw",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "装卸平台",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "b7Q0F",
+                                  "name": "流状态",
+                                  "fill": "#35C88A",
+                                  "content": "LIVE",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "mZaOZ",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#26353A",
+                              "justifyContent": "center",
+                              "alignItems": "center"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "OB1GD",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "w0YkaY",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "YpIhL",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "25 fps",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "nyLNE",
+                          "name": "画面 - 仓库通道 01",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#202A31",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "f4uuVH",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "CGPoK",
+                                  "name": "实时状态",
+                                  "fill": "#35C88A",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "KqO30",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "仓库通道 01",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "gBBLG",
+                                  "name": "流状态",
+                                  "fill": "#35C88A",
+                                  "content": "LIVE",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "HHBBm",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#26353A",
+                              "justifyContent": "center",
+                              "alignItems": "center"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "kN1sn",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "izPGz",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "D8jJa",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "25 fps",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "n9868",
+                          "name": "画面 - 仓库通道 02",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#202A31",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "CWuTU",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "kWuhw",
+                                  "name": "实时状态",
+                                  "fill": "#35C88A",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "ooSjL",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "仓库通道 02",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "kXSd4",
+                                  "name": "流状态",
+                                  "fill": "#35C88A",
+                                  "content": "LIVE",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "eVCPe",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#26353A",
+                              "justifyContent": "center",
+                              "alignItems": "center"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "hkZ4n",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "zOQKf",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "Z5wuy",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "25 fps",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Vhbga",
+                      "name": "画面行 3",
+                      "width": "fill_container",
+                      "height": 221,
+                      "fill": "#2B343E",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "wU8xq",
+                          "name": "画面 - 办公区走廊",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#202A31",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "tH2Qv",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "wrHJB",
+                                  "name": "实时状态",
+                                  "fill": "#35C88A",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "fYnN2",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "办公区走廊",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "V2mjxZ",
+                                  "name": "流状态",
+                                  "fill": "#35C88A",
+                                  "content": "LIVE",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "v8v1rC",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#26353A",
+                              "justifyContent": "center",
+                              "alignItems": "center"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ues5A",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "BxgZf",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "QdJC6",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "25 fps",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "bmyCK",
+                          "name": "画面 - 周界西侧",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#202A31",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "T1Pom",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "T33XV",
+                                  "name": "实时状态",
+                                  "fill": "#35C88A",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "wb74g",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "周界西侧",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "ZWO5D",
+                                  "name": "流状态",
+                                  "fill": "#35C88A",
+                                  "content": "LIVE",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "DT46f",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#26353A",
+                              "justifyContent": "center",
+                              "alignItems": "center"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "PMnrJ",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "A66k47",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "A4vyE",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "25 fps",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "eZLJe",
+                          "name": "画面 - 后门入口",
+                          "width": "fill_container",
+                          "height": 221,
+                          "fill": "#171C21",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "g0acfa",
+                              "name": "画面标题栏",
+                              "width": "fill_container",
+                              "height": 30,
+                              "fill": "#111820",
+                              "gap": 7,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "Ozsvg",
+                                  "name": "实时状态",
+                                  "fill": "#F06B68",
+                                  "width": 6,
+                                  "height": 6
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "vHxgW",
+                                  "name": "相机标签",
+                                  "fill": "#E8EDF2",
+                                  "content": "后门入口",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "medium"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "rhBle",
+                                  "name": "流状态",
+                                  "fill": "#F06B68",
+                                  "content": "离线",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "semibold"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "yyM4n",
+                              "name": "视频画面区",
+                              "width": "fill_container",
+                              "height": 167,
+                              "fill": "#171C21",
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "glyUM",
+                                  "name": "断流提示",
+                                  "fill": "#68737E",
+                                  "content": "NO SIGNAL",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "WEDJW",
+                              "name": "画面底栏",
+                              "width": "fill_container",
+                              "height": 24,
+                              "fill": "#111820",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                9
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "vqqAq",
+                                  "name": "码流信息",
+                                  "fill": "#8996A3",
+                                  "content": "主码流  ·  1920×1080",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "PIVfc",
+                                  "name": "帧率",
+                                  "fill": "#8996A3",
+                                  "content": "—",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "BtjVx",
+                  "name": "底部状态栏",
+                  "width": "fill_container",
+                  "height": 24,
+                  "fill": "#202328",
+                  "gap": 22,
+                  "padding": [
+                    0,
+                    8
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "E3uPi",
+                      "name": "拖拽提示",
+                      "fill": "#8996A3",
+                      "content": "拖拽设备至画面即可切换",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HB6Sk",
+                      "name": "布局状态",
+                      "fill": "#A5B0BB",
+                      "content": "布局：9 分屏",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SA7La",
+                      "name": "录像状态",
+                      "fill": "#35C88A",
+                      "content": "⏺  2 路录像中",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fileToken": "0c958176-4374-4233-89e5-2a1186bb7fdb"
+}
