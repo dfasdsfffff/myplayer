@@ -44,6 +44,9 @@ struct SessionState {
     IoControl io;
     std::atomic<int> readResult{0};
     std::atomic<PlaybackError> readError{PlaybackError::None};
+    // Decoder workers publish a negative FFmpeg error here. The reader thread
+    // consumes it and turns it into the single PlaybackStatus failure path.
+    std::atomic<int> decoderError{0};
     bool unlimitedBuffer{false};
 };
 

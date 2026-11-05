@@ -23,6 +23,21 @@ static inline int cmp_audio_fmts(enum AVSampleFormat fmt1, int64_t channel_count
         return channel_count1 != channel_count2 || fmt1 != fmt2;
 }
 
+void ReportDecoderFailure(VideoState* state, PacketQueue& queue, int error)
+{
+    // Queue aborts and session shutdown are expected cancellation paths. They
+    // must never become a DecoderFailure status.
+    if (!state || error >= 0 || state->session.abort_request.load(std::memory_order_acquire) || queue.isAborted())
+        return;
+
+    int expected = 0;
+    if (state->session.decoderError.compare_exchange_strong(
+            expected, error, std::memory_order_release, std::memory_order_relaxed) &&
+        state->session.continue_read_thread) {
+        SDL_CondSignal(state->session.continue_read_thread);
+    }
+}
+
 } // namespace
 
 int DecoderWorkers::QueuePicture(VideoState* state, AVFrame* sourceFrame, double pts, double duration, int64_t pos, int serial)
@@ -51,7 +66,7 @@ int DecoderWorkers::GetVideoFrame(VideoState* state, AVFrame* frame)
     int got_picture;
 
     if ((got_picture = state->video.vid_decoder.decode_frame(frame, NULL)) < 0)
-        return -1;
+        return got_picture;
 
     if (got_picture) {
         double dpts = NAN;
@@ -91,12 +106,16 @@ int DecoderWorkers::Audio(void* opaque)
     int ret = 0;
     int last_serial = -1;
 
-    if (!frame)
+    if (!frame) {
+        ReportDecoderFailure(state, state->audio.audioq, AVERROR(ENOMEM));
         return AVERROR(ENOMEM);
+    }
 
     do {
-        if ((got_frame = state->audio.aud_decoder.decode_frame(frame, NULL)) < 0)
+        if ((got_frame = state->audio.aud_decoder.decode_frame(frame, NULL)) < 0) {
+            ret = got_frame;
             goto the_end;
+        }
 
         if (got_frame) {
             tb = AVRational{ 1, frame->sample_rate };
@@ -173,6 +192,7 @@ int DecoderWorkers::Audio(void* opaque)
     } while (ret >= 0 || ret == AVERROR(EAGAIN) || ret == AVERROR_EOF);
 the_end:
 
+    ReportDecoderFailure(state, state->audio.audioq, ret);
     av_frame_free(&frame);
     return ret;
 }
@@ -195,6 +215,7 @@ int DecoderWorkers::Video(void* opaque)
     int last_vfilter_idx = 0;
     if (!frame)
     {
+        ReportDecoderFailure(state, state->video.videoq, AVERROR(ENOMEM));
         return AVERROR(ENOMEM);
     }
 
@@ -229,7 +250,6 @@ int DecoderWorkers::Video(void* opaque)
             std::string mvfilters = std::format("setpts={:.2f}*PTS", 1 / currentSpeed);
             if ((ret = ConfigureVideoFilters(graph, state, mvfilters.c_str(), frame, true)) < 0)
             {
-                state->session.stop_refresh_loop.store(true, std::memory_order_release);
                 goto the_end;
             }
             filt_in = state->filters.in_video_filter;
@@ -257,6 +277,8 @@ int DecoderWorkers::Video(void* opaque)
             {
                 if (ret == AVERROR_EOF)
                     state->video.vid_decoder.finished = state->video.vid_decoder.pkt_serial;
+                else if (ret != AVERROR(EAGAIN))
+                    goto the_end;
                 ret = 0;
                 break;
             }
@@ -287,9 +309,10 @@ int DecoderWorkers::Video(void* opaque)
     }
 the_end:
 
+    ReportDecoderFailure(state, state->video.videoq, ret);
     av_frame_free(&frame);
     avfilter_graph_free(&graph);
-    return 0;
+    return ret;
 }
 
 int DecoderWorkers::Subtitle(void* opaque)
@@ -298,14 +321,17 @@ int DecoderWorkers::Subtitle(void* opaque)
     Frame* sp;
     int got_subtitle;
     double pts;
+    int ret = 0;
 
     for (;;) {
         if (!(sp = state->subtitle.subpq.peek_writable()))
             return 0;
 
         AVSubtitle subtitle{};
-        if ((got_subtitle = state->subtitle.sub_decoder.decode_frame(NULL, &subtitle)) < 0)
+        if ((got_subtitle = state->subtitle.sub_decoder.decode_frame(NULL, &subtitle)) < 0) {
+            ret = got_subtitle;
             break;
+        }
 
         pts = 0;
 
@@ -324,5 +350,6 @@ int DecoderWorkers::Subtitle(void* opaque)
             avsubtitle_free(&subtitle);
         }
     }
-    return 0;
+    ReportDecoderFailure(state, state->subtitle.subtitleq, ret);
+    return ret;
 }

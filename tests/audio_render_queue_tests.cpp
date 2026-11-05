@@ -115,6 +115,22 @@ int main()
     if (!Expect(tail.drained(), "output tail eventually drains without another audio callback"))
         return 1;
 
+    const auto oldGeneration = tail.generation();
+    tail.flush(true);
+    if (!Expect(tail.write(lastSamples.data(), lastSamples.size(), oldGeneration) == 0,
+            "seek rejects PCM prepared before the flush") ||
+        !Expect(tail.write(lastSamples.data(), lastSamples.size()) == 0,
+            "seek suspends PCM publication until packet serials are updated"))
+        return 1;
+    const auto seekingGeneration = tail.generation();
+    tail.flush();
+    if (!Expect(tail.write(lastSamples.data(), lastSamples.size(), seekingGeneration) == 0,
+            "seek completion invalidates work prepared during seek") ||
+        !Expect(tail.pendingBytes() == 0, "stale PCM cannot refill the cleared ring") ||
+        !Expect(tail.write(lastSamples.data(), lastSamples.size()) == lastSamples.size(),
+            "new-generation PCM resumes after seek completion"))
+        return 1;
+
     av_channel_layout_uninit(&target.ch_layout);
     return 0;
 }

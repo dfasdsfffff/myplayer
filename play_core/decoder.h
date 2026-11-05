@@ -31,6 +31,7 @@ public:
 	int init(AVCodecContext* avctx, PacketQueue* queue, SDL_cond* empty_queue_cond,
          std::unique_ptr<HardwareDecodeContext> hardwareDecode = {});
 	int decode_frame(AVFrame* frame, AVSubtitle* sub);
+	static bool is_recoverable_error(int error) noexcept;
 	void destroy();
 	void abort(FrameQueue* fq);
 

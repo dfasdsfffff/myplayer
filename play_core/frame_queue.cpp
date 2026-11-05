@@ -111,17 +111,26 @@ void FrameQueue::unlock()
 
 Frame* FrameQueue::peek()
 {
-	return &queue[(rindex + rindex_shown) % max_size];
+	SDL_LockMutex(mutex);
+	Frame* result = &queue[(rindex + rindex_shown) % max_size];
+	SDL_UnlockMutex(mutex);
+	return result;
 }
 
 Frame* FrameQueue::peek_next()
 {
-	return &queue[(rindex + rindex_shown + 1) % max_size];
+	SDL_LockMutex(mutex);
+	Frame* result = &queue[(rindex + rindex_shown + 1) % max_size];
+	SDL_UnlockMutex(mutex);
+	return result;
 }
 
 Frame* FrameQueue::peek_last()
 {
-	return &queue[rindex];
+	SDL_LockMutex(mutex);
+	Frame* result = &queue[rindex];
+	SDL_UnlockMutex(mutex);
+	return result;
 }
 
 Frame* FrameQueue::peek_writable()
@@ -132,12 +141,10 @@ Frame* FrameQueue::peek_writable()
 		!pktq->isAborted()) {
 		SDL_CondWait(cond, mutex);
 	}
+	const bool aborted = pktq->isAborted();
+	Frame* result = aborted ? nullptr : &queue[windex];
 	SDL_UnlockMutex(mutex);
-
-	if (pktq->isAborted())
-		return nullptr;
-
-	return &queue[windex];
+	return result;
 }
 
 Frame* FrameQueue::peek_readable()
@@ -148,12 +155,10 @@ Frame* FrameQueue::peek_readable()
 		!pktq->isAborted()) {
 		SDL_CondWait(cond, mutex);
 	}
+	const bool aborted = pktq->isAborted();
+	Frame* result = aborted ? nullptr : &queue[(rindex + rindex_shown) % max_size];
 	SDL_UnlockMutex(mutex);
-
-	if (pktq->isAborted())
-		return nullptr;
-
-	return &queue[(rindex + rindex_shown) % max_size];
+	return result;
 }
 
 int FrameQueue::wait_readable_for(Uint32 timeout_ms)
@@ -171,9 +176,9 @@ int FrameQueue::wait_readable_for(Uint32 timeout_ms)
 
 void FrameQueue::push()
 {
+	SDL_LockMutex(mutex);
 	if (++windex == max_size)
 		windex = 0;
-	SDL_LockMutex(mutex);
 	size++;
 	SDL_CondSignal(cond);
 	SDL_UnlockMutex(mutex);
@@ -181,14 +186,15 @@ void FrameQueue::push()
 
 void FrameQueue::next()
 {
+	SDL_LockMutex(mutex);
 	if (keep_last && !rindex_shown) {
 		rindex_shown = 1;
+		SDL_UnlockMutex(mutex);
 		return;
 	}
 	unref_item(&queue[rindex]);
 	if (++rindex == max_size)
 		rindex = 0;
-	SDL_LockMutex(mutex);
 	size--;
 	SDL_CondSignal(cond);
 	SDL_UnlockMutex(mutex);
@@ -197,15 +203,22 @@ void FrameQueue::next()
 /* return the number of undisplayed frames in the queue */
 int FrameQueue::nb_remaining()
 {
-	return size - rindex_shown;
+	if (!mutex)
+		return 0;
+	SDL_LockMutex(mutex);
+	const int remaining = size - rindex_shown;
+	SDL_UnlockMutex(mutex);
+	return remaining;
 }
 
 /* return last shown position */
 int64_t FrameQueue::last_pos()
 {
-	Frame* fp = &queue[rindex];
-	if (rindex_shown && fp->serial == pktq->serial())
-		return fp->pos;
-	else
+	if (!mutex)
 		return -1;
+	SDL_LockMutex(mutex);
+	Frame* fp = &queue[rindex];
+	const int64_t pos = rindex_shown && fp->serial == pktq->serial() ? fp->pos : -1;
+	SDL_UnlockMutex(mutex);
+	return pos;
 }

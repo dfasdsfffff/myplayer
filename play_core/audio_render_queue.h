@@ -25,11 +25,13 @@ public:
     bool start(VideoState* state, const AudioParams& target);
     void stop();
     size_t read(uint8_t* destination, size_t bytes, std::chrono::microseconds outputLatency = {}) noexcept;
-    void flush();
+    void flush(bool suspendProducer = false);
+    [[nodiscard]] uint64_t generation() const noexcept;
     [[nodiscard]] uint64_t underruns() const noexcept;
     [[nodiscard]] bool drained() const noexcept;
 
     size_t write(const uint8_t* source, size_t bytes);
+    size_t write(const uint8_t* source, size_t bytes, uint64_t generation);
     [[nodiscard]] size_t capacityBytes() const noexcept;
     [[nodiscard]] size_t pendingBytes() const noexcept;
     [[nodiscard]] double producerClock() const noexcept;
@@ -46,6 +48,8 @@ private:
     std::atomic_size_t m_readPosition{0};
     std::atomic_size_t m_writePosition{0};
     std::atomic_bool m_stopping{false};
+    std::atomic_uint64_t m_generation{0};
+    std::atomic_bool m_suspended{false};
     std::atomic_uint64_t m_underruns{0};
     std::atomic<double> m_producerClock{NAN};
     std::atomic_int m_producerClockSerial{0};

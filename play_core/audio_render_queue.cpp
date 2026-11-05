@@ -40,6 +40,8 @@ bool AudioRenderQueue::start(VideoState* state, const AudioParams& target)
     m_producing.store(false, std::memory_order_release);
     m_consuming.store(false, std::memory_order_release);
     m_outputDeadlineUs.store(0, std::memory_order_release);
+    m_suspended.store(false, std::memory_order_release);
+    m_generation.fetch_add(1, std::memory_order_acq_rel);
     m_stopping.store(false, std::memory_order_release);
     if (state)
         m_producer = std::thread(&AudioRenderQueue::produce, this, state);
@@ -68,16 +70,28 @@ size_t AudioRenderQueue::availableToWrite() const noexcept
 
 size_t AudioRenderQueue::write(const uint8_t* source, size_t bytes)
 {
+    return write(source, bytes, generation());
+}
+
+uint64_t AudioRenderQueue::generation() const noexcept
+{
+    return m_generation.load(std::memory_order_acquire);
+}
+
+size_t AudioRenderQueue::write(const uint8_t* source, size_t bytes, uint64_t expectedGeneration)
+{
     if (!source || !bytes || !m_capacity)
         return 0;
 
     size_t written = 0;
     std::unique_lock<std::mutex> lock(m_writeMutex);
     while (written < bytes && !m_stopping.load(std::memory_order_acquire)) {
-        m_spaceAvailable.wait(lock, [this] {
-            return m_stopping.load(std::memory_order_acquire) || availableToWrite() > 0;
+        m_spaceAvailable.wait(lock, [this, expectedGeneration] {
+            return m_stopping.load(std::memory_order_acquire) || generation() != expectedGeneration ||
+                m_suspended.load(std::memory_order_acquire) || availableToWrite() > 0;
         });
-        if (m_stopping.load(std::memory_order_acquire))
+        if (m_stopping.load(std::memory_order_acquire) || generation() != expectedGeneration ||
+            m_suspended.load(std::memory_order_acquire))
             break;
 
         const size_t write = m_writePosition.load(std::memory_order_relaxed);
@@ -119,9 +133,11 @@ size_t AudioRenderQueue::read(uint8_t* destination, size_t bytes, std::chrono::m
     return readable;
 }
 
-void AudioRenderQueue::flush()
+void AudioRenderQueue::flush(bool suspendProducer)
 {
     std::lock_guard<std::mutex> lock(m_writeMutex);
+    m_generation.fetch_add(1, std::memory_order_acq_rel);
+    m_suspended.store(suspendProducer, std::memory_order_release);
     m_readPosition.store(m_writePosition.load(std::memory_order_acquire), std::memory_order_release);
     m_producerClock.store(NAN, std::memory_order_release);
     m_outputDeadlineUs.store(0, std::memory_order_release);
@@ -178,11 +194,18 @@ void AudioRenderQueue::produce(VideoState* state)
            !state->session.abort_request.load(std::memory_order_acquire)) {
         if (!state->audio.sampq.wait_readable_for(100))
             continue;
+        if (m_suspended.load(std::memory_order_acquire)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            continue;
+        }
+        const auto preparedGeneration = generation();
         m_producing.store(true, std::memory_order_release);
         const int preparedBytes = AudioOutput::DecodeFrame(state);
         if (preparedBytes > 0 && state->audio.audio_buf) {
-            write(state->audio.audio_buf, static_cast<size_t>(preparedBytes));
-            setProducerClock(state->audio.audio_clock, state->audio.audio_clock_serial);
+            write(state->audio.audio_buf, static_cast<size_t>(preparedBytes), preparedGeneration);
+            std::lock_guard<std::mutex> lock(m_writeMutex);
+            if (generation() == preparedGeneration && !m_suspended.load(std::memory_order_acquire))
+                setProducerClock(state->audio.audio_clock, state->audio.audio_clock_serial);
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }

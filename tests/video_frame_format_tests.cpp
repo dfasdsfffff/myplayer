@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <memory>
+#include <limits>
 
 namespace {
 bool Expect(bool condition, const char* message) { if (!condition) std::cerr << "FAILED: " << message << '\n'; return condition; }
@@ -38,5 +39,13 @@ int main()
     const auto oddFrame = converter.convert(source.get());
     if (!Expect(oddFrame && oddFrame->format == VideoFrameFormat::Bgra32 && !oddFrame->bgra.empty(),
             "odd-sized YUV falls back to compatible BGRA")) return 1;
+    av_frame_unref(source.get());
+    source->format = AV_PIX_FMT_BGRA;
+    source->width = (std::numeric_limits<int>::max)() / 4 + 1;
+    source->height = 2;
+    if (!Expect(!converter.convert(source.get()), "overflowing BGRA stride is rejected before allocation")) return 1;
+    source->width = 1 << 20;
+    source->height = 1 << 20;
+    if (!Expect(!converter.convert(source.get()), "unaddressable image size is rejected before allocation")) return 1;
     return 0;
 }

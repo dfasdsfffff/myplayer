@@ -1,3 +1,10 @@
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <winsock2.h>
+#endif
+
 #include "network_input.h"
 
 #include <algorithm>
@@ -289,6 +296,14 @@ PlaybackError MapAvError(int avError, bool realtime)
     if (avError == AVERROR(ECONNRESET) || avError == AVERROR(ECONNREFUSED) || avError == AVERROR(EHOSTUNREACH)
         || avError == AVERROR(ENETUNREACH))
         return PlaybackError::NetworkUnavailable;
+#if defined(_WIN32)
+    // Some Windows FFmpeg builds expose Winsock codes rather than errno codes.
+    if (avError == AVERROR(WSAETIMEDOUT))
+        return PlaybackError::Timeout;
+    if (avError == AVERROR(WSAECONNRESET) || avError == AVERROR(WSAECONNREFUSED) ||
+        avError == AVERROR(WSAEHOSTUNREACH) || avError == AVERROR(WSAENETUNREACH))
+        return PlaybackError::NetworkUnavailable;
+#endif
     return PlaybackError::Unknown;
 }
 

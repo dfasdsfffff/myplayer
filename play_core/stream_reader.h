@@ -16,6 +16,7 @@ struct StreamReaderCallbacks {
     std::function<void(const MediaInfo&)> publishMediaInfo;
     std::function<void()> stopRefreshLoop;
     std::function<void()> handleEndOfMedia;
+    std::function<void(VideoState*)> completeAudioSeek;
 };
 
 class StreamReader final {

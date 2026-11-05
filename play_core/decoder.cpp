@@ -39,8 +39,19 @@ Decoder::~Decoder()
     destroy();
 }
 
+bool Decoder::is_recoverable_error(int error) noexcept
+{
+    return error == AVERROR_INVALIDDATA;
+}
+
 int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
 {
+    if (!queue || !avctx || !pkt)
+        return AVERROR(EINVAL);
+    if (queue->isAborted())
+        return -1;
+    if (!avcodec_is_open(avctx))
+        return AVERROR(EINVAL);
     int ret = AVERROR(EAGAIN);
 
     for (;;) {
@@ -49,6 +60,7 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
                 if (queue->isAborted())
                     return -1;
 
+                ret = AVERROR(EAGAIN);
                 switch (avctx->codec_type) {
                 case AVMEDIA_TYPE_VIDEO:
                     ret = avcodec_receive_frame(avctx, frame);
@@ -90,8 +102,15 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
                     avcodec_flush_buffers(avctx);
                     return 0;
                 }
-                if (ret >= 0)
+                if (ret >= 0) {
                     return 1;
+                }
+                if (is_recoverable_error(ret)) {
+                    ret = AVERROR(EAGAIN);
+                }
+                else if (ret != AVERROR(EAGAIN)) {
+                    return ret;
+                }
             } while (ret != AVERROR(EAGAIN));
         }
 
@@ -121,15 +140,28 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
             int got_frame = 0;
             ret = avcodec_decode_subtitle2(avctx, sub, &got_frame, pkt);
             if (ret < 0) {
-                ret = AVERROR(EAGAIN);
-            }
-            else {
-                if (got_frame && !pkt->data) {
-                    packet_pending = 1;
+                av_packet_unref(pkt);
+                if (ret == AVERROR_EOF) {
+                    finished = pkt_serial;
+                    return 0;
                 }
-                ret = got_frame ? 0 : (pkt->data ? AVERROR(EAGAIN) : AVERROR_EOF);
+                if (is_recoverable_error(ret)) {
+                    continue;
+                }
+                if (ret == AVERROR(EAGAIN))
+                    continue;
+                return ret;
             }
+            if (got_frame && !pkt->data)
+                packet_pending = 1;
+            ret = got_frame ? 0 : (pkt->data ? AVERROR(EAGAIN) : AVERROR_EOF);
             av_packet_unref(pkt);
+            if (got_frame)
+                return 1;
+            if (ret == AVERROR_EOF) {
+                finished = pkt_serial;
+                return 0;
+            }
         }
         else {
             if (pkt->buf && !pkt->opaque_ref) {
@@ -139,12 +171,22 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
                 reinterpret_cast<FrameData*>(pkt->opaque_ref->data)->pkt_pos = pkt->pos;
             }
 
-            if (avcodec_send_packet(avctx, pkt) == AVERROR(EAGAIN)) {
+            const int sendResult = avcodec_send_packet(avctx, pkt);
+            if (sendResult == AVERROR(EAGAIN)) {
                 av_log(avctx, AV_LOG_ERROR, "Receive_frame and send_packet both returned EAGAIN, which is an API violation.\n");
                 packet_pending = 1;
             }
             else {
                 av_packet_unref(pkt);
+                if (sendResult == AVERROR_EOF) {
+                    finished = pkt_serial;
+                    return 0;
+                }
+                if (is_recoverable_error(sendResult)) {
+                    continue;
+                }
+                if (sendResult < 0)
+                    return sendResult;
             }
         }
     }

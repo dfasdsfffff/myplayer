@@ -187,7 +187,7 @@ void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 
 	std::lock_guard<std::mutex> seekLock(m_CurStream->session.seek_mutex);
 	if (!m_CurStream->session.seek_req) {
-		m_audioOutput.Flush();
+		m_audioOutput.Flush(true);
 		m_CurStream->session.seek_pos = pos;
 		m_CurStream->session.seek_rel = rel;
 		m_CurStream->session.seek_flags &= ~AVSEEK_FLAG_BYTE;
@@ -1179,6 +1179,9 @@ VideoCtl::VideoCtl() :
 			else {
 				SigStop();
 			}
+		},
+		[this](VideoState*) {
+			m_audioOutput.Flush();
 		},
 	})
 {

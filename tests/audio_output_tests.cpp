@@ -9,6 +9,9 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <future>
+#include <chrono>
+#include <thread>
 
 namespace {
 
@@ -39,6 +42,21 @@ std::unique_ptr<VideoState> MakeState()
 
 int main()
 {
+    {
+        auto state = MakeState();
+        std::promise<int> result;
+        auto completed = result.get_future();
+        std::unique_lock<std::shared_mutex> trackLock(state->session.trackMutex);
+        std::thread producer([&] {
+            result.set_value(AudioOutput::SynchronizeSamples(state.get(), 1000));
+        });
+        const bool nonblocking = completed.wait_for(std::chrono::seconds(1)) == std::future_status::ready;
+        trackLock.unlock();
+        producer.join();
+        if (!Expect(nonblocking, "audio producer must not wait for the track-switch lock") ||
+            !Expect(completed.get() == 1000, "track transition skips sample correction"))
+            return 1;
+    }
     {
         auto state = MakeState();
         state->clocks.av_sync_type = AV_SYNC_AUDIO_MASTER;

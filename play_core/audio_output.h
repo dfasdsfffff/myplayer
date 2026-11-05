@@ -18,7 +18,7 @@ public:
         AudioParams* hardwareParams);
     void Pause(bool paused);
     void Close();
-    void Flush();
+    void Flush(bool suspendProducer = false);
     [[nodiscard]] SDL_AudioDeviceID DeviceId() const noexcept;
 
     static int SynchronizeSamples(VideoState* state, int sampleCount);

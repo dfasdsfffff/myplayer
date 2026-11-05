@@ -4,6 +4,7 @@
 
 #include "video_state.h"
 
+#include <cerrno>
 #include <iostream>
 #include <memory>
 #include <type_traits>
@@ -46,6 +47,12 @@ int main()
     static_assert(std::is_same_v<decltype(&DecoderWorkers::Audio), int (*)(void*)>);
     static_assert(std::is_same_v<decltype(&DecoderWorkers::Video), int (*)(void*)>);
     static_assert(std::is_same_v<decltype(&DecoderWorkers::Subtitle), int (*)(void*)>);
+    if (!Expect(Decoder::is_recoverable_error(AVERROR_INVALIDDATA),
+            "invalid packet errors are recoverable at the decoder boundary"))
+        return 1;
+    if (!Expect(!Decoder::is_recoverable_error(AVERROR(EINVAL)),
+            "non-invalid-data decoder errors remain fatal"))
+        return 1;
 
     {
         auto state = std::make_unique<VideoState>();
@@ -79,6 +86,64 @@ int main()
             return 1;
         if (!Expect(DecoderWorkers::GetVideoFrame(state.get(), frame.get()) == -1,
                 "aborted empty video decoder queue returns existing error result"))
+            return 1;
+        if (!Expect(state->session.decoderError.load(std::memory_order_acquire) == 0,
+                "decoder cancellation must not publish a failure"))
+            return 1;
+    }
+
+    {
+        auto state = std::make_unique<VideoState>();
+        if (!Expect(state->audio.audioq.init() == 0, "audio packet queue should initialize"))
+            return 1;
+        state->audio.audioq.start();
+        std::unique_ptr<SDL_cond, SdlCondDeleter> emptyQueue(SDL_CreateCond());
+        if (!Expect(emptyQueue != nullptr, "audio decoder condition should initialize"))
+            return 1;
+        std::unique_ptr<AVCodecContext, AvCodecContextDeleter> context(avcodec_alloc_context3(nullptr));
+        if (!Expect(context != nullptr, "audio codec context should allocate"))
+            return 1;
+        context->codec_type = AVMEDIA_TYPE_AUDIO;
+        if (!Expect(state->audio.aud_decoder.init(context.release(), &state->audio.audioq, emptyQueue.get()) == 0,
+                "audio decoder should initialize"))
+            return 1;
+
+        AVPacket packet{};
+        if (!Expect(av_new_packet(&packet, 1) == 0, "invalid audio packet should allocate"))
+            return 1;
+        packet.data[0] = 0;
+        if (!Expect(state->audio.audioq.put(&packet) == 0, "audio queue should accept invalid packet"))
+            return 1;
+
+        const int result = DecoderWorkers::Audio(state.get());
+        if (!Expect(result < 0, "fatal decoder error should propagate from audio worker"))
+            return 1;
+        if (!Expect(state->session.decoderError.load(std::memory_order_acquire) < 0,
+                "fatal decoder error should publish its negative error code"))
+            return 1;
+    }
+
+    {
+        auto state = std::make_unique<VideoState>();
+        if (!Expect(state->audio.audioq.init() == 0, "cancelled audio queue should initialize"))
+            return 1;
+        std::unique_ptr<SDL_cond, SdlCondDeleter> emptyQueue(SDL_CreateCond());
+        if (!Expect(emptyQueue != nullptr, "cancelled decoder condition should initialize"))
+            return 1;
+        std::unique_ptr<AVCodecContext, AvCodecContextDeleter> context(avcodec_alloc_context3(nullptr));
+        if (!Expect(context != nullptr, "cancelled codec context should allocate"))
+            return 1;
+        context->codec_type = AVMEDIA_TYPE_AUDIO;
+        if (!Expect(state->audio.aud_decoder.init(context.release(), &state->audio.audioq, emptyQueue.get()) == 0,
+                "cancelled audio decoder should initialize"))
+            return 1;
+        state->audio.audioq.abort();
+
+        const int result = DecoderWorkers::Audio(state.get());
+        if (!Expect(result < 0, "cancelled audio worker should stop with existing error result"))
+            return 1;
+        if (!Expect(state->session.decoderError.load(std::memory_order_acquire) == 0,
+                "cancelled audio worker must not publish decoder failure"))
             return 1;
     }
 

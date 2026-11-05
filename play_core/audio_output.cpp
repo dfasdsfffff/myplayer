@@ -127,12 +127,12 @@ void AudioOutput::Close()
     m_state = nullptr;
 }
 
-void AudioOutput::Flush()
+void AudioOutput::Flush(bool suspendProducer)
 {
     if (m_state && m_state->audio.renderQueue) {
         if (m_device)
             SDL_LockAudioDevice(m_device);
-        m_state->audio.renderQueue->flush();
+        m_state->audio.renderQueue->flush(suspendProducer);
         {
             std::lock_guard<std::mutex> soundTouchLock(m_state->audio.soundTouchMutex);
             soundtouch_clear_samples(m_state->audio.soundTouchHandle);
@@ -151,11 +151,20 @@ int AudioOutput::SynchronizeSamples(VideoState* state, int sampleCount)
 {
     int wantedSampleCount = sampleCount;
 
-    if (MediaSync::get_master_sync_type(state) != AV_SYNC_AUDIO_MASTER) {
+    // A track switch may hold this lock while joining the audio producer.
+    std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex, std::try_to_lock);
+    if (!trackLock.owns_lock())
+        return sampleCount;
+    const int syncType = state->clocks.av_sync_type;
+    const bool audioMaster = syncType == AV_SYNC_AUDIO_MASTER ||
+        (syncType == AV_SYNC_VIDEO_MASTER && !state->video.video_st);
+    if (!audioMaster) {
         double diff, averageDiff;
         int minSampleCount, maxSampleCount;
 
-        diff = state->clocks.audclk.get() - MediaSync::get_master_clock(state);
+        const double masterClock = syncType == AV_SYNC_VIDEO_MASTER
+            ? state->clocks.vidclk.get() : state->clocks.extclk.get();
+        diff = state->clocks.audclk.get() - masterClock;
 
         if (!std::isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD) {
             state->audio.audio_diff_cum = diff + state->audio.audio_diff_avg_coef * state->audio.audio_diff_cum;
@@ -185,6 +194,7 @@ int AudioOutput::SynchronizeSamples(VideoState* state, int sampleCount)
 
 int AudioOutput::DecodeFrame(VideoState* state)
 {
+    const auto generation = state->audio.renderQueue ? state->audio.renderQueue->generation() : 0;
     int dataSize, resampledDataSize;
     av_unused double audioClock0;
     int wantedSampleCount;
@@ -280,6 +290,8 @@ reload:
             int translatedLength;
             {
                 std::lock_guard<std::mutex> soundTouchLock(state->audio.soundTouchMutex);
+                if (state->audio.renderQueue && state->audio.renderQueue->generation() != generation)
+                    return -1;
                 translatedLength = soundtouch_translate(state->audio.soundTouchHandle,
                     reinterpret_cast<short*>(state->audio.audio_buf1),
                     static_cast<float>(playbackRate),

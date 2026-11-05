@@ -2,6 +2,7 @@
 
 #include "media_session.h"
 #include "enums.h"
+#include "frame_queue.h"
 #include "media_source.h"
 #include "media_sync.h"
 #include "playback_controller.h"
@@ -20,6 +21,7 @@
 #include <iterator>
 #include <memory>
 #include <type_traits>
+#include <thread>
 
 namespace {
 
@@ -118,12 +120,76 @@ int main()
     std::atomic<int> queueSerial{1};
     Clock queueClock;
     queueClock.init(&queueSerial);
+    queueClock.setPaused(true);
     queueClock.set(12.5, 1);
     if (!Expect(queueClock.get() == 12.5, "clock should remain valid for the current queue generation"))
         return 1;
     queueSerial.fetch_add(1, std::memory_order_release);
     if (!Expect(std::isnan(queueClock.get()), "clock should become obsolete after the queue generation changes"))
         return 1;
+
+    {
+        PacketQueue packetQueue;
+        FrameQueue frameQueue;
+        if (!Expect(packetQueue.init() == 0, "frame queue test packet queue should initialize"))
+            return 1;
+        packetQueue.start();
+        if (!Expect(frameQueue.init(&packetQueue, 2, 1) == 0, "frame queue should initialize"))
+            return 1;
+
+        constexpr int frameCount = 2048;
+        std::atomic_bool invalidObservation{false};
+        std::atomic_bool consumerDone{false};
+
+        std::thread producer([&] {
+            for (int position = 0; position < frameCount; ++position) {
+                Frame* frame = frameQueue.peek_writable();
+                if (!frame) {
+                    invalidObservation.store(true, std::memory_order_release);
+                    packetQueue.abort();
+                    frameQueue.signal();
+                    return;
+                }
+                frame->serial = packetQueue.serial();
+                frame->pos = position;
+                frameQueue.push();
+            }
+        });
+        std::thread consumer([&] {
+            for (int position = 0; position < frameCount; ++position) {
+                Frame* frame = frameQueue.peek_readable();
+                if (!frame || frame->serial != packetQueue.serial() || frame->pos != position) {
+                    invalidObservation.store(true, std::memory_order_release);
+                    packetQueue.abort();
+                    frameQueue.signal();
+                    consumerDone.store(true, std::memory_order_release);
+                    return;
+                }
+                frameQueue.next();
+            }
+            consumerDone.store(true, std::memory_order_release);
+        });
+        std::thread observer([&] {
+            while (!consumerDone.load(std::memory_order_acquire)) {
+                const FrameQueueSnapshot snapshot = frameQueue.snapshot();
+                if (snapshot.remaining < 0 || snapshot.remaining > 2 || snapshot.serial != packetQueue.serial() || snapshot.aborted)
+                    invalidObservation.store(true, std::memory_order_release);
+            }
+        });
+
+        producer.join();
+        consumer.join();
+        consumerDone.store(true, std::memory_order_release);
+        observer.join();
+
+        const FrameQueueSnapshot finalSnapshot = frameQueue.snapshot();
+        if (!Expect(!invalidObservation.load(std::memory_order_acquire),
+                    "frame queue metadata should stay coherent while producer, consumer, and snapshot run concurrently") ||
+            !Expect(finalSnapshot.remaining == 0, "frame queue should have no undisplayed frames after consumption") ||
+            !Expect(finalSnapshot.serial == packetQueue.serial() && !finalSnapshot.aborted,
+                    "frame queue snapshot should retain packet generation and running state"))
+            return 1;
+    }
 
     if (!Expect(PlaybackSettings::NormalizeVolume(-0.5) == 0.0, "negative volume should clamp to zero"))
         return 1;

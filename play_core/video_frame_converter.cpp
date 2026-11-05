@@ -1,5 +1,7 @@
 #include "video_frame_converter.h"
 
+#include <limits>
+
 VideoFrameConverter::VideoFrameConverter()
 {
 	for (auto& frame : m_frames)
@@ -13,11 +15,12 @@ VideoFrameConverter::~VideoFrameConverter()
 
 std::shared_ptr<VideoFrame> VideoFrameConverter::convert(const AVFrame* source)
 {
-	if (!source || source->width <= 0 || source->height <= 0 || source->format < 0)
+	if (!source || source->width <= 0 || source->height <= 0 || source->format < 0 ||
+		source->width > (std::numeric_limits<int>::max)() / 4 ||
+		av_image_check_size(source->width, source->height, 0, nullptr) < 0)
 		return nullptr;
 
 	auto frame = acquireFrame();
-	frame->bgra.clear();
 	frame->planes = {};
 	frame->width = source->width;
 	frame->height = source->height;
@@ -32,6 +35,7 @@ std::shared_ptr<VideoFrame> VideoFrameConverter::convert(const AVFrame* source)
 	if (const AVFrameSideData* displayMatrix = av_frame_get_side_data(source, AV_FRAME_DATA_DISPLAYMATRIX))
 		frame->rotationDegrees = -av_display_rotation_get(reinterpret_cast<const int32_t*>(displayMatrix->data));
 	if (source->format == AV_PIX_FMT_YUV420P && source->width % 2 == 0 && source->height % 2 == 0) {
+		frame->bgra.clear();
 		AVFrame* retained = av_frame_alloc();
 		if (!retained || av_frame_ref(retained, source) < 0) {
 			av_frame_free(&retained);

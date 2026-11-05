@@ -253,6 +253,7 @@ void StreamReader::Run(VideoState* state)
         if (state->video.video_stream < 0 && state->audio.audio_stream < 0) {
             av_log(nullptr, AV_LOG_FATAL, "Failed to open file '%s' or configure filtergraph\n",
                 RedactMediaLocation(state->session.filename ? state->session.filename : "").c_str());
+            state->session.readError.store(PlaybackError::DecoderFailure, std::memory_order_release);
             ret = -1;
             goto fail;
         }
@@ -264,6 +265,11 @@ void StreamReader::Run(VideoState* state)
     for (;;) {
         if (state->session.abort_request.load(std::memory_order_acquire))
             break;
+        if (const int decoderError = state->session.decoderError.load(std::memory_order_acquire); decoderError < 0) {
+            ret = decoderError;
+            state->session.readError.store(PlaybackError::DecoderFailure, std::memory_order_release);
+            goto fail;
+        }
         const auto paused = state->session.paused.load(std::memory_order_acquire);
         if (paused != state->session.last_paused) {
             state->session.last_paused = paused;
@@ -283,7 +289,6 @@ void StreamReader::Run(VideoState* state)
                 seekTarget = state->session.seek_pos;
                 seekRelative = state->session.seek_rel;
                 seekFlags = state->session.seek_flags;
-                state->session.seek_req = false;
                 hasSeekRequest = true;
             }
         }
@@ -307,6 +312,13 @@ void StreamReader::Run(VideoState* state)
                     state->clocks.extclk.set(NAN, 0);
                 else
                     state->clocks.extclk.set(seekTarget / static_cast<double>(AV_TIME_BASE), 0);
+            }
+            {
+                std::lock_guard<std::mutex> seekLock(state->session.seek_mutex);
+                std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
+                if (m_callbacks.completeAudioSeek)
+                    m_callbacks.completeAudioSeek(state);
+                state->session.seek_req = false;
             }
             state->session.queue_attachments_req = 1;
             state->session.eof = 0;

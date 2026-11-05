@@ -1,3 +1,10 @@
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <winsock2.h>
+#endif
+
 #include "network_input.h"
 
 #include <cerrno>
@@ -80,6 +87,14 @@ int main()
         return 1;
     if (!Expect(MapAvError(AVERROR_EOF, true) == PlaybackError::ConnectionLost, "realtime eof"))
         return 1;
+
+#if defined(_WIN32)
+    if (!Expect(MapAvError(AVERROR(WSAECONNRESET), false) == PlaybackError::NetworkUnavailable,
+            "Winsock reset remains a retryable network error") ||
+        !Expect(MapAvError(AVERROR(WSAETIMEDOUT), false) == PlaybackError::Timeout,
+            "Winsock timeout remains a timeout"))
+        return 1;
+#endif
 
     IoControl io;
     io.begin(IoOperation::Opening, 1ms);
