@@ -43,7 +43,7 @@ foreach(required_runtime_contract IN ITEMS
         "get_property(myplayer_build_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)"
         "if(test_target MATCHES \"_tests$\")"
         "myplayer_set_test_runtime_dir(\${test_target})"
-        "if(\"\${test_link_libraries}\" MATCHES \"Qt6::\")"
+        "if(\"\${test_link_libraries}\" MATCHES \"Qt6::|PlayerSDK::QtWidgets\")"
         "myplayer_deploy_runtime_dependencies(\${test_target})")
     string(FIND "${root_cmake}" "${required_runtime_contract}" runtime_contract_index)
     if(runtime_contract_index EQUAL -1)
@@ -51,8 +51,9 @@ foreach(required_runtime_contract IN ITEMS
     endif()
 endforeach()
 
-set(app_runtime_deploy_call_text [=[myplayer_deploy_runtime_dependencies(${PROJECT_NAME})]=])
-string(FIND "${root_cmake}" "${app_runtime_deploy_call_text}" app_runtime_deploy_call)
+file(READ "${SOURCE_DIR}/apps/qt_player/CMakeLists.txt" app_cmake)
+set(app_runtime_deploy_call_text [=[myplayer_deploy_runtime_dependencies(myplayer)]=])
+string(FIND "${app_cmake}" "${app_runtime_deploy_call_text}" app_runtime_deploy_call)
 if(app_runtime_deploy_call EQUAL -1)
     message(FATAL_ERROR "application target does not deploy its runtime dependencies")
 endif()

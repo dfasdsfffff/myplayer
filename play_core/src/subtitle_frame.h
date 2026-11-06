@@ -17,5 +17,8 @@ struct SubtitleFrame {
     double startSeconds{0.0};
     double endSeconds{0.0};
     std::string assOrText;
+    std::string assHeader;
+    bool assPacket{false};
+    std::int64_t timestampOffsetMs{0};
     std::vector<SubtitleBitmap> bitmaps;
 };

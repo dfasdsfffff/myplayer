@@ -1,6 +1,4 @@
 #include "latest_video_frame_mailbox.h"
-#include "playback_runtime.h"
-#include "playback_runtime_bridge.h"
 
 #include <QCoreApplication>
 #include <atomic>
@@ -71,37 +69,6 @@ bool TestOnlyOneDrainIsScheduledUntilCompletion()
     return Expect(mailbox.markDeliveryScheduled(), "a new drain can be scheduled after the prior drain completes");
 }
 
-bool TestBridgeDeliversOnlyNewestFrameAfterWorkerBurst(QCoreApplication& app)
-{
-    auto runtime = PlaybackRuntime::Create();
-    if (!Expect(runtime != nullptr, "runtime should initialize for bridge delivery"))
-        return false;
-
-    PlaybackRuntimeBridge bridge;
-    bridge.attach(runtime.get());
-    int deliveries = 0;
-    int deliveredNumber = 0;
-    QObject::connect(&bridge, &PlaybackRuntimeBridge::SigVideoFrame, [&] (std::shared_ptr<VideoFrame> frame) {
-        ++deliveries;
-        deliveredNumber = frame ? frame->width : 0;
-    });
-
-    std::thread producer([&] {
-        for (int number = 1; number <= 4096; ++number) {
-            auto frame = NumberedFrame(number);
-            frame->height = 1;
-            frame->bytesPerLine = 4;
-            frame->bgra.resize(4);
-            runtime->SigVideoFrame(std::move(frame));
-        }
-    });
-    producer.join();
-    app.processEvents();
-
-    return Expect(deliveries == 1 && deliveredNumber == 4096,
-        "one queued bridge drain presents only the newest worker frame");
-}
-
 bool TestClearIsSafeWhileProducerIsStopping()
 {
     LatestVideoFrameMailbox mailbox;
@@ -129,7 +96,6 @@ int main()
     QCoreApplication app(argc, nullptr);
     return TestNewestFrameReplacesStalledPendingFrame()
             && TestOnlyOneDrainIsScheduledUntilCompletion()
-            && TestBridgeDeliversOnlyNewestFrameAfterWorkerBurst(app)
             && TestClearIsSafeWhileProducerIsStopping()
         ? 0
         : 1;

@@ -58,6 +58,14 @@ public:
 	*/
 	bool StartPlay(const std::string& strFileName);
 	bool StartPlay(const MediaSource& source);
+    bool OpenPaused(const MediaSource& source);
+    using Completion = std::function<void(bool)>;
+    void SdkPause(bool paused, Completion done);
+    void SdkSeek(int64_t milliseconds, std::function<void(int, int64_t)> done);
+    void SdkTrack(bool audio, std::optional<int> track, Completion done);
+    Signal<int64_t> SigPositionMs;
+    Signal<> SigNaturalEnd;
+    Signal<PlaybackError> SigSessionFailure;
 
 
 	void set_play_speed(double dSpeed);
@@ -165,6 +173,10 @@ private:
 	//播放刷新循环线程
 	std::thread m_tPlayLoopThread;
 	PlaybackCommandMailbox m_commandMailbox;
+    bool m_startPaused = false;
+    std::mutex m_sdkMutex;
+    std::vector<std::function<void(VideoState*)>> m_sdkCommands;
+    void postSdk(std::function<void(VideoState*)> command);
 
 	RendererDispatcher m_rendererDispatcher;
 

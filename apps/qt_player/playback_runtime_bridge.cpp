@@ -1,205 +1,55 @@
 #include "playback_runtime_bridge.h"
-
-#include "playback_runtime.h"
-
-#include <QDebug>
-#include <QMetaObject>
-
-PlaybackRuntimeBridge::PlaybackRuntimeBridge(QObject* parent)
-    : QObject(parent)
-{
-}
-
-PlaybackRuntimeBridge::~PlaybackRuntimeBridge()
-{
-    detach();
-}
-
-void PlaybackRuntimeBridge::detach()
-{
-    const uint64_t published = m_publishedVideoFrames.load(std::memory_order_relaxed);
-    if (published != 0) {
-        qDebug() << "Video frame delivery: published" << published
-                 << "presented" << m_presentedVideoFrames.load(std::memory_order_relaxed)
-                 << "coalesced" << m_videoFrameMailbox.coalescedFrames();
-    }
-    m_videoFrameGeneration.fetch_add(1, std::memory_order_acq_rel);
-    m_videoFrameMailbox.clear();
-    m_connections.clear();
-    m_runtime = nullptr;
-}
-
-void PlaybackRuntimeBridge::scheduleVideoFrameDelivery()
-{
-    if (!m_videoFrameMailbox.markDeliveryScheduled())
-        return;
-
-    const uint64_t generation = m_videoFrameGeneration.load(std::memory_order_acquire);
-    QPointer<PlaybackRuntimeBridge> self(this);
-    QMetaObject::invokeMethod(this, [self, generation]() {
-        if (auto bridge = self.data())
-            bridge->drainLatestVideoFrame(generation);
-    }, Qt::QueuedConnection);
-}
-
-void PlaybackRuntimeBridge::drainLatestVideoFrame(uint64_t generation)
-{
-    if (generation != m_videoFrameGeneration.load(std::memory_order_acquire))
-        return;
-
-    std::shared_ptr<VideoFrame> frame = m_videoFrameMailbox.takeLatest();
-    m_videoFrameMailbox.deliveryCompleted();
-    if (frame) {
-        m_presentedVideoFrames.fetch_add(1, std::memory_order_relaxed);
-        emit SigVideoFrame(std::move(frame));
-    }
-
-    if (m_videoFrameMailbox.hasPending())
-        scheduleVideoFrameDelivery();
-}
-
-void PlaybackRuntimeBridge::attach(PlaybackRuntime* runtime)
-{
-    detach();
-
-    if (!runtime)
-        return;
-
-    m_runtime = runtime;
-    QPointer<PlaybackRuntimeBridge> self(this);
-
-    m_connections.emplace_back(runtime->SigPlayMsg.connect([self](const std::string& msg) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, msg]() {
-            if (auto bridge = self.data())
-                emit bridge->SigPlayMsg(QString::fromStdString(msg));
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigFrameDimensionsChanged.connect([self](int w, int h) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, w, h]() {
-            if (auto bridge = self.data())
-                emit bridge->SigFrameDimensionsChanged(w, h);
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigVideoFrame.connect([self](std::shared_ptr<VideoFrame> frame) {
-        if (!self || !frame || (frame->format == VideoFrameFormat::Bgra32 && frame->bgra.empty()))
-            return;
-        auto* bridge = self.data();
-        bridge->m_publishedVideoFrames.fetch_add(1, std::memory_order_relaxed);
-        bridge->m_videoFrameMailbox.publish(std::move(frame));
-        bridge->scheduleVideoFrameDelivery();
-    }));
-
-    m_connections.emplace_back(runtime->SigSubtitleFrame.connect([self](std::shared_ptr<const SubtitleFrame> frame) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, frame = std::move(frame)]() {
-            if (auto bridge = self.data())
-                emit bridge->SigSubtitleFrame(frame);
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigVideoTotalSeconds.connect([self](int s) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, s]() {
-            if (auto bridge = self.data())
-                emit bridge->SigVideoTotalSeconds(s);
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigVideoPlaySeconds.connect([self](int s) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, s]() {
-            if (auto bridge = self.data())
-                emit bridge->SigVideoPlaySeconds(s);
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigVideoVolume.connect([self](double v) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, v]() {
-            if (auto bridge = self.data())
-                emit bridge->SigVideoVolume(v);
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigPauseStat.connect([self](bool b) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, b]() {
-            if (auto bridge = self.data())
-                emit bridge->SigPauseStat(b);
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigStop.connect([self]() {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self]() {
-            if (auto bridge = self.data())
-                emit bridge->SigStop();
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigStopFinished.connect([self]() {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self]() {
-            if (auto bridge = self.data())
-                emit bridge->SigStopFinished();
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigStartPlay.connect([self](const std::string& f) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, f]() {
-            if (auto bridge = self.data())
-                emit bridge->SigStartPlay(QString::fromStdString(f));
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigPlaybackStatus.connect([self](const PlaybackStatus& status) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, status]() {
-            if (auto bridge = self.data())
-                emit bridge->SigPlaybackStatus(status);
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigMediaInfo.connect([self](const MediaInfo& info) {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self, info]() {
-            if (auto bridge = self.data())
-                emit bridge->SigMediaInfo(info);
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigPlayNextOne.connect([self]() {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self]() {
-            if (auto bridge = self.data())
-                emit bridge->SigPlayNextOne();
-        }, Qt::QueuedConnection);
-    }));
-
-    m_connections.emplace_back(runtime->SigRandomPlayOne.connect([self]() {
-        if (!self)
-            return;
-        QMetaObject::invokeMethod(self.data(), [self]() {
-            if (auto bridge = self.data())
-                emit bridge->SigRandomPlayOne();
-        }, Qt::QueuedConnection);
-    }));
+#include "app_playback.h"
+PlaybackRuntimeBridge::PlaybackRuntimeBridge(QObject* parent) : QObject(parent) {}
+void PlaybackRuntimeBridge::attach(AppPlaybackSession* session) {
+    if (player_) disconnect(player_,nullptr,this,nullptr);
+    player_ = session ? &session->controller().player : nullptr;
+    if (!session) return;
+    auto& controller = session->controller(); auto* player = &controller.player;
+    using QP = player_sdk_qt::QtPlayer;
+    connect(player,&QP::videoFrameChanged,this,[this](auto f) { if (f) emit SigFrameDimensionsChanged(f->width,f->height); emit SigVideoFrame(f); });
+    connect(player,&QP::subtitleChanged,this,&PlaybackRuntimeBridge::SigSubtitleFrame);
+    connect(player,&QP::volumeChanged,this,&PlaybackRuntimeBridge::SigVideoVolume);
+    connect(player,&QP::positionChanged,this,[this](qint64 ms) { emit SigVideoPlaySeconds(static_cast<int>(ms/1000)); });
+    connect(player,&QP::mediaInfoChanged,this,[this](auto info) {
+        if (!info) return;
+        emit SigMediaInfo(*info); emit SigVideoTotalSeconds(info->duration ? static_cast<int>(info->duration->count()/1000) : 0);
+    });
+    connect(player,&QP::stateChanged,this,[this,&controller](auto state) {
+        PlaybackStatus status;
+        switch(state) {
+        case play_core::PlayerState::Opening: status.state = PlaybackState::Opening; emit SigStartPlay(QString::fromUtf8(controller.source.location)); break;
+        case play_core::PlayerState::Playing: status.state = PlaybackState::Playing; emit SigPauseStat(false); break;
+        case play_core::PlayerState::Paused: emit SigPauseStat(true); return;
+        case play_core::PlayerState::Reconnecting: status.state = PlaybackState::Reconnecting; break;
+        case play_core::PlayerState::Failed: return; // errorOccurred carries the diagnostic.
+        default: return;
+        }
+        emit SigPlaybackStatus(status);
+    });
+    connect(player,&QP::closed,this,&PlaybackRuntimeBridge::SigStopFinished);
+    connect(player,&QP::errorDetails,this,[this](const play_core::PlayerError& error) {
+        PlaybackStatus s; s.state = PlaybackState::Failed; s.error = PlaybackError::Unknown; s.message = error.message;
+        using E = play_core::ErrorCode;
+        switch(error.code) {
+        case E::Timeout: s.error = PlaybackError::Timeout; break;
+        case E::Authentication: s.error = PlaybackError::Authentication; break;
+        case E::NotFound: s.error = PlaybackError::NotFound; break;
+        case E::UnsupportedProtocol: s.error = PlaybackError::UnsupportedProtocol; break;
+        case E::NetworkUnavailable: s.error = PlaybackError::NetworkUnavailable; break;
+        case E::ConnectionLost: s.error = PlaybackError::ConnectionLost; break;
+        case E::InvalidMedia: s.error = PlaybackError::InvalidMedia; break;
+        case E::DecoderFailure: s.error = PlaybackError::DecoderFailure; break;
+        default: break;
+        }
+        emit SigPlaybackStatus(s); emit SigPlayMsg(QString::fromUtf8(error.message));
+    });
+    connect(player,&QP::ended,this,[this,&controller] {
+        switch(controller.loopPolicy) {
+        case LOOP_ALL: emit SigPlayNextOne(); break;
+        case LOOP_RANDOM: emit SigRandomPlayOne(); break;
+        case LOOP_SINGLE: controller.play(controller.source); break;
+        default: controller.stop(); break;
+        }
+    });
 }

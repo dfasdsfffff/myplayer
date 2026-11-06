@@ -42,6 +42,10 @@ else()
     set(MYPLAYER_ROOT "${PROJECT_SOURCE_DIR}")
 endif()
 
+if(NOT TARGET PlayerSDK::QtWidgets)
+    add_subdirectory("${MYPLAYER_ROOT}/qt" "${CMAKE_CURRENT_BINARY_DIR}/sdk-qt")
+endif()
+
 set(PLAYERDEMO_OUTPUT_DIR "${MYPLAYER_ROOT}/bin" CACHE PATH "Runtime output directory")
 
 qt_add_executable(myplayer_monitor
@@ -62,8 +66,9 @@ qt_add_resources(myplayer_monitor monitor_icons
         img/logo.png img/logo_150_40.png img/max.png img/min.png
         img/normal.png img/xv.ico
 )
-target_link_libraries(myplayer_monitor PRIVATE play_core Qt6::Core Qt6::Gui Qt6::Widgets)
-target_include_directories(myplayer_monitor PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(myplayer_monitor PRIVATE PlayerSDK::QtWidgets)
+target_include_directories(myplayer_monitor PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${FFMPEG_INCLUDE_DIRS})
+target_link_libraries(myplayer_monitor PRIVATE ${FFMPEG_LIBRARIES})
 set_target_properties(myplayer_monitor PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}/$<0:>"
     OUTPUT_NAME_DEBUG "myplayer_monitor_debug"
@@ -82,7 +87,8 @@ if(MONITOR_BUILD_TESTS)
         "${MYPLAYER_ROOT}/tests/media_fixture_builder.cpp"
     )
     target_include_directories(monitor_integration_tests PRIVATE "${MYPLAYER_ROOT}/tests")
-    target_link_libraries(monitor_integration_tests PRIVATE play_core Qt6::Core Qt6::Gui Qt6::Widgets)
+    target_link_libraries(monitor_integration_tests PRIVATE PlayerSDK::QtWidgets ${FFMPEG_LIBRARIES})
+    target_include_directories(monitor_integration_tests PRIVATE ${FFMPEG_INCLUDE_DIRS})
     if(MSVC)
         target_compile_options(monitor_integration_tests PRIVATE /utf-8)
     endif()

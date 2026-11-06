@@ -1,7 +1,7 @@
 #include "playback_benchmark.h"
 
 #include "mainwid.h"
-#include "playback_controller.h"
+#include "app_playback.h"
 #include "show.h"
 #include "ui_mainwid.h"
 
@@ -58,8 +58,8 @@ bool writeReport(const PlaybackBenchmarkOptions& options, const Measurements& me
 {
     const double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - measurements.entry).count();
     QJsonObject report{
-        {"schema_version", 1},
-        {"benchmark", "myplayer_qt_sdl_playback"},
+        {"schema_version", 2},
+        {"benchmark", "myplayer_qt_sdk_playback"},
         {"media", options.mediaPath},
         {"outcome", measurements.outcome},
         {"error", measurements.error},
@@ -70,12 +70,12 @@ bool writeReport(const PlaybackBenchmarkOptions& options, const Measurements& me
         {"hardware_decode_preference", "disabled"},
         {"playback_speed", 1.0},
         {"gui_delivered_frames", measurements.delivered},
-        {"video_frame_sdl_present_returns", measurements.submitted},
+        {"video_frame_painter_submissions", measurements.submitted},
         {"first_gui_delivered_frame_ms", optionalTime(measurements.firstDeliveredMs)},
-        {"first_video_frame_sdl_present_return_ms", optionalTime(measurements.firstSubmittedMs)},
+        {"first_video_frame_painter_submission_ms", optionalTime(measurements.firstSubmittedMs)},
         {"first_visible_frame_ms", QJsonValue(QJsonValue::Null)},
-        {"visibility_measurement", "unavailable: SDL_RenderPresent return does not prove compositor or monitor visibility"},
-        {"frame_count_scope", "GUI-delivered video frames and successful SDL submissions for those frames; excludes resize/subtitle redraws; not decoded or dropped frames"},
+        {"visibility_measurement", "unavailable: QPainter submission does not prove compositor or monitor visibility"},
+        {"frame_count_scope", "GUI-delivered video frames and shared VideoWidget QPainter submissions; excludes redraws without a fresh frame; not decoded or dropped frames"},
         {"timing_origin", "play request on GUI thread; runner_elapsed_ms starts before MainWid construction"},
         {"stop_requested_ms", optionalTime(measurements.stopRequestedMs)},
         {"stop_finished_ms", optionalTime(measurements.stopFinishedMs)},
@@ -193,7 +193,7 @@ int RunPlaybackBenchmark(QApplication& application, const PlaybackBenchmarkOptio
             // the existing surface slot and avoid modal playback-error dialogs.
             QObject::disconnect(bridge, &PlaybackRuntimeBridge::SigVideoFrame, surface, &Show::OnVideoFrame);
             QObject::disconnect(bridge, &PlaybackRuntimeBridge::SigPlaybackStatus, &window, nullptr);
-            QObject::connect(bridge, &PlaybackRuntimeBridge::SigVideoFrame, &window, [&](const std::shared_ptr<VideoFrame>&) {
+            QObject::connect(bridge, &PlaybackRuntimeBridge::SigVideoFrame, &window, [&](const std::shared_ptr<const VideoFrame>&) {
                 std::lock_guard lock(measurements.mutex);
                 if (++measurements.delivered == 1)
                     measurements.firstDeliveredMs = measurements.sincePlay();
@@ -231,7 +231,7 @@ int RunPlaybackBenchmark(QApplication& application, const PlaybackBenchmarkOptio
                 if (measurements.outcome.isEmpty()) {
                     if (measurements.submitted == 0) {
                         measurements.outcome = "no_video_submission";
-                        measurements.error = "No video frame reached SDL_RenderPresent";
+                        measurements.error = "No video frame reached VideoWidget QPainter submission";
                     } else {
                         measurements.outcome = measurements.stopRequestedMs >= 0 ? "run_completed" : "end_of_media";
                     }

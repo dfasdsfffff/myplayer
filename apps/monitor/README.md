@@ -68,7 +68,7 @@
 
 ### 前置条件
 
-- CMake **3.25 或更高**、C++20 编译器、Qt **6.8 或更高**的 Core/Gui/Widgets，以及 FFmpeg、SDL2、SoundTouch 和仓库内的 sigslot 头文件。
+- CMake **3.25 或更高**、C++20 编译器、Qt **6.8 或更高**的 Core/Gui/Widgets，以及 FFmpeg、SDL2、SoundTouch、pkg-config/libass 和仓库内的 sigslot 头文件。
 - Windows 示例使用 **x64 MSVC** 和匹配的 Qt MSVC x64 套件，不能改用 Qt MinGW 套件混搭。示例中的 `Visual Studio 18 2026` 生成器需要 **CMake 4.2+**；使用 VS 2022 时可改为 `Visual Studio 17 2022`。须安装“使用 C++ 的桌面开发”和 Windows SDK。
 - 普通终端 PATH 未包含 `cl`/`msbuild` 不等于未安装：Visual Studio 生成器可以定位安装实例；使用 Ninja 则应先进入 x64 Developer PowerShell/开发命令行。
 
@@ -76,7 +76,7 @@
 
 ### 方式一：从仓库根目录构建两个应用
 
-根 CMake 默认构建单播放器，监控必须显式启用。此路径通过 CMake/toolchain 查找依赖；同时构建播放器还需要 pkg-config 和 libass，不使用 `MONITOR_USE_BUNDLED_DEPS` 来替代这些依赖。
+根 CMake 默认只构建 Core SDK，两个应用必须显式启用。此路径通过 CMake/toolchain 查找依赖；监控和播放器都使用共享 Qt SDK 组件，因此都需要 pkg-config/libass，不使用 `MONITOR_USE_BUNDLED_DEPS` 来替代这些依赖。
 
 ```powershell
 $env:VCPKG_ROOT = "D:/ProgramData/vcpkg"
@@ -105,7 +105,7 @@ cmake --build build/monitor --config Release --target myplayer_monitor
 & ./bin/myplayer_monitor.exe
 ```
 
-`MONITOR_USE_BUNDLED_DEPS` 默认 **OFF**，只在 `apps/monitor` 作为顶层工程时定义，开启后仅支持 Windows x64：直接选用 `lib/ffmpeg-7.1.1` 的头文件/导入库、`lib/SDL2/cmake` 和 `lib/soundtouch-2.3.3/lib`，无需借用已清理的整仓构建产物；Qt 仍须另外安装。该路径也不构建单播放器或要求其 libass UI 依赖。关闭此选项时，应提供能查找 FFmpeg、SDL2、SoundTouch 的 toolchain 或包前缀，例如加入：
+`MONITOR_USE_BUNDLED_DEPS` 默认 **OFF**，只在 `apps/monitor` 作为顶层工程时定义，开启后仅支持 Windows x64：直接选用 `lib/ffmpeg-7.1.1` 的头文件/导入库、`lib/SDL2/cmake` 和 `lib/soundtouch-2.3.3/lib`，无需借用已清理的整仓构建产物；Qt、pkg-config 和 libass 及其传递依赖仍须另外准备（例如由兼容的 vcpkg 安装前缀提供，并配置 pkg-config 搜索路径）。该路径不构建单播放器，但仍构建共享 Qt SDK 显示/字幕组件；备份目录并不包含完整的 libass 依赖。关闭此选项时，应提供能查找 FFmpeg、SDL2、SoundTouch 的 toolchain 或包前缀，例如加入：
 
 ```powershell
 cmake -S apps/monitor -B build/monitor-vcpkg -G "Visual Studio 18 2026" -A x64 `
@@ -124,7 +124,7 @@ Windows 监控目标的构建后步骤已复制 CMake 可识别的运行时 DLL�
 
 当前测试代码提供：
 
-- `monitor_integration_tests`：生成本地媒体，检查 16 路各自收到帧并调用 SDL 显示、禁音频预览拒绝纯音频源、换源、销毁部分窗格、停止会话，以及 2 秒测试分片可被 FFmpeg 重新打开并读包。
+- `monitor_integration_tests`：生成本地媒体，检查 16 路各自收到帧并经共享 VideoWidget 呈现、禁音频预览拒绝纯音频源、换源、销毁部分窗格、停止会话，以及 2 秒测试分片可被 FFmpeg 重新打开并读包。
 - `monitor_window_smoke_test`：以 `--smoke-test --layout 16` 打开并自动关闭主窗口，不接真实摄像头。
 
 在完成依赖配置后，可用以下命令构建并执行独立监控测试；是否通过应以实际运行结果为准：
@@ -144,6 +144,6 @@ ctest --test-dir build/monitor -C Release --output-on-failure
 
 ## 实现与来源
 
-每个预览窗格和录像回放窗口各持有一个 `PlaybackRuntime`；工作线程发布最新帧，GUI 以 33ms 定时器消费有界帧槽并使用 SDL 渲染，YUV420P 直接上传 YUV 纹理，不逐帧积压 Qt 消息。硬件解码帧仍经系统内存，不是零拷贝显示。录像由独立 FFmpeg 封装线程完成，不使用旧 XCodec/XPlayer 播放链。
+每个预览窗格和录像回放窗口各持有一个公开 SDK `QtPlayer`，显示统一由 `VideoWidget` 处理；Core 与 Qt 各用最新帧邮箱，不逐帧积压 Qt 消息。Qt 组件通过 swscale/QImage/QPainter 显示 CPU 帧和字幕，不再维护监控专用 SDL renderer/33ms 轮询。硬件解码帧仍经系统内存，不是零拷贝显示；不得沿用旧 SDL 路径的性能结论。录像仍由独立 FFmpeg 封装线程完成，使用公开 `NetworkRuntime` lease，不访问核心私有对象。
 
 界面、日历、相机配置及图标改编自用户提供的 `h265-ffmpeg/2_project/xviewer`（Apache-2.0），对应许可证保留在 `REFERENCE-LICENSE.txt`；本应用不修改外部参考项目。原有图标仅作为参考界面资源保留，不表示本应用是任何厂商的官方产品。

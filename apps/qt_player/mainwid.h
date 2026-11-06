@@ -28,8 +28,8 @@ namespace Ui {
 class MainWid;
 }
 
-class PlaybackController;
-class PlaybackRuntime;
+class AppPlaybackController;
+class AppPlaybackSession;
 class QApplication;
 struct PlaybackBenchmarkOptions;
 
@@ -175,6 +175,6 @@ private:
     QRect m_resizeStartGeometry;
 
     PlaybackRuntimeBridge* m_pPlaybackRuntimeBridge = nullptr;
-    std::unique_ptr<PlaybackRuntime> m_playbackRuntime;
-    PlaybackController* m_playbackController = nullptr;
+    std::unique_ptr<AppPlaybackSession> m_playbackRuntime;
+    AppPlaybackController* m_playbackController = nullptr;
 };

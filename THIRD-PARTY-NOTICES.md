@@ -48,9 +48,10 @@ source/other materials required by the applicable license.
 
 ## libass And Transitive Dependencies
 
-libass renders ASS/SSA subtitles in MyPlayer; it is not a dependency of the
-monitor's standalone playback core. The manifest still declares libass even
-when configuring without the player UI.
+libass renders ASS/SSA subtitles in the shared Qt Widgets SDK component used
+by both applications, including standalone monitor builds. It is not a Core
+SDK dependency. The repository development manifest declares libass even
+when configuring Core only; external Core consumers need not provide it.
 
 Portable archives include `licenses/libass-copyright` and copyright/license
 texts from the configured vcpkg installation (including FreeType, FriBidi,

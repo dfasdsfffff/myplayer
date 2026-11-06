@@ -27,15 +27,15 @@ int main(int argc, char** argv) {
     std::vector<CoreVideoWidget*> panes;
     int errors = 0;
     std::atomic_bool audioDisabledRejected{false};
-    auto audioDisabledRuntime = PlaybackRuntime::Create();
-    if (!audioDisabledRuntime) return 1;
-    auto audioDisabledConnection = audioDisabledRuntime->SigPlaybackStatus.connect([&](const PlaybackStatus& status) {
-        if (status.state == PlaybackState::Failed && status.error == PlaybackError::DecoderFailure)
+    play_core::Player audioDisabledRuntime;
+    auto audioDisabledConnection = audioDisabledRuntime.subscribe([&](const play_core::PlayerEvent& event) {
+        if (event.type == play_core::PlayerEvent::Type::Error)
             audioDisabledRejected.store(true, std::memory_order_release);
     });
-    MediaSource silentSource{fixtures.wav.string()};
+    play_core::MediaSource silentSource{fixtures.wav.string()};
     silentSource.enableAudio = false;
-    if (!audioDisabledRuntime->controller().play(silentSource)) return 1;
+    if (!audioDisabledRuntime.open(silentSource)) return 1;
+    audioDisabledRuntime.play();
     for (int i = 0; i < 16; ++i) {
         auto* pane = new CoreVideoWidget(&window);
         grid->addWidget(pane, i / 4, i % 4);
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     });
     QTimer::singleShot(3000, &app, [&] {
         if (!audioDisabledRejected.load(std::memory_order_acquire)) ++errors;
-        audioDisabledRuntime->controller().stopAndWait();
+        audioDisabledRuntime.close();
         for (const auto* pane : panes)
             if (!pane->hasFrame() || pane->presentedFrames() == 0) ++errors;
         for (auto* pane : panes) pane->stop();

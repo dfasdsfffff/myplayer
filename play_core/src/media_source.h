@@ -38,6 +38,7 @@ struct MediaSource {
     std::string location;
     NetworkOptions network;
     bool enableAudio{true};
+    bool boundedBuffer{false};
 };
 
 enum class PlaybackState {

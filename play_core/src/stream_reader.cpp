@@ -199,7 +199,7 @@ void StreamReader::Run(VideoState* state)
     state->video.max_frame_duration = (inputContext->iformat->flags & AVFMT_TS_DISCONT) ? 10.0 : 3600.0;
     state->session.realtime = IsRealtime(inputContext);
     state->session.mediaInfo = BuildMediaInfo(state->session.source, inputContext);
-    state->session.unlimitedBuffer = UseUnlimitedBuffer(state->session.source, state->session.realtime != 0);
+    state->session.unlimitedBuffer = !state->session.source.boundedBuffer && UseUnlimitedBuffer(state->session.source, state->session.realtime != 0);
     m_callbacks.publishMediaInfo(state->session.mediaInfo);
     m_callbacks.publishDurationSeconds(
         state->session.mediaInfo.duration ? static_cast<int>(state->session.mediaInfo.duration->count() / 1000) : 0);
@@ -314,13 +314,17 @@ void StreamReader::Run(VideoState* state)
                 else
                     state->clocks.extclk.set(seekTarget / static_cast<double>(AV_TIME_BASE), 0);
             }
+            std::function<void(int, int64_t)> seekCompletion;
             {
                 std::lock_guard<std::mutex> seekLock(state->session.seek_mutex);
                 std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
                 if (m_callbacks.completeAudioSeek)
                     m_callbacks.completeAudioSeek(state);
                 state->session.seek_req = false;
+                seekCompletion = std::move(state->session.sdkSeekCompletion);
             }
+            if (seekCompletion)
+                seekCompletion(ret, seekTarget);
             state->session.queue_attachments_req = 1;
             state->session.eof = 0;
             if (paused)

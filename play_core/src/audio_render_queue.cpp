@@ -44,7 +44,10 @@ bool AudioRenderQueue::start(VideoState* state, const AudioParams& target)
     m_generation.fetch_add(1, std::memory_order_acq_rel);
     m_stopping.store(false, std::memory_order_release);
     if (state)
-        m_producer = std::thread(&AudioRenderQueue::produce, this, state);
+        m_producer = std::thread([this, state] {
+            try { produce(state); }
+            catch (...) { state->session.decoderError.store(AVERROR(ENOMEM)); m_producing.store(false); }
+        });
     return true;
 }
 

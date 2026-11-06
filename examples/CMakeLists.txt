@@ -1,0 +1,6 @@
+add_executable(player_sdk_console core/main.cpp)
+target_link_libraries(player_sdk_console PRIVATE PlayerSDK::Core)
+if(TARGET PlayerSDK::QtWidgets)
+    qt_add_executable(player_sdk_widgets widgets/main.cpp)
+    target_link_libraries(player_sdk_widgets PRIVATE PlayerSDK::QtWidgets)
+endif()

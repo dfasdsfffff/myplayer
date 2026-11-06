@@ -10,7 +10,7 @@
 
 #include "globalhelper.h"
 #include "media_location_privacy.h"
-#include "av_constants.h"
+namespace { constexpr int SECONDS_PER_HOUR = 3600; constexpr int SECONDS_PER_MINUTE = 60; }
 
 const QString PLAYER_CONFIG = "player_config.ini";
 

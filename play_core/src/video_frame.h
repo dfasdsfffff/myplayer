@@ -11,6 +11,7 @@ extern "C" {
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 enum class VideoFrameFormat { Bgra32, Yuv420P };
@@ -64,6 +65,7 @@ struct VideoFrame
 	AVColorSpace colorSpace = AVCOL_SPC_UNSPECIFIED;
 	AVColorRange colorRange = AVCOL_RANGE_UNSPECIFIED;
 	bool unsupportedHdrTransfer = false;
+	std::optional<int64_t> timestampMs;
 	std::vector<uint8_t> bgra;
 	std::array<VideoPlane, 3> planes;
 };

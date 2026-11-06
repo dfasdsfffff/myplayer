@@ -1,5 +1,5 @@
 #include "xcamera_record.h"
-#include "runtime_manager.h"
+#include <play_core/network_runtime.h>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -333,17 +333,16 @@ void XCameraRecord::Run() {
     return;
   }
 
-  if (!RuntimeManager::instance().acquireNetwork()) {
-    LogMessage(AV_LOG_ERROR, "initialize FFmpeg network support");
-    return;
+  try {
+    play_core::NetworkRuntime network;
+    while (!stop_requested_.load(std::memory_order_acquire)) {
+      RecordSession(url, save_path, file_sec);
+      if (!stop_requested_.load(std::memory_order_acquire))
+        WaitBeforeReconnect();
+    }
+  } catch (const std::exception&) {
+    LogMessage(AV_LOG_ERROR, "recording worker failed");
   }
-
-  while (!stop_requested_.load(std::memory_order_acquire)) {
-    RecordSession(url, save_path, file_sec);
-    if (!stop_requested_.load(std::memory_order_acquire))
-      WaitBeforeReconnect();
-  }
-  RuntimeManager::instance().releaseNetwork();
 }
 
 bool XCameraRecord::RecordSession(const std::string &url,

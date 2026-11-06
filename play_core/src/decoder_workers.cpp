@@ -335,19 +335,22 @@ int DecoderWorkers::Subtitle(void* opaque)
 
         pts = 0;
 
-        if (got_subtitle && subtitle.format == 0) {
+        if (got_subtitle) {
             if (subtitle.pts != AV_NOPTS_VALUE)
                 pts = subtitle.pts / (double)AV_TIME_BASE;
-            sp->subtitle = SubtitleDispatcher::Copy(subtitle, pts);
+            auto frame = SubtitleDispatcher::Copy(subtitle, pts);
+            if (state->session.ic && state->session.ic->start_time != AV_NOPTS_VALUE)
+                frame->timestampOffsetMs = state->session.ic->start_time / 1000;
+            const auto* context = state->subtitle.sub_decoder.avctx;
+            if (context->subtitle_header && context->subtitle_header_size > 0)
+                frame->assHeader.assign(reinterpret_cast<const char*>(context->subtitle_header), context->subtitle_header_size);
+            sp->subtitle = std::move(frame);
             avsubtitle_free(&subtitle);
             sp->pts = sp->subtitle->startSeconds;
             sp->serial = state->subtitle.sub_decoder.pkt_serial;
             sp->width = state->subtitle.sub_decoder.avctx->width;
             sp->height = state->subtitle.sub_decoder.avctx->height;
             state->subtitle.subpq.push();
-        }
-        else if (got_subtitle) {
-            avsubtitle_free(&subtitle);
         }
     }
     ReportDecoderFailure(state, state->subtitle.subtitleq, ret);

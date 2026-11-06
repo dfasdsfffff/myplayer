@@ -42,8 +42,7 @@
 #include "ui_mainwid.h"
 #include "globalhelper.h"
 #include "app_preferences.h"
-#include "playback_controller.h"
-#include "playback_runtime.h"
+#include "app_playback.h"
 #include "playback_status_presenter.h"
 #include "enums.h"
 #include "media_format_registry.h"
@@ -113,7 +112,7 @@ MainWid::MainWid(QMainWindow* parent) :
 MainWid::~MainWid()
 {
 	if (m_playbackController)
-		m_playbackController->stopAndWait();
+		m_playbackController->close();
 	delete m_pPlaybackRuntimeBridge;
 	m_pPlaybackRuntimeBridge = nullptr;
 	delete ui;
@@ -121,7 +120,7 @@ MainWid::~MainWid()
 
 bool MainWid::Init()
 {
-	m_playbackRuntime = PlaybackRuntime::Create();
+	m_playbackRuntime = AppPlaybackSession::Create();
 	if (!m_playbackRuntime)
 	{
 		return false;
@@ -1120,7 +1119,7 @@ void MainWid::OnCloseBtnClicked()
 	loopPolicy = ui->CtrlBarWid->GetLoopPolicy();
 	speed = ui->CtrlBarWid->GetSpeed();
 	GlobalHelper::SavePlaySettings(volume, loopPolicy, speed);
-	m_playbackController->stopAndWait();
+	m_playbackController->close();
 	this->close();
 }
 

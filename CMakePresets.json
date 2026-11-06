@@ -19,6 +19,7 @@
         "VCPKG_TARGET_TRIPLET": "x64-windows",
         "MYPLAYER_BUILD_QT_APP": "ON",
         "BUILD_TESTING": "ON",
+        "PLAYER_SDK_BUILD_TESTS": "ON",
         "MYPLAYER_ENABLE_WARNINGS": "ON",
         "MYPLAYER_ENABLE_SANITIZERS": "OFF"
       }

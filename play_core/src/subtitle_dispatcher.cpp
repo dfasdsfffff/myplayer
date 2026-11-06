@@ -6,7 +6,7 @@ extern "C" {
 
 #include <algorithm>
 
-std::shared_ptr<const SubtitleFrame> SubtitleDispatcher::Copy(const AVSubtitle& subtitle, double ptsSeconds)
+std::shared_ptr<SubtitleFrame> SubtitleDispatcher::Copy(const AVSubtitle& subtitle, double ptsSeconds)
 {
     auto frame = std::make_shared<SubtitleFrame>();
     frame->startSeconds = ptsSeconds + static_cast<double>(subtitle.start_display_time) / 1000.0;
@@ -44,6 +44,7 @@ std::shared_ptr<const SubtitleFrame> SubtitleDispatcher::Copy(const AVSubtitle& 
             }
             frame->bitmaps.push_back(std::move(bitmap));
         }
+        if (rect->ass && *rect->ass) frame->assPacket = true;
         const char* text = rect->ass && *rect->ass ? rect->ass : rect->text;
         if (text && *text) {
             if (!frame->assOrText.empty())

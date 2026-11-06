@@ -2,6 +2,8 @@
 
 #include "media_fixture_builder.h"
 #include "playback_runtime.h"
+#include <play_core/player.h>
+#include <map>
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -470,6 +472,37 @@ bool CompleteCase(const std::vector<char>& media)
            Expect(!HasState(value, PlaybackState::Failed), "normal HTTP end-of-media is not a network failure");
 }
 
+bool SdkNetworkCase(const std::vector<char>& media, bool reconnect)
+{
+    LoopbackHttpServer server(media, Response::StallHeaders);
+    play_core::Player player;
+    std::mutex mutex; std::condition_variable cv;
+    std::map<play_core::OperationId,play_core::OperationResult> results;
+    bool retrying = false;
+    auto subscription = player.subscribe([&](const auto& e) {
+        std::lock_guard lock(mutex);
+        if (e.type == play_core::PlayerEvent::Type::Operation) results[e.operation.operation] = e.operation;
+        if (e.type == play_core::PlayerEvent::Type::State && e.state == play_core::PlayerState::Reconnecting) retrying = true;
+        cv.notify_all();
+    });
+    play_core::MediaSource source{server.url()};
+    source.network.reconnect = reconnect;
+    source.network.connectTimeout = reconnect ? 150ms : 10s;
+    source.network.initialReconnectDelay = 10s; source.network.maxReconnectDelay = 10s;
+    const auto opening = player.open(source);
+    if (!server.waitForRequest()) return false;
+    if (reconnect) {
+        std::unique_lock lock(mutex);
+        if (!Expect(cv.wait_for(lock,5s,[&] { return retrying; }),"SDK enters reconnect")) return false;
+    }
+    const auto start = Clock::now(); const auto closing = player.close();
+    std::unique_lock lock(mutex);
+    return Expect(cv.wait_for(lock,1500ms,[&] { return results.contains(opening.operation) && results.contains(closing.operation); }),"SDK closes opening/reconnecting promptly") &&
+        Expect(Clock::now()-start < 1500ms,"SDK close cancels network blocking work") &&
+        Expect(results.at(opening.operation).status == play_core::OperationStatus::Cancelled,"SDK settles interrupted open once") &&
+        Expect(results.at(closing.operation).status == play_core::OperationStatus::Succeeded,"SDK closes successfully");
+}
+
 int main()
 {
     try {
@@ -491,6 +524,8 @@ int main()
         run("read timeout after video frames", ReadTimeoutCase(media));
         run("stop during reconnect backoff", ReconnectStopCase(media));
         run("normal HTTP end-of-media", CompleteCase(media));
+        run("SDK close while opening", SdkNetworkCase(media,false));
+        run("SDK close while reconnecting", SdkNetworkCase(media,true));
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "Network acceptance failed: " << error.what() << '\n';

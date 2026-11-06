@@ -1,3 +1,7 @@
+if(NOT TARGET PlayerSDK::QtWidgets)
+    add_subdirectory("${PROJECT_SOURCE_DIR}/qt" "${CMAKE_CURRENT_BINARY_DIR}/sdk-qt")
+endif()
+
 if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)
     message(STATUS "Mapping Qt debug config to release")
     set_target_properties(Qt6::Core Qt6::Gui Qt6::Widgets PROPERTIES
@@ -14,7 +18,6 @@ set(HEADER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/ctrlbar.h
     ${CMAKE_CURRENT_SOURCE_DIR}/CustomSlider.h
     ${CMAKE_CURRENT_SOURCE_DIR}/globalhelper.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/latest_video_frame_mailbox.h
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwid.h
     ${CMAKE_CURRENT_SOURCE_DIR}/media_format_registry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/media_location_privacy.h
@@ -24,7 +27,6 @@ set(HEADER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/resource.h
     ${CMAKE_CURRENT_SOURCE_DIR}/settingwid.h
     ${CMAKE_CURRENT_SOURCE_DIR}/show.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/subtitle_renderer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/title.h
     ${CMAKE_CURRENT_SOURCE_DIR}/playback_runtime_bridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/playback_benchmark.h
@@ -37,7 +39,6 @@ set(SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/ctrlbar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CustomSlider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/globalhelper.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/latest_video_frame_mailbox.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/media_format_registry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/media_location_privacy.cpp
@@ -46,7 +47,6 @@ set(SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/playlistfile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/settingwid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/show.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/subtitle_renderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/title.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/playback_runtime_bridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/playback_status_presenter.cpp
@@ -88,7 +88,7 @@ target_include_directories(myplayer PRIVATE
 )
 
 target_link_libraries(myplayer PRIVATE
-    play_core
+    PlayerSDK::QtWidgets
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets

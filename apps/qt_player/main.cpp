@@ -1,5 +1,5 @@
 ﻿#include "mainwid.h"
-#include "playback_runtime.h"
+#include "app_playback.h"
 #include "playback_benchmark.h"
 #include <QApplication>
 #include <QFontDatabase>
@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 
     if (smokeTest)
     {
-        auto runtime = PlaybackRuntime::Create();
+        auto runtime = AppPlaybackSession::Create();
         std::_Exit(runtime ? EXIT_SUCCESS : EXIT_FAILURE);
     }
 

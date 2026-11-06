@@ -151,7 +151,7 @@ void VideoCtl::set_play_speed(double dSpeed)
 	constexpr double MIN_PLAYBACK_SPEED = 0.1;
 	constexpr double MAX_PLAYBACK_SPEED = 2.0;
 
-	if (dSpeed <= MIN_PLAYBACK_SPEED || dSpeed > MAX_PLAYBACK_SPEED)
+	if (!std::isfinite(dSpeed) || dSpeed < MIN_PLAYBACK_SPEED || dSpeed > MAX_PLAYBACK_SPEED)
 		return;
 
 	std::unique_lock<std::shared_mutex> speedLock(m_speedMutex);
@@ -352,7 +352,12 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 	}
 	is->session.force_refresh = 0;
 
-	SigVideoPlaySeconds(static_cast<int>(MediaSync::get_master_clock(is)));
+	const double position = MediaSync::get_master_clock(is);
+    if (std::isfinite(position)) {
+        const auto start = is->session.ic && is->session.ic->start_time != AV_NOPTS_VALUE ? is->session.ic->start_time / 1000 : 0;
+        SigPositionMs(std::max<int64_t>(0, static_cast<int64_t>(position * 1000.0) - start));
+        SigVideoPlaySeconds(static_cast<int>(position));
+    }
 }
 
 /* open a given stream. Return 0 if OK */
@@ -501,7 +506,9 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		}
 
 		packet_queue_start(is->audio.aud_decoder.queue);
-		is->audio.aud_decoder.decode_thread = std::thread(&DecoderWorkers::Audio, is);
+		is->audio.aud_decoder.decode_thread = std::thread([is] {
+            try { DecoderWorkers::Audio(is); } catch (...) { is->session.decoderError.store(AVERROR(ENOMEM)); }
+        });
 
 		m_audioOutput.Pause(false);
 		break;
@@ -513,7 +520,9 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 			std::move(hardwareDecode))) < 0)
 			goto fail;
 		packet_queue_start(is->video.vid_decoder.queue);
-		is->video.vid_decoder.decode_thread = std::thread(&DecoderWorkers::Video, is);
+		is->video.vid_decoder.decode_thread = std::thread([is] {
+            try { DecoderWorkers::Video(is); } catch (...) { is->session.decoderError.store(AVERROR(ENOMEM)); }
+        });
 		is->session.queue_attachments_req = 1;
 		break;
 	case AVMEDIA_TYPE_SUBTITLE:
@@ -523,7 +532,9 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if ((ret = is->subtitle.sub_decoder.init(avctx, &is->subtitle.subtitleq, is->session.continue_read_thread)) < 0)
 			goto fail;
 		packet_queue_start(is->subtitle.sub_decoder.queue);
-		is->subtitle.sub_decoder.decode_thread = std::thread(&DecoderWorkers::Subtitle, is);
+		is->subtitle.sub_decoder.decode_thread = std::thread([is] {
+            try { DecoderWorkers::Subtitle(is); } catch (...) { is->session.decoderError.store(AVERROR(ENOMEM)); }
+        });
 		break;
 	default:
 		break;
@@ -557,6 +568,10 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 	is->session.last_audio_stream = is->audio.audio_stream = -1;
 	is->session.last_subtitle_stream = is->subtitle.subtitle_stream = -1;
 	is->session.source = source;
+    is->session.paused.store(m_startPaused);
+    is->clocks.audclk.setPaused(m_startPaused);
+    is->clocks.vidclk.setPaused(m_startPaused);
+    is->clocks.extclk.setPaused(m_startPaused);
 
 	is->audio.soundTouchHandle = soundtouch_create();
 	is->audio.audio_new_buf = NULL;
@@ -597,6 +612,9 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 	is->clocks.vidclk.init(is->video.videoq.serialStorage());
 	is->clocks.audclk.init(is->audio.audioq.serialStorage());
 	is->clocks.extclk.init(is->clocks.extclk.serialStorage());
+    is->clocks.audclk.setPaused(m_startPaused);
+    is->clocks.vidclk.setPaused(m_startPaused);
+    is->clocks.extclk.setPaused(m_startPaused);
 	is->audio.audio_clock_serial = -1;
 	is->audio.audio_volume.store(sdlVolume, std::memory_order_release);
 
@@ -606,7 +624,11 @@ VideoState* VideoCtl::stream_open(const MediaSource& source)
 	is->clocks.av_sync_type = AV_SYNC_AUDIO_MASTER;
 	//构建读取线程
 	is->session.read_tid = std::thread([this, is] {
-		m_streamReader.Run(is);
+        try { m_streamReader.Run(is); }
+        catch (...) {
+            is->session.readError.store(PlaybackError::Unknown, std::memory_order_release);
+            m_bPlayLoop.store(false, std::memory_order_release);
+        }
 	});
 
 	return is;
@@ -756,7 +778,14 @@ void VideoCtl::applyTrackCommand(VideoState* state, const TrackCommand& command)
 
 void VideoCtl::applyPlaybackCommands()
 {
-	const PlaybackCommands commands = m_commandMailbox.take();
+	std::vector<std::function<void(VideoState*)>> sdkCommands;
+    {
+        std::lock_guard lock(m_sdkMutex);
+        sdkCommands.swap(m_sdkCommands);
+    }
+    for (auto& command : sdkCommands)
+        command(m_CurStream);
+    const PlaybackCommands commands = m_commandMailbox.take();
 	if (commands.pauseToggleCount % 2 != 0)
 		toggle_pause();
 
@@ -841,8 +870,12 @@ void VideoCtl::LoopThread()
 			error,
 			reconnectAttempt,
 			exitStream->session.abort_request.load(std::memory_order_acquire));
-		if (!canReconnect)
+		if (!canReconnect) {
+            if (error != PlaybackError::None && error != PlaybackError::Cancelled &&
+                !exitStream->session.abort_request.load(std::memory_order_acquire))
+                SigSessionFailure(error);
 			break;
+        }
 
 		++reconnectAttempt;
 		const auto delay = ReconnectDelay(source.network, reconnectAttempt);
@@ -865,6 +898,7 @@ void VideoCtl::LoopThread()
 
 		VideoState* reopened = stream_open(source);
 		if (!reopened) {
+            SigSessionFailure(PlaybackError::Unknown);
 			SigPlaybackStatus(PlaybackStatus{PlaybackState::Failed, PlaybackError::Unknown, reconnectAttempt, source.network.maxReconnectAttempts, {}, RedactMediaLocation(source.location)});
 			SigStopFinished();
 			return;
@@ -1004,6 +1038,10 @@ void VideoCtl::emit_video_frame(VideoState* is)
 		av_log(NULL, AV_LOG_ERROR, "Cannot convert video frame\n");
 		return;
 	}
+    if (std::isfinite(vp->pts)) {
+        const auto start = is->session.ic && is->session.ic->start_time != AV_NOPTS_VALUE ? is->session.ic->start_time / 1000 : 0;
+        frame->timestampMs = static_cast<int64_t>(vp->pts * 1000.0) - start;
+    }
 	if (frame->unsupportedHdrTransfer && !m_reportedHdrFallback.exchange(true, std::memory_order_acq_rel))
 		SigPlayMsg("HDR transfer characteristics are unsupported; using BGRA software fallback");
 
@@ -1076,6 +1114,7 @@ void VideoCtl::OnPause()
 
 void VideoCtl::requestStop()
 {
+    { std::lock_guard lock(m_sdkMutex); m_sdkCommands.clear(); }
 	m_commandMailbox.clear();
 	m_reconnectController.cancel();
 	m_bPlayLoop.store(false, std::memory_order_release);
@@ -1162,6 +1201,7 @@ VideoCtl::VideoCtl() :
 			m_bPlayLoop.store(false, std::memory_order_release);
 		},
 		[this] {
+            SigNaturalEnd();
 			const auto loopPolicy = m_loopPolicy.load(std::memory_order_acquire);
 			if (loopPolicy == VideoLoopPolicy::LOOP_ALL) {
 				m_bPlayLoop.store(false, std::memory_order_release);
@@ -1302,7 +1342,69 @@ bool VideoCtl::StartPlay(const MediaSource& source)
     }
 
     //事件循环
-    m_tPlayLoopThread = std::thread(&VideoCtl::LoopThread, this);
+    m_tPlayLoopThread = std::thread([this] {
+        try { LoopThread(); }
+        catch (...) {
+            requestStop();
+            try { SigSessionFailure(PlaybackError::Unknown); do_exit(); } catch (...) {}
+        }
+    });
 
     return true;
+}
+
+bool VideoCtl::OpenPaused(const MediaSource& source)
+{
+    m_startPaused = true;
+    return StartPlay(source);
+}
+
+void VideoCtl::postSdk(std::function<void(VideoState*)> command)
+{
+    { std::lock_guard lock(m_sdkMutex); m_sdkCommands.push_back(std::move(command)); }
+    notifyPlaybackCommand();
+}
+
+void VideoCtl::SdkPause(bool paused, Completion done)
+{
+    postSdk([this, paused, done = std::move(done)](VideoState* state) {
+        if (!state) { done(false); return; }
+        if ((state->session.paused.load() != 0) != paused)
+            stream_toggle_pause();
+        SigPauseStat(paused);
+        done(true);
+    });
+}
+
+void VideoCtl::SdkSeek(int64_t milliseconds, std::function<void(int, int64_t)> done)
+{
+    postSdk([this, milliseconds, done = std::move(done)](VideoState* state) {
+        if (!state || !state->session.ic || !state->session.mediaInfo.seekable) {
+            done(AVERROR(EINVAL), milliseconds); return;
+        }
+        auto& session = state->session;
+        std::unique_lock lock(session.seek_mutex);
+        if (session.seek_req) { lock.unlock(); done(AVERROR(EBUSY), milliseconds); return; }
+        m_audioOutput.Flush(true);
+        session.seek_pos = milliseconds * 1000;
+        const auto start = session.ic->start_time == AV_NOPTS_VALUE ? 0 : session.ic->start_time;
+        session.seek_pos += start;
+        session.seek_rel = 0;
+        session.seek_flags &= ~AVSEEK_FLAG_BYTE;
+        session.sdkSeekCompletion = [done, start](int result, int64_t target) { done(result, (target - start) / 1000); };
+        session.seek_req = true;
+        SDL_CondSignal(session.continue_read_thread);
+    });
+}
+
+void VideoCtl::SdkTrack(bool audio, std::optional<int> track, Completion done)
+{
+    postSdk([this, audio, track, done = std::move(done)](VideoState* state) {
+        if (!state || !state->session.ic || (audio && !state->session.source.enableAudio)) { done(false); return; }
+        const auto type = audio ? AVMEDIA_TYPE_AUDIO : AVMEDIA_TYPE_SUBTITLE;
+        if ((audio && !track) || (track && (*track < 0 || *track >= static_cast<int>(state->session.ic->nb_streams) ||
+            state->session.ic->streams[*track]->codecpar->codec_type != type))) { done(false); return; }
+        applyTrackCommand(state, {audio ? TrackKind::Audio : TrackKind::Subtitle, track, false});
+        done(audio ? state->audio.audio_stream == *track : state->subtitle.subtitle_stream == track.value_or(-1));
+    });
 }

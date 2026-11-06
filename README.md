@@ -7,11 +7,13 @@
 | MyPlayer | 媒体播放、播放列表、字幕、播放设置 | `apps/qt_player/main.cpp` | `apps/qt_player/CMakeLists.txt` | `myplayer` |
 | MyPlayer Monitor | 多路视频预览、设备管理、录像与录像回放 | `apps/monitor/main.cpp` | `apps/monitor/CMakeLists.txt` | `myplayer_monitor` |
 
-技术栈：Qt 6 Widgets、FFmpeg、SDL2、SoundTouch、sigslot；播放器另用 libass 渲染字幕。项目基于 GPL 上游 [itisyang/playerdemo](https://github.com/itisyang/playerdemo)，保留原作者归属与许可证。
+技术栈：Qt 6 Widgets、FFmpeg、SDL2、SoundTouch、sigslot；可复用 Qt 组件使用 libass 渲染字幕，两个应用共用该组件。项目基于 GPL 上游 [itisyang/playerdemo](https://github.com/itisyang/playerdemo)，保留原作者归属与许可证。
 
 - 主仓库：<https://github.com/dfasdsfffff/myplayer>
 - Gitee 镜像：<https://gitee.com/hu-xiao-yun/myplayer>
 - GitHub 发行版：<https://github.com/dfasdsfffff/myplayer/releases>
+- [源码 SDK 接入、API 契约与发行](SDK_README.md)
+- [SDK 方案及实施验收记录](docs/PLAYER_SDK_PLAN.md)
 - [开发与架构指南](docs/PROJECT_GUIDE.md)
 - [监控软件使用、配置与独立构建](apps/monitor/README.md)
 - [播放核心历史检查记录](docs/playback-core-review.md)
@@ -60,6 +62,8 @@ cmake -S . -B build -G "Visual Studio 18 2026" -A x64 `
   -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
   -DVCPKG_TARGET_TRIPLET=x64-windows `
   -DPLAYERDEMO_QT_ROOT="$qtRoot" `
+  -DMYPLAYER_BUILD_QT_APP=ON -DBUILD_TESTING=ON `
+  -DPLAYER_SDK_BUILD_TESTS=ON `
   -DMYPLAYER_BUILD_MONITOR=ON `
   -DMONITOR_BUILD_TESTS=ON
 
@@ -92,9 +96,12 @@ bin/myplayer_monitor_debug.exe           # Debug 监控软件
 
 | 选项 | 默认值 | 作用 |
 | --- | --- | --- |
-| `MYPLAYER_BUILD_QT_APP` | `ON` | 播放器及对应 UI 测试 |
+| `MYPLAYER_BUILD_QT_APP` | `OFF`（Preset 为 ON） | 播放器及对应 UI 测试 |
 | `MYPLAYER_BUILD_MONITOR` | `OFF` | 顶层构建中加入监控软件 |
-| `BUILD_TESTING` | `ON` | 顶层 CTest 测试；不替代监控专用开关 |
+| `BUILD_TESTING` | `OFF`（Preset 为 ON） | 仓库白盒/应用回归；不替代 SDK、监控专用开关 |
+| `PLAYER_SDK_BUILD_QT` | `OFF` | 可复用 Qt 组件；构建应用时自动引入 |
+| `PLAYER_SDK_BUILD_EXAMPLES` | `OFF` | 公开 Core/Qt 示例 |
+| `PLAYER_SDK_BUILD_TESTS` | `OFF` | SDK 公开接口测试，不随宿主 BUILD_TESTING 自动开启 |
 | `MONITOR_BUILD_TESTS` | `OFF` | 监控集成测试和窗口 smoke 测试，需启用监控子项目 |
 | `MYPLAYER_ENABLE_WARNINGS` | `ON` | 项目警告设置 |
 | `MYPLAYER_ENABLE_SANITIZERS` | `OFF` | 支持的编译器上的 ASan/UBSan，非 Windows GUI 验证 |
@@ -108,7 +115,7 @@ cmake -S . -B build-core -G "Visual Studio 18 2026" -A x64 `
   -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
   -DVCPKG_TARGET_TRIPLET=x64-windows `
   -DMYPLAYER_BUILD_QT_APP=OFF -DMYPLAYER_BUILD_MONITOR=OFF `
-  -DBUILD_TESTING=ON
+  -DBUILD_TESTING=ON -DPLAYER_SDK_BUILD_TESTS=ON
 cmake --build build-core --config Release
 ctest --test-dir build-core -C Release --output-on-failure
 ```
@@ -167,7 +174,7 @@ bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
   --benchmark-run-ms 10000 --benchmark-timeout-ms 30000
 ```
 
-基准模式请求软件解码、1 倍速、关闭循环/断点恢复及 1280×720 窗口。GUI 收到的帧数与 SDL 呈现调用返回数分别统计，不是解码帧/丢帧计数，也不证明屏幕实际可见。CPU 以一个逻辑核心为 100%；纯视频样本不测音画同步，短时结果不是长期稳定性结论。
+基准模式请求软件解码、1 倍速、关闭循环/断点恢复及 1280×720 窗口。SDK 迁移后的播放器报告使用 schema 2 / `myplayer_qt_sdk_playback`，以 `video_frame_painter_submissions` 记录共享控件提交，不再将 QPainter 提交标为 SDL。GUI 收到的帧数与共享 VideoWidget 的 QPainter 呈现回调分别统计，不是解码帧/丢帧计数，也不证明屏幕实际可见。CPU 以一个逻辑核心为 100%；纯视频样本不测音画同步，短时结果不是长期稳定性结论。
 
 ## 双软件免安装打包
 
@@ -199,10 +206,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1
 ## 目录与维护入口
 
 ```text
-apps/qt_player/    播放器 Qt UI 子项目 CMake、字幕渲染、设置、播放基准
-apps/monitor/      监控 Qt UI 子项目 CMake、设备配置、录像与回放
-play_core/         公共播放运行时、解封装/解码、队列、时钟、网络输入
-cmake/             告警与安装规则
+apps/qt_player/    播放器 UI、应用播放策略、设置、播放基准
+apps/monitor/      监控 UI、设备配置、录像与回放
+play_core/include/ 公开 C++ SDK API（Player、只读帧、订阅等）
+play_core/src/     私有解封装/解码、队列、时钟、网络输入与旧回归入口
+qt/                PlayerSDK::QtWidgets，QtPlayer 与 VideoWidget
+examples/          无 Qt 及 Qt Widgets SDK consumer
+cmake/             SDK 依赖/接入、告警与应用安装规则
 scripts/           双软件打包、媒体兼容性和性能验证脚本
 tests/             播放核心及播放器回归/集成测试
 docs/              开发指南、历史检查记录与设计文件

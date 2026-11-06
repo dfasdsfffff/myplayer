@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include <shared_mutex>
 
@@ -25,6 +26,7 @@ struct SessionState {
     // seek 命令由控制线程写入、读取线程消费，必须作为一个整体读取。
     std::mutex seek_mutex;
     bool seek_req = false;
+    std::function<void(int, int64_t)> sdkSeekCompletion;
     int seek_flags = 0;
     int64_t seek_pos = 0;
     int64_t seek_rel = 0;

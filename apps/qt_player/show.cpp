@@ -1,464 +1,57 @@
-/*
- * @file 	show.cpp
- * @date 	2018/01/22 23:07
- *
- * @author 	itisyang
- * @Contact	itisyang@gmail.com
- *
- * @brief 	显示控件
- * @note
- */
-
-#include <QDebug>
-#include <QFileInfo>
-#include <QPalette>
-#include <mutex>
-#include <utility>
-
 #include "show.h"
 #include "ui_show.h"
-
 #include "globalhelper.h"
-#include "playback_controller.h"
-#include "subtitle_renderer.h"
-
-std::mutex g_show_rect_mutex;
-
-Show::Show(QWidget *parent) : QWidget(parent),
-                              ui(new Ui::Show),
-                              m_stActionGroup(this),
-                              m_stMenu(this)
-{
+#include "app_playback.h"
+#include <QFileInfo>
+#include <QMimeData>
+Show::Show(QWidget* parent) : QWidget(parent), ui(new Ui::Show), view_(new player_sdk_qt::VideoWidget(this)) {
     ui->setupUi(this);
-
-    // 加载样式（使用统一设计系统）
-    setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/show.css"));
-    setAcceptDrops(true);
-
-    // 防止过度刷新显示
-    this->setAttribute(Qt::WA_OpaquePaintEvent);
-    ui->label->setAttribute(Qt::WA_NativeWindow);
-    ui->label->setAttribute(Qt::WA_OpaquePaintEvent);
     ui->label->setAutoFillBackground(true);
-    QPalette videoPalette = ui->label->palette();
-    videoPalette.setColor(QPalette::Window, Qt::black);
-    ui->label->setPalette(videoPalette);
-
-    this->setMouseTracking(true);
-
-    m_nLastFrameWidth = 0; ///< 记录视频宽高
-    m_nLastFrameHeight = 0;
-    m_subtitleRenderer = std::make_unique<SubtitleRenderer>();
-
-    m_stActionGroup.addAction("全屏");
-    m_stActionGroup.addAction("暂停");
-    m_stActionGroup.addAction("停止");
-
-    m_stMenu.addActions(m_stActionGroup.actions());
+    auto palette = ui->label->palette(); palette.setColor(QPalette::Window, Qt::black); ui->label->setPalette(palette);
+    setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/show.css"));
+    setAcceptDrops(true); setMouseTracking(true);
+    view_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    view_->setGeometry(rect());
+    connect(view_,&player_sdk_qt::VideoWidget::framePresented,this,[this] { if (m_measureFrameSubmission) emit SigVideoFrameSubmitted(); });
 }
-
-Show::~Show()
-{
-    DestroySdlRenderer();
-    delete ui;
-}
-
-bool Show::Init()
-{
-    if (ConnectSignalSlots() == false)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-void Show::SetPlaybackController(PlaybackController* controller)
-{
+Show::~Show() { delete ui; }
+bool Show::Init() { connect(this,&Show::SigPlay,this,&Show::OnPlay,Qt::UniqueConnection); return true; }
+void Show::SetPlaybackController(AppPlaybackController* controller) {
     m_playbackController = controller;
+    if (controller) connect(&controller->player,&player_sdk_qt::QtPlayer::positionChanged,view_,&player_sdk_qt::VideoWidget::setPosition);
 }
-
-void Show::SetFrameSubmissionMeasurementEnabled(bool enabled)
-{
-    m_measureFrameSubmission = enabled;
+void Show::SetFrameSubmissionMeasurementEnabled(bool enabled) { m_measureFrameSubmission = enabled; }
+void Show::OnFrameDimensionsChanged(int,int) {}
+void Show::OnVideoFrame(std::shared_ptr<const VideoFrame> frame) {
+    if (frame) ClearAudioOnlyIndicator(); view_->setVideoFrame(std::move(frame));
 }
-
-void Show::OnFrameDimensionsChanged(int nFrameWidth, int nFrameHeight)
-{
-    m_nLastFrameWidth = nFrameWidth;
-    m_nLastFrameHeight = nFrameHeight;
-
-    ChangeShow();
+void Show::OnSubtitleFrame(std::shared_ptr<const SubtitleFrame> frame) { view_->setSubtitleFrame(std::move(frame)); }
+void Show::OnVideoPlaySeconds(int seconds) { if (!m_playbackController) view_->setPosition(static_cast<qint64>(seconds)*1000); }
+bool Show::LoadExternalSubtitleFile(const QString& file) { return view_->loadExternalSubtitle(file); }
+bool Show::UnloadExternalSubtitleFile() { const bool had = view_->hasExternalSubtitle(); view_->clearExternalSubtitle(); return had; }
+bool Show::HasExternalSubtitle() const { return view_->hasExternalSubtitle(); }
+void Show::resizeEvent(QResizeEvent* event) { QWidget::resizeEvent(event); view_->setGeometry(rect()); ui->label->setGeometry(rect()); }
+void Show::dragEnterEvent(QDragEnterEvent* event) { event->acceptProposedAction(); }
+void Show::dropEvent(QDropEvent* event) {
+    const auto urls = event->mimeData()->urls();
+    if (!urls.isEmpty()) emit SigOpenFile(urls.first().isLocalFile() ? urls.first().toLocalFile() : urls.first().toString());
 }
-
-void Show::OnVideoFrame(std::shared_ptr<VideoFrame> frame)
-{
-    if (!frame || frame->width <= 0 || frame->height <= 0
-        || (frame->format == VideoFrameFormat::Bgra32 && frame->bgra.empty()))
-        return;
-
-    ClearAudioOnlyIndicator();
-    m_currentFrame = std::move(frame);
-    ChangeShow();
-    const bool submitted = RenderCurrentFrame();
-    if (submitted && m_measureFrameSubmission)
-        emit SigVideoFrameSubmitted();
-}
-
-void Show::OnSubtitleFrame(std::shared_ptr<const SubtitleFrame> frame)
-{
-    if (m_subtitleRenderer)
-        m_subtitleRenderer->setFrame(std::move(frame));
-    RenderCurrentFrame();
-}
-
-void Show::OnVideoPlaySeconds(int seconds)
-{
-    m_playbackSeconds = seconds;
-}
-
-bool Show::LoadExternalSubtitleFile(const QString& fileName)
-{
-    if (!m_subtitleRenderer)
-        return false;
-    const bool loaded = m_subtitleRenderer->loadExternalFile(fileName.toStdString());
-    if (loaded)
-        RenderCurrentFrame();
-    return loaded;
-}
-
-bool Show::UnloadExternalSubtitleFile()
-{
-    if (!m_subtitleRenderer || !m_subtitleRenderer->hasExternalSubtitle())
-        return false;
-    m_subtitleRenderer->clearExternalFile();
-    RenderCurrentFrame();
-    return true;
-}
-
-bool Show::HasExternalSubtitle() const
-{
-    return m_subtitleRenderer && m_subtitleRenderer->hasExternalSubtitle();
-}
-
-void Show::ChangeShow()
-{
-    std::lock_guard<std::mutex> locker(g_show_rect_mutex);
-
-    if (m_nLastFrameWidth == 0 && m_nLastFrameHeight == 0)
-    {
-        ui->label->setGeometry(0, 0, width(), height());
-    }
-    else
-    {
-        int scr_width = this->width();
-        int scr_height = this->height();
-        const int frameWidth = m_currentFrame ? m_currentFrame->width : m_nLastFrameWidth;
-        const int frameHeight = m_currentFrame ? m_currentFrame->height : m_nLastFrameHeight;
-        const AVRational sar = m_currentFrame ? m_currentFrame->sampleAspectRatio : AVRational{1, 1};
-        const double rotation = m_currentFrame ? m_currentFrame->rotationDegrees : 0.0;
-        const VideoDisplayRect display = ComputeVideoDisplayRect(frameWidth, frameHeight, sar, rotation, scr_width, scr_height);
-        ui->label->setGeometry(display.x, display.y, display.width, display.height);
+void Show::keyReleaseEvent(QKeyEvent* event) {
+    switch(event->key()) {
+    case Qt::Key_Return: emit SigFullScreen(); break;
+    case Qt::Key_Left: emit SigSeekBack(); break;
+    case Qt::Key_Right: emit SigSeekForward(); break;
+    case Qt::Key_Up: emit SigAddVolume(); break;
+    case Qt::Key_Down: emit SigSubVolume(); break;
+    case Qt::Key_Space: emit SigPlayOrPause(); break;
+    default: QWidget::keyReleaseEvent(event); break;
     }
 }
-
-bool Show::EnsureSdlRenderer()
-{
-    if (m_sdlRenderer)
-        return true;
-
-    if (!(SDL_WasInit(SDL_INIT_VIDEO) & SDL_INIT_VIDEO))
-    {
-        if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0)
-        {
-            qWarning() << "SDL_InitSubSystem(SDL_INIT_VIDEO) failed:" << SDL_GetError();
-            return false;
-        }
-        m_sdlVideoInitialized = true;
-    }
-
-    m_sdlWindow = SDL_CreateWindowFrom(reinterpret_cast<void*>(ui->label->winId()));
-    if (!m_sdlWindow)
-    {
-        qWarning() << "SDL_CreateWindowFrom failed:" << SDL_GetError();
-        return false;
-    }
-
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-    m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, SDL_RENDERER_ACCELERATED);
-    if (!m_sdlRenderer)
-        m_sdlRenderer = SDL_CreateRenderer(m_sdlWindow, -1, 0);
-    if (!m_sdlRenderer)
-    {
-        qWarning() << "SDL_CreateRenderer failed:" << SDL_GetError();
-        DestroySdlRenderer();
-        return false;
-    }
-
-    SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
-    return true;
+void Show::mousePressEvent(QMouseEvent* event) { if (event->buttons() & Qt::RightButton) emit SigShowMenu(); QWidget::mousePressEvent(event); }
+void Show::OnPlay(QString file) { if (m_playbackController && !file.isEmpty()) m_playbackController->play(file.toUtf8().toStdString()); }
+void Show::OnStopFinished() { view_->setVideoFrame({}); view_->setSubtitleFrame({}); view_->clearExternalSubtitle(); ClearAudioOnlyIndicator(); }
+void Show::ShowAudioOnly(const QString& location) {
+    view_->setVideoFrame({}); view_->hide(); m_audioOnlyActive = true;
+    ui->label->setGeometry(rect()); ui->label->setText(QString("%1\n正在播放音频").arg(QFileInfo(location).fileName()));
 }
-
-void Show::DestroySdlRenderer()
-{
-    if (m_sdlTexture)
-    {
-        SDL_DestroyTexture(m_sdlTexture);
-        m_sdlTexture = nullptr;
-    }
-    if (m_sdlRenderer)
-    {
-        SDL_DestroyRenderer(m_sdlRenderer);
-        m_sdlRenderer = nullptr;
-    }
-    if (m_sdlWindow)
-    {
-        SDL_DestroyWindow(m_sdlWindow);
-        m_sdlWindow = nullptr;
-    }
-    if (m_sdlVideoInitialized)
-    {
-        SDL_QuitSubSystem(SDL_INIT_VIDEO);
-        m_sdlVideoInitialized = false;
-    }
-    m_sdlTextureSize = QSize();
-    m_sdlTextureFormat = SDL_PIXELFORMAT_UNKNOWN;
-}
-
-void Show::ClearVideoSurface()
-{
-    if (m_sdlRenderer)
-    {
-        SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
-        SDL_RenderClear(m_sdlRenderer);
-        SDL_RenderPresent(m_sdlRenderer);
-    }
-
-    ui->label->update();
-}
-
-bool Show::RenderCurrentFrame()
-{
-    if (!m_currentFrame || ui->label->width() <= 0 || ui->label->height() <= 0)
-        return false;
-    if (!EnsureSdlRenderer())
-        return false;
-
-    const QSize frameSize(m_currentFrame->width, m_currentFrame->height);
-    const Uint32 pixelFormat = m_currentFrame->format == VideoFrameFormat::Yuv420P ? SDL_PIXELFORMAT_IYUV : SDL_PIXELFORMAT_BGRA32;
-    if (!m_sdlTexture || m_sdlTextureSize != frameSize || m_sdlTextureFormat != pixelFormat)
-    {
-        if (m_sdlTexture)
-            SDL_DestroyTexture(m_sdlTexture);
-        m_sdlTexture = SDL_CreateTexture(m_sdlRenderer, pixelFormat,
-            SDL_TEXTUREACCESS_STREAMING, frameSize.width(), frameSize.height());
-        m_sdlTextureSize = frameSize;
-        m_sdlTextureFormat = pixelFormat;
-        if (!m_sdlTexture)
-        {
-            qWarning() << "SDL_CreateTexture failed:" << SDL_GetError();
-            return false;
-        }
-        qDebug() << "Video presentation format:"
-                 << (pixelFormat == SDL_PIXELFORMAT_IYUV ? "YUV420P" : "BGRA32");
-    }
-
-    const int updateResult = m_currentFrame->format == VideoFrameFormat::Yuv420P
-        ? SDL_UpdateYUVTexture(m_sdlTexture, nullptr, m_currentFrame->planes[0].data.get(), m_currentFrame->planes[0].stride,
-            m_currentFrame->planes[1].data.get(), m_currentFrame->planes[1].stride,
-            m_currentFrame->planes[2].data.get(), m_currentFrame->planes[2].stride)
-        : SDL_UpdateTexture(m_sdlTexture, nullptr, m_currentFrame->bgra.data(), m_currentFrame->bytesPerLine);
-    if (updateResult != 0)
-    {
-        qWarning() << "SDL_UpdateTexture failed:" << SDL_GetError();
-        return false;
-    }
-
-    SDL_SetRenderDrawColor(m_sdlRenderer, 0, 0, 0, 255);
-    if (SDL_RenderClear(m_sdlRenderer) != 0 ||
-        SDL_RenderCopy(m_sdlRenderer, m_sdlTexture, nullptr, nullptr) != 0)
-        return false;
-    if (m_subtitleRenderer)
-        m_subtitleRenderer->render(m_sdlRenderer, frameSize, m_playbackSeconds);
-    SDL_RenderPresent(m_sdlRenderer);
-    return true;
-}
-
-void Show::dragEnterEvent(QDragEnterEvent *event)
-{
-    event->acceptProposedAction();
-}
-
-void Show::resizeEvent(QResizeEvent *event)
-{
-    Q_UNUSED(event);
-
-    ChangeShow();
-    // QWidget 尺寸变化不会改变其原生窗口句柄；保留 renderer 和 texture，
-    // 避免拖动窗口时持续重建 GPU 资源。
-    ClearVideoSurface();
-    RenderCurrentFrame();
-}
-
-void Show::keyReleaseEvent(QKeyEvent *event)
-{
-    switch (event->key())
-    {
-    case Qt::Key_Return: // 全屏
-        SigFullScreen();
-        break;
-    case Qt::Key_Left: // 后退5s
-        emit SigSeekBack();
-        break;
-    case Qt::Key_Right: // 前进5s
-        emit SigSeekForward();
-        break;
-    case Qt::Key_Up: // 增加10音量
-        emit SigAddVolume();
-        break;
-    case Qt::Key_Down: // 减少10音量
-        emit SigSubVolume();
-        break;
-    case Qt::Key_Space: // 减少10音量
-        emit SigPlayOrPause();
-        break;
-
-    default:
-        QWidget::keyPressEvent(event);
-        break;
-    }
-}
-void Show::mousePressEvent(QMouseEvent *event)
-{
-    if (event->buttons() & Qt::RightButton)
-    {
-        emit SigShowMenu();
-    }
-
-    QWidget::mousePressEvent(event);
-}
-
-void Show::OnDisplayMsg(QString strMsg)
-{
-    Q_UNUSED(strMsg);
-}
-
-void Show::OnPlay(QString strFile)
-{
-    if (strFile.isEmpty()) {
-        qWarning() << "Warning: strFile is empty, not starting playback.";
-        return;
-    }
-    
-    // 使用UTF-8编码转换，更适合Windows下的中文路径
-    std::string s = strFile.toUtf8().constData();
-    
-    // 再次检查转换后的字符串是否为空
-    if (s.empty()) {
-        qWarning() << "Warning: Converted std::string is empty, not starting playback.";
-        return;
-    }
-    
-    if (!m_playbackController) {
-        qWarning() << "Warning: playback controller is not set, not starting playback.";
-        return;
-    }
-
-    m_playbackController->play(s);
-}
-
-void Show::OnStopFinished()
-{
-    m_currentFrame.reset();
-    if (m_subtitleRenderer)
-        m_subtitleRenderer->clear();
-    ClearAudioOnlyIndicator();
-    ClearVideoSurface();
-    update();
-}
-
-void Show::ShowAudioOnly(const QString& location)
-{
-    m_currentFrame.reset();
-    m_nLastFrameWidth = 0;
-    m_nLastFrameHeight = 0;
-    m_audioOnlyActive = true;
-    DestroySdlRenderer();
-    ChangeShow();
-    ui->label->setText(QString("%1\n正在播放音频").arg(QFileInfo(location).fileName()));
-}
-
-void Show::ClearAudioOnlyIndicator()
-{
-    if (!m_audioOnlyActive)
-        return;
-
-    m_audioOnlyActive = false;
-    ui->label->clear();
-}
-
-void Show::OnTimerShowCursorUpdate()
-{
-    // qDebug() << "Show::OnTimerShowCursorUpdate()";
-    // setCursor(Qt::BlankCursor);
-}
-
-void Show::OnActionsTriggered(QAction *action)
-{
-    QString strAction = action->text();
-    if (strAction == "全屏")
-    {
-        emit SigFullScreen();
-    }
-    else if (strAction == "停止")
-    {
-        emit SigStop();
-    }
-    else if (strAction == "暂停" || strAction == "播放")
-    {
-        emit SigPlayOrPause();
-    }
-}
-
-bool Show::ConnectSignalSlots()
-{
-    QList<bool> listRet;
-    bool bRet;
-
-    bRet = connect(this, &Show::SigPlay, this, &Show::OnPlay);
-    listRet.append(bRet);
-
-    timerShowCursor.setInterval(2000);
-    bRet = connect(&timerShowCursor, &QTimer::timeout, this, &Show::OnTimerShowCursorUpdate);
-    listRet.append(bRet);
-
-    connect(&m_stActionGroup, &QActionGroup::triggered, this, &Show::OnActionsTriggered);
-
-    for (bool bReturn : listRet)
-    {
-        if (bReturn == false)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-void Show::dropEvent(QDropEvent *event)
-{
-    QList<QUrl> urls = event->mimeData()->urls();
-    if (urls.isEmpty())
-    {
-        return;
-    }
-
-    for (QUrl url : urls)
-    {
-        QString strFileName = url.toLocalFile();
-        emit SigOpenFile(strFileName);
-        break;
-    }
-
-    // emit SigPlay(urls.first().toLocalFile());
-}
+void Show::ClearAudioOnlyIndicator() { m_audioOnlyActive = false; ui->label->clear(); view_->show(); }

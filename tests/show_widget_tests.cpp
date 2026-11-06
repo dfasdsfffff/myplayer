@@ -28,15 +28,17 @@ int main()
     const std::string mainWidCpp = ReadFile("apps/qt_player/mainwid.cpp");
     const std::string mainWidH = ReadFile("apps/qt_player/mainwid.h");
     const std::string designSystemQss = ReadFile("apps/qt_player/res/qss/design-system.css");
+    const std::string appCMake = ReadFile("apps/qt_player/CMakeLists.txt");
     const std::string rootCMake = ReadFile("CMakeLists.txt");
     const std::string aboutUi = ReadFile("apps/qt_player/about.ui");
     const std::string titleUi = ReadFile("apps/qt_player/title.ui");
     const std::string settingUi = ReadFile("apps/qt_player/settingwid.ui");
     
     const std::string notice = ReadFile("NOTICE");
-    const std::string releaseChecklist = ReadFile("docs/release-checklist.md");
-    const std::string qaChecklist = ReadFile("docs/player-qa-checklist.md");
+    const std::string releaseChecklist = ReadFile("README.md");
+    const std::string qaChecklist = ReadFile("README.md");
     const std::string portablePackager = ReadFile("scripts/package-portable.ps1");
+    const std::string installRules = ReadFile("cmake/MyPlayerInstall.cmake");
 
     if (!Expect(!showCpp.empty(), "show.cpp should be readable from the repository root"))
         return 1;
@@ -83,8 +85,8 @@ int main()
     if (!Expect(rootCMake.find("project(myplayer VERSION 1.0.0 LANGUAGES CXX)") != std::string::npos,
             "CMake project should use the internal product name"))
         return 1;
-    if (!Expect(rootCMake.find("OUTPUT_NAME_DEBUG \"myplayer_debug\"") != std::string::npos
-                && rootCMake.find("OUTPUT_NAME_RELEASE \"myplayer\"") != std::string::npos,
+    if (!Expect(appCMake.find("OUTPUT_NAME_DEBUG \"myplayer_debug\"") != std::string::npos
+                && appCMake.find("OUTPUT_NAME_RELEASE \"myplayer\"") != std::string::npos,
             "Qt executable output should use myplayer names"))
         return 1;
 
@@ -95,21 +97,21 @@ int main()
         return 1;
     if (!Expect(notice.find("MyPlayer") != std::string::npos
                 && notice.find("itisyang/playerdemo") != std::string::npos
-                && notice.find("https://github.com/dfasdsfffff/playerdemo-master") != std::string::npos
+                && notice.find("https://github.com/dfasdsfffff/myplayer") != std::string::npos
                 && notice.find("GNU General Public License") != std::string::npos,
             "NOTICE should preserve product, upstream, and GPL attribution"))
         return 1;
     if (!Expect(releaseChecklist.find("GPL") != std::string::npos
-                && releaseChecklist.find("source") != std::string::npos
+                && releaseChecklist.find("对应源码") != std::string::npos
                 && releaseChecklist.find("Advanced Installer") == std::string::npos,
             "release checklist should document GPL source distribution and portable-only publishing"))
         return 1;
-    if (!Expect(qaChecklist.find("format compatibility") != std::string::npos
-                && qaChecklist.find("long-running playback") != std::string::npos
-                && qaChecklist.find("network failure") != std::string::npos,
+    if (!Expect(qaChecklist.find("媒体兼容性") != std::string::npos
+                && qaChecklist.find("性能") != std::string::npos
+                && qaChecklist.find("网络") != std::string::npos,
             "player QA checklist should cover commercial-readiness playback risks"))
         return 1;
-    if (!Expect(portablePackager.find("MyPlayer-$Version-windows-x64") != std::string::npos,
+    if (!Expect(portablePackager.find("$($app.Name)-$Version-windows-x64") != std::string::npos,
             "portable packager should produce the expected green package name"))
         return 1;
     if (!Expect(portablePackager.find("cmake --install") != std::string::npos
@@ -117,7 +119,7 @@ int main()
             "portable packager should deploy Qt runtime and platform plugins"))
         return 1;
     if (!Expect(portablePackager.find("LICENSE") != std::string::npos
-                && portablePackager.find("NOTICE") != std::string::npos
+                && installRules.find("NOTICE") != std::string::npos
                 && portablePackager.find("licenses") != std::string::npos,
             "portable packager should include license and notice files"))
         return 1;

@@ -2,12 +2,24 @@ cmake_minimum_required(VERSION 3.25)
 
 project(myplayer VERSION 1.0.0 LANGUAGES CXX)
 
+option(PLAYER_SDK_BUILD_QT "Build reusable Qt Widgets integration" OFF)
+option(PLAYER_SDK_BUILD_EXAMPLES "Build SDK consumer examples" OFF)
+option(PLAYER_SDK_BUILD_TESTS "Build SDK public API tests" OFF)
+
+# Embedded SDK mode has its own directory scope: no CTest, application output,
+# CRT, warning flags or Qt setup are imposed on the host.
+if(NOT PROJECT_IS_TOP_LEVEL)
+    include(cmake/PlayerSDK.cmake)
+    return()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(MYPLAYER_BUILD_QT_APP "Build the Qt Widgets player" ON)
+option(MYPLAYER_BUILD_QT_APP "Build the Qt Widgets player" OFF)
 option(MYPLAYER_BUILD_MONITOR "Build the multi-camera monitoring application" OFF)
+option(BUILD_TESTING "Build repository regression tests" OFF)
 include(CTest)
 option(MYPLAYER_ENABLE_WARNINGS "Enable project warning flags" ON)
 option(MYPLAYER_ENABLE_SANITIZERS "Enable supported sanitizers" OFF)
@@ -46,6 +58,17 @@ if(MYPLAYER_BUILD_QT_APP)
 endif()
 
 add_subdirectory(play_core)
+
+if(PLAYER_SDK_BUILD_QT OR MYPLAYER_BUILD_QT_APP OR MYPLAYER_BUILD_MONITOR)
+    add_subdirectory(qt)
+endif()
+if(PLAYER_SDK_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+if(PLAYER_SDK_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests/sdk)
+endif()
 
 if(MYPLAYER_BUILD_MONITOR)
     add_subdirectory(apps/monitor)
@@ -117,7 +140,7 @@ add_executable(playback_settings_tests
 )
 
 target_include_directories(playback_settings_tests PRIVATE
-    ${PROJECT_SOURCE_DIR}/play_core
+    ${PROJECT_SOURCE_DIR}/play_core/src
 )
 
 add_test(NAME playback_settings_tests COMMAND playback_settings_tests)
@@ -143,7 +166,7 @@ add_executable(globalhelper_privacy_tests
 
 target_include_directories(globalhelper_privacy_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core
+    ${PROJECT_SOURCE_DIR}/play_core/src
 )
 
 target_link_libraries(globalhelper_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
@@ -164,7 +187,7 @@ add_executable(playlist_privacy_tests
 
 target_include_directories(playlist_privacy_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core
+    ${PROJECT_SOURCE_DIR}/play_core/src
 )
 
 target_link_libraries(playlist_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
@@ -196,7 +219,7 @@ add_executable(playlist_navigation_tests
 
 target_include_directories(playlist_navigation_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core
+    ${PROJECT_SOURCE_DIR}/play_core/src
 )
 
 target_link_libraries(playlist_navigation_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
@@ -412,14 +435,19 @@ target_link_libraries(subtitle_dispatcher_tests PRIVATE
 
 add_test(NAME subtitle_dispatcher_tests COMMAND subtitle_dispatcher_tests)
 
+if(MYPLAYER_BUILD_QT_APP)
+add_executable(latest_frame_mailbox_unit_tests tests/latest_video_frame_mailbox_tests.cpp tests/support/latest_video_frame_mailbox.cpp)
+target_include_directories(latest_frame_mailbox_unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support ${PROJECT_SOURCE_DIR}/play_core/src)
+target_link_libraries(latest_frame_mailbox_unit_tests PRIVATE Qt6::Core ${FFMPEG_LIBRARIES})
+add_test(NAME latest_frame_mailbox_unit_tests COMMAND latest_frame_mailbox_unit_tests)
 add_executable(subtitle_renderer_tests
     tests/subtitle_renderer_tests.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/subtitle_renderer.cpp
+    tests/support/subtitle_renderer.cpp
 )
 
 target_include_directories(subtitle_renderer_tests PRIVATE
-    ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core
+    ${PROJECT_SOURCE_DIR}/tests/support
+    ${PROJECT_SOURCE_DIR}/play_core/src
 )
 
 target_link_libraries(subtitle_renderer_tests PRIVATE
@@ -434,18 +462,20 @@ set_tests_properties(subtitle_renderer_tests PROPERTIES
 )
 
 add_executable(latest_video_frame_mailbox_tests
-    tests/latest_video_frame_mailbox_tests.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/latest_video_frame_mailbox.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.cpp
+    tests/sdk/qt_player_tests.cpp
+    tests/media_fixture_builder.cpp
 )
 
 target_include_directories(latest_video_frame_mailbox_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core
+    ${PROJECT_SOURCE_DIR}/play_core/src
 )
 
-target_link_libraries(latest_video_frame_mailbox_tests PRIVATE play_core Qt6::Core)
+target_link_libraries(latest_video_frame_mailbox_tests PRIVATE PlayerSDK::QtWidgets ${FFMPEG_LIBRARIES})
+target_include_directories(latest_video_frame_mailbox_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests)
 add_test(NAME latest_video_frame_mailbox_tests COMMAND latest_video_frame_mailbox_tests)
+set_tests_properties(latest_video_frame_mailbox_tests PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_AUDIODRIVER=dummy")
+endif()
 
 add_executable(playback_lifecycle_stress_tests
     tests/playback_lifecycle_stress_tests.cpp
@@ -649,6 +679,7 @@ set_tests_properties(show_widget_tests PROPERTIES
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
 
+if(MYPLAYER_BUILD_QT_APP)
 set(MAIN_WINDOW_TEST_SOURCES ${SOURCE_FILES})
 list(REMOVE_ITEM MAIN_WINDOW_TEST_SOURCES ${PLAYERDEMO_QT_APP_DIR}/main.cpp)
 add_executable(main_window_behavior_tests
@@ -660,10 +691,10 @@ add_executable(main_window_behavior_tests
 )
 target_include_directories(main_window_behavior_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core
+    ${PROJECT_SOURCE_DIR}/play_core/src
 )
 target_link_libraries(main_window_behavior_tests PRIVATE
-    play_core
+    PlayerSDK::QtWidgets
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
@@ -686,14 +717,22 @@ set_tests_properties(main_window_behavior_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
 )
 
+endif()
+
 get_property(myplayer_build_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 foreach(test_target IN LISTS myplayer_build_targets)
     if(test_target MATCHES "_tests$")
         myplayer_set_test_runtime_dir(${test_target})
         get_target_property(test_link_libraries ${test_target} LINK_LIBRARIES)
-        if("${test_link_libraries}" MATCHES "Qt6::")
+        if("${test_link_libraries}" MATCHES "Qt6::|PlayerSDK::QtWidgets")
             myplayer_deploy_runtime_dependencies(${test_target})
         endif()
+        target_include_directories(${test_target} PRIVATE
+            ${PROJECT_SOURCE_DIR}/play_core/src
+            ${FFMPEG_INCLUDE_DIRS}
+            ${PLAYERDEMO_SIGSLOT_ROOT}/include
+        )
+        target_link_libraries(${test_target} PRIVATE SDL2::SDL2)
         myplayer_enable_warnings(${test_target})
         myplayer_enable_sanitizers(${test_target})
     endif()
