@@ -16,7 +16,9 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
-#include <QMenuBar>
+#include <QSettings>
+#include <QScrollArea>
+#include <QUrl>
 #include <QButtonGroup>
 #include <QScreen>
 #include <QGuiApplication>
@@ -48,14 +50,17 @@ bool XViewer::OpenPreview(const QStringList& sources, int layout) {
   if (layout != 1 && layout != 4 && layout != 9 && layout != 16) return false;
   if (sources.size() > layout) return false;
   view(layout);
-  for (qsizetype i = 0; i < sources.size(); ++i)
+  for (qsizetype i = 0; i < sources.size(); ++i) {
     if (!cam_wids[i]->open(sources[i], true)) return false;
+    emit cam_wids[i]->cameraAssigned(QUrl(sources[i]).isLocalFile() || QUrl(sources[i]).scheme().size() <= 1
+        ? QFileInfo(sources[i]).fileName() : QStringLiteral("网络视频"));
+  }
   return true;
 }
 
 void XViewer::view(int count) {
   qDebug() << "View" << count;
-  for (auto *button : ui->head->findChildren<QPushButton *>()) {
+  for (auto *button : findChildren<QPushButton *>()) {
     if (button->property("layoutCount").isValid())
       button->setChecked(button->property("layoutCount").toInt() == count);
   }
@@ -68,9 +73,11 @@ void XViewer::view(int count) {
   if (!lay) {
     lay = new QGridLayout(ui->cams);
   }
-  lay->setContentsMargins(2, 2, 2, 2);
-  lay->setHorizontalSpacing(2);
-  lay->setVerticalSpacing(2);
+  lay->setContentsMargins(0, 0, 0, 0);
+  lay->setHorizontalSpacing(12);
+  lay->setVerticalSpacing(12);
+  current_layout_ = count;
+  if (layout_summary_) layout_summary_->setText(QStringLiteral("当前显示 %1 路 / 最大 16 路").arg(count));
   for (int row = 0; row < 4; ++row)
     lay->setRowStretch(row, row < rows ? 1 : 0);
   for (int col = 0; col < 4; ++col)
@@ -81,14 +88,43 @@ void XViewer::view(int count) {
     if (!cam_wids[i]) {
       cam_wids[i] = new XCameraWidget(this);
       cam_wids[i]->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-      cam_wids[i]->setStyleSheet("background-color:rgb(38,43,49)");
+      auto *card = new QWidget(ui->cams);
+      card->setObjectName(QStringLiteral("channelCard"));
+      card->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+      channel_cards_[i] = card;
+      auto *cardLayout = new QVBoxLayout(card);
+      cardLayout->setContentsMargins(1, 1, 1, 1);
+      cardLayout->setSpacing(0);
+      auto *title = new QLabel(QStringLiteral("%1    未分配通道").arg(i + 1, 2, 10, QLatin1Char('0')), card);
+      title->setObjectName(QStringLiteral("channelTitle"));
+      title->setMinimumHeight(38);
+      title->setContentsMargins(12, 0, 12, 0);
+      cardLayout->addWidget(title);
+      cardLayout->addWidget(cam_wids[i], 1);
+      auto *state = new QLabel(QStringLiteral("等待设备接入"), card);
+      state->setObjectName(QStringLiteral("channelState"));
+      state->setMinimumHeight(30);
+      state->setContentsMargins(12, 0, 12, 0);
+      cardLayout->addWidget(state);
+      connect(cam_wids[i], &XCameraWidget::cameraAssigned, title, [title, i](const QString &name) {
+        title->setText(QStringLiteral("%1    %2").arg(i + 1, 2, 10, QLatin1Char('0')).arg(name));
+      });
+      connect(cam_wids[i], &CoreVideoWidget::playbackError, state, [state](const QString &) {
+        state->setProperty("failed", true);
+        state->setText(QStringLiteral("连接失败 · 请检查设备地址或网络"));
+      });
+      connect(cam_wids[i], &XCameraWidget::cameraAssigned, state, [state] {
+        state->setProperty("failed", false);
+        state->setText(QStringLiteral("正在连接…"));
+      });
     }
-    lay->addWidget(cam_wids[i], i / rows, i % cols);
+    lay->addWidget(channel_cards_[i], i / rows, i % cols);
   }
   //
   for (; i < wid_seze; ++i) {
     if (cam_wids[i]) {
-      delete cam_wids[i];
+      delete channel_cards_[i];
+      channel_cards_[i] = nullptr;
       cam_wids[i] = nullptr;
     }
   }
@@ -102,9 +138,15 @@ void XViewer::RefreshCams() {
     auto cam = c->GetCam(i);
     auto item =
         new QListWidgetItem(QIcon(":/img/cam.png"), C(cam.name), ui->cam_list);
+    const QString host = QUrl(C(cam.url)).host();
+    item->setText(QStringLiteral("%1%4CAM-%2%3").arg(C(cam.name)).arg(i + 1, 2, 10, QLatin1Char('0'))
+        .arg(host.isEmpty() ? QString() : QStringLiteral(" · %1").arg(host)).arg(QChar(10)));
+    item->setToolTip(C(cam.name));
+    item->setSizeHint(QSize(180, 62));
     item->setData(Qt::UserRole, i);
     ui->cam_list->addItem(item);
   }
+  if (device_summary_) device_summary_->setText(QStringLiteral("全部设备    /    %1 台已配置").arg(count));
 }
 
 void XViewer::SetCam(int index) {
@@ -193,120 +235,268 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   ui = new Ui::XViewer();
   ui->setupUi(this);
   setWindowFlags(Qt::Window);
-  setWindowTitle(QStringLiteral("MyPlayer 多路监控"));
+  setWindowTitle(QStringLiteral("MyPlayer Monitor"));
   setWindowIcon(QIcon(QStringLiteral(":/img/xv.ico")));
   const QSize available = QGuiApplication::primaryScreen()->availableGeometry().size();
-  resize(qMin(1200, available.width() - 60), qMin(760, available.height() - 80));
-  setMinimumSize(980, 680);
+  resize(qMin(1600, available.width() - 40), qMin(1000, available.height() - 60));
+  setMinimumSize(1100, 680);
   setStyleSheet(R"(
-    QWidget#XViewer, QWidget#body, QWidget#cams { background: #171a1f; color: #e6e9ed; font-family: "Microsoft YaHei UI"; font-size: 11px; }
-    QWidget#head { background: #202328; }
-    QWidget#left { background: #202328; }
-    QPushButton { color: #dce1e6; background: #2b3036; border: 1px solid #3a4149; border-radius: 3px; padding: 2px 6px; font-size: 11px; }
-    QPushButton:hover { background: #353c44; }
-    QPushButton:checked { background: #24573f; border-color: #327854; color: #e8fff2; }
-    QListWidget, QCalendarWidget QWidget { background: #1b1f24; color: #dce1e6; border: 1px solid #343a42; font-size: 11px; }
-    QListWidget::item { padding: 3px 3px; }
-    QListWidget::item:selected { background: #284b3b; }
-    QMenuBar { background: #25282d; color: #e6e9ed; font-size: 11px; }
-    QMenuBar::item { padding: 3px 7px; background: transparent; }
-    QMenuBar::item:selected, QMenu::item:selected { background: #343b43; }
-    QMenu { background: #25282d; color: #e6e9ed; border: 1px solid #3a4149; font-size: 11px; }
-    QLabel { color: #c7cdd3; font-size: 11px; }
+    QWidget { color: #cad5df; font-family: "Microsoft YaHei UI"; font-size: 12px; }
+    QWidget#XViewer, QWidget#body, QWidget#cams, QWidget#liveWorkspace { background: #10171f; }
+    QWidget#head { background: #181e25; }
+    QWidget#left, QWidget#liveTools, QWidget#toolContents { background: #171f29; }
+    QLabel { background: transparent; }
+    QLabel#sectionTitle { color: #edf2f7; font-size: 15px; font-weight: bold; }
+    QLabel#muted { color: #8395a7; font-size: 11px; }
+    QPushButton { color: #bfcdd9; background: #24303d; border: 1px solid #303b48; border-radius: 5px; padding: 6px 10px; }
+    QPushButton:hover { background: #303e4c; border-color: #526575; }
+    QPushButton:checked { background: #233c31; border-color: #56d6a0; color: #78e1b2; }
+    QPushButton:disabled { color: #718497; background: #1c2631; border-color: #283441; }
+    QPushButton#preview, QPushButton#playback { background: transparent; border: none; border-radius: 0; padding: 14px 8px; color: #9baabb; }
+    QPushButton#preview:checked, QPushButton#playback:checked { color: #6fe0af; border-bottom: 2px solid #56d6a0; }
+    QLineEdit { background: #222d39; color: #dce6ef; border: 1px solid #303b48; border-radius: 5px; padding: 9px; }
+    QListWidget { background: #171f29; color: #cad5df; border: none; outline: none; }
+    QListWidget::item { padding: 8px; border-radius: 6px; }
+    QListWidget::item:selected { background: #233c31; color: #78e1b2; }
+    QListWidget::item:hover { background: #222d39; }
+    QMenu { background: #222d39; color: #dce6ef; border: 1px solid #303b48; }
+    QMenu::item { padding: 7px 20px; }
+    QMenu::item:selected { background: #233c31; }
+    QWidget#channelCard { background: #181e25; border: 1px solid #303b48; border-radius: 6px; }
+    QLabel#channelTitle { color: #e5edf3; background: #222d39; font-weight: bold; }
+    QLabel#channelState { color: #8395a7; background: #181e25; font-size: 11px; }
+    QScrollArea { border: none; }
+    QCalendarWidget QWidget { background: #1b2530; color: #cad5df; }
   )");
-  QVBoxLayout *thisVLayout = new QVBoxLayout(this);
+  auto *thisVLayout = new QVBoxLayout(this);
   thisVLayout->setContentsMargins(0, 0, 0, 0);
   thisVLayout->setSpacing(0);
-
-  auto *menuBar = new QMenuBar(this);
-  auto *fileMenu = menuBar->addMenu(QStringLiteral("文件(&F)"));
-  fileMenu->addAction(QStringLiteral("添加摄像机..."), this, &XViewer::AddCam);
-  fileMenu->addSeparator();
-  fileMenu->addAction(QStringLiteral("退出"), this, &QWidget::close);
-  auto *viewMenu = menuBar->addMenu(QStringLiteral("视图(&V)"));
-  viewMenu->addAction(QStringLiteral("1 分屏"), this, &XViewer::view1);
-  viewMenu->addAction(QStringLiteral("4 分屏"), this, &XViewer::view4);
-  viewMenu->addAction(QStringLiteral("9 分屏"), this, &XViewer::view9);
-  viewMenu->addAction(QStringLiteral("16 分屏"), this, &XViewer::view16);
-  auto *recordMenu = menuBar->addMenu(QStringLiteral("录像(&R)"));
-  recordMenu->addAction(QStringLiteral("开始全部录像"), this, &XViewer::StartRecord);
-  recordMenu->addAction(QStringLiteral("停止全部录像"), this, &XViewer::StopRecord);
-  menuBar->addMenu(QStringLiteral("帮助(&H)"));
-  thisVLayout->addWidget(menuBar);
   thisVLayout->addWidget(ui->head);
-  thisVLayout->addWidget(ui->body);
+  thisVLayout->addWidget(ui->body, 1);
 
   ui->logo->hide();
   ui->min->hide();
   ui->max->hide();
   ui->normal->hide();
   ui->close->hide();
-  ui->head->setMaximumHeight(38);
-  ui->left->setFixedWidth(248);
+  ui->head->setFixedHeight(64);
+  ui->left->setFixedWidth(232);
   ui->cam_list->setIconSize(QSize(18, 18));
-  ui->add_cam->setText(QStringLiteral("添加"));
+  ui->add_cam->setText(QStringLiteral("＋ 添加"));
   ui->set_cam->setText(QStringLiteral("编辑"));
   ui->del_cam->setText(QStringLiteral("删除"));
-  ui->status->setText(QStringLiteral("● 监控中"));
-  ui->status->setStyleSheet(QStringLiteral("color:#35c88a; padding-right:12px;"));
-  ui->preview->setText(QStringLiteral("实时预览"));
+  ui->status->setText(QStringLiteral("未开始录像"));
+  ui->status->setStyleSheet(QStringLiteral("color:#9baabb;"));
+  ui->preview->setText(QStringLiteral("实时监控"));
   ui->playback->setText(QStringLiteral("录像回放"));
 
-  QHBoxLayout *headHLayout = new QHBoxLayout(ui->head);
-  headHLayout->addWidget(ui->preview);
-  ui->preview->setMinimumSize(56, 20);
-  ui->playback->setMinimumSize(56, 20);
-  headHLayout->addWidget(ui->playback);
-  auto *layoutButtons = new QButtonGroup(this);
-  for (int count : {1, 4, 9, 16}) {
-    auto *button = new QPushButton(QStringLiteral("%1 分屏").arg(count), ui->head);
-    button->setCheckable(true);
-    button->setChecked(count == 9);
-    button->setProperty("layoutCount", count);
-    layoutButtons->addButton(button);
-    headHLayout->addWidget(button);
-    connect(button, &QPushButton::clicked, this, [this, count] { view(count); });
-  }
-  auto *recordButton = new QPushButton(QStringLiteral("全部录像"), ui->head);
-  headHLayout->addWidget(recordButton);
-  connect(recordButton, &QPushButton::clicked, this, &XViewer::StartRecord);
-  auto *stopButton = new QPushButton(QStringLiteral("停止录像"), ui->head);
-  headHLayout->addWidget(stopButton);
-  connect(stopButton, &QPushButton::clicked, this, &XViewer::StopRecord);
-  headHLayout->addStretch(1);
-  headHLayout->addWidget(ui->status);
-  headHLayout->setContentsMargins(12, 4, 10, 4);
-  headHLayout->setSpacing(6);
+  auto *headLayout = new QHBoxLayout(ui->head);
+  headLayout->setContentsMargins(24, 0, 24, 0);
+  headLayout->setSpacing(22);
+  auto *mark = new QLabel(QStringLiteral("M"), ui->head);
+  mark->setFixedSize(30, 30);
+  mark->setAlignment(Qt::AlignCenter);
+  mark->setStyleSheet(QStringLiteral("background:#56d6a0;color:#10271d;border-radius:8px;font-size:19px;font-weight:bold;"));
+  headLayout->addWidget(mark);
+  auto *brand = new QLabel(QStringLiteral("MyPlayer Monitor"), ui->head);
+  brand->setStyleSheet(QStringLiteral("font-size:17px;font-weight:bold;color:#edf2f7;"));
+  headLayout->addWidget(brand);
+  headLayout->addSpacing(8);
+  headLayout->addWidget(ui->preview);
+  headLayout->addWidget(ui->playback);
+  auto *alarmNav = new QPushButton(QStringLiteral("告警中心"), ui->head);
+  alarmNav->setEnabled(false);
+  alarmNav->setToolTip(QStringLiteral("尚未接入告警服务"));
+  headLayout->addWidget(alarmNav);
+  headLayout->addStretch();
+  auto *clock = new QLabel(ui->head);
+  clock->setObjectName(QStringLiteral("muted"));
+  headLayout->addWidget(clock);
 
   auto *sideLayout = qobject_cast<QVBoxLayout *>(ui->left->layout());
-  sideLayout->setSpacing(8);
-  sideLayout->setAlignment(Qt::AlignTop);
-  auto *deviceTitle = new QLabel(QStringLiteral("设备列表"), ui->left);
+  sideLayout->setContentsMargins(16, 16, 16, 16);
+  sideLayout->setSpacing(12);
+  auto *deviceTitle = new QLabel(QStringLiteral("设备资源"), ui->left);
+  deviceTitle->setObjectName(QStringLiteral("sectionTitle"));
   sideLayout->insertWidget(0, deviceTitle);
   auto *search = new QLineEdit(ui->left);
-  search->setPlaceholderText(QStringLiteral("搜索设备"));
-  search->setStyleSheet(QStringLiteral("background:#2b3036;color:#dce1e6;border:1px solid #3a4149;border-radius:2px;padding:4px;font-size:11px;"));
+  search->setObjectName(QStringLiteral("deviceSearch"));
+  search->setPlaceholderText(QStringLiteral("搜索设备名称 / IP"));
+  search->setClearButtonEnabled(true);
   sideLayout->insertWidget(1, search);
+  device_summary_ = new QLabel(ui->left);
+  device_summary_->setStyleSheet(QStringLiteral("color:#72dfae;"));
+  sideLayout->insertWidget(2, device_summary_);
   connect(search, &QLineEdit::textChanged, this, [this](const QString &text) {
+    auto *config = XCameraConfig::Instance();
     for (int i = 0; i < ui->cam_list->count(); ++i) {
       auto *item = ui->cam_list->item(i);
-      item->setHidden(!item->text().contains(text, Qt::CaseInsensitive));
+      const auto camera = config->GetCam(i);
+      const QString host = QUrl(C(camera.url)).host();
+      item->setHidden(!item->text().contains(text, Qt::CaseInsensitive) && !host.contains(text, Qt::CaseInsensitive));
     }
   });
-  ui->add_cam->setMinimumWidth(0);
-  ui->set_cam->setMinimumWidth(0);
-  ui->del_cam->setMinimumWidth(0);
-  ui->horizontalLayout->setSpacing(3);
-  auto *hint = new QLabel(QStringLiteral("拖拽设备到画面开始预览  ·  右键切换布局"), this);
-  hint->setContentsMargins(10, 3, 10, 3);
-  thisVLayout->addWidget(hint);
+  for (auto *button : {ui->add_cam, ui->set_cam, ui->del_cam}) {
+    button->setMinimumWidth(0);
+    button->setStyleSheet(QStringLiteral("padding:6px;"));
+  }
+  ui->horizontalLayout->setSpacing(4);
+  auto *refreshDevices = new QPushButton(QStringLiteral("↻  刷新设备"), ui->left);
+  sideLayout->addWidget(refreshDevices);
+  connect(refreshDevices, &QPushButton::clicked, this, [this, search] {
+    RefreshCams();
+    emit search->textChanged(search->text());
+  });
 
-  QHBoxLayout *bodyHLayout = new QHBoxLayout(ui->body);
-  bodyHLayout->setContentsMargins(8, 8, 8, 8);
-  bodyHLayout->setSpacing(8);
-  bodyHLayout->addWidget(ui->left);
-  bodyHLayout->addWidget(ui->cams, 1);
-  bodyHLayout->addWidget(ui->playback_wid, 1);
+  live_workspace_ = new QWidget(ui->body);
+  live_workspace_->setObjectName(QStringLiteral("liveWorkspace"));
+  auto *workspace = new QVBoxLayout(live_workspace_);
+  workspace->setContentsMargins(20, 20, 20, 20);
+  workspace->setSpacing(16);
+  auto *workHeader = new QHBoxLayout;
+  auto *heading = new QVBoxLayout;
+  auto *title = new QLabel(QStringLiteral("实时监控"), live_workspace_);
+  title->setStyleSheet(QStringLiteral("font-size:22px;font-weight:bold;color:#edf2f7;"));
+  heading->addWidget(title);
+  auto *subtitle = new QLabel(QStringLiteral("设备预览 / 拖入设备以连接通道"), live_workspace_);
+  subtitle->setObjectName(QStringLiteral("muted"));
+  heading->addWidget(subtitle);
+  workHeader->addLayout(heading);
+  workHeader->addStretch();
+  auto *saveView = new QPushButton(QStringLiteral("保存视图"), live_workspace_);
+  workHeader->addWidget(saveView);
+  connect(saveView, &QPushButton::clicked, this, [this, saveView] {
+    QSettings settings(QStringLiteral("MyPlayer"), QStringLiteral("Monitor"));
+    settings.setValue(QStringLiteral("live/layout"), current_layout_);
+    settings.sync();
+    saveView->setText(settings.status() == QSettings::NoError ? QStringLiteral("布局已保存") : QStringLiteral("保存失败"));
+  });
+  saveView->setToolTip(QStringLiteral("保存分屏布局，下次启动时恢复；不保存临时视频源"));
+  auto *addChannel = new QPushButton(QStringLiteral("＋ 添加通道"), live_workspace_);
+  workHeader->addWidget(addChannel);
+  connect(addChannel, &QPushButton::clicked, this, &XViewer::AddCam);
+  workspace->addLayout(workHeader);
+  workspace->addWidget(ui->cams, 1);
+
+  auto *toolbar = new QHBoxLayout;
+  toolbar->setSpacing(8);
+  toolbar->addWidget(new QLabel(QStringLiteral("画面布局"), live_workspace_));
+  auto *layoutButtons = new QButtonGroup(this);
+  for (int count : {1, 4, 9, 16}) {
+    auto *button = new QPushButton(QString::number(count), live_workspace_);
+    button->setObjectName(QStringLiteral("layout%1").arg(count));
+    button->setCheckable(true);
+    button->setProperty("layoutCount", count);
+    layoutButtons->addButton(button);
+    toolbar->addWidget(button);
+    connect(button, &QPushButton::clicked, this, [this, count] { view(count); });
+  }
+  toolbar->addStretch();
+  auto *recordButton = new QPushButton(QStringLiteral("● 录像"), live_workspace_);
+  toolbar->addWidget(recordButton);
+  connect(recordButton, &QPushButton::clicked, this, &XViewer::StartRecord);
+  auto *stopButton = new QPushButton(QStringLiteral("停止"), live_workspace_);
+  toolbar->addWidget(stopButton);
+  connect(stopButton, &QPushButton::clicked, this, &XViewer::StopRecord);
+  auto *fullscreen = new QPushButton(QStringLiteral("⛶ 全屏"), live_workspace_);
+  toolbar->addWidget(fullscreen);
+  connect(fullscreen, &QPushButton::clicked, this, [this] {
+    isFullScreen() ? showNormal() : showFullScreen();
+  });
+  auto *escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+  connect(escape, &QShortcut::activated, this, [this] { if (isFullScreen()) showNormal(); });
+  workspace->addLayout(toolbar);
+  auto *liveHint = new QLabel(QStringLiteral("拖动设备切换通道 · 右键切换布局 · Esc 退出全屏"), live_workspace_);
+  liveHint->setObjectName(QStringLiteral("muted"));
+  workspace->addWidget(liveHint);
+
+  auto *tools = new QScrollArea(ui->body);
+  live_tools_ = tools;
+  tools->setObjectName(QStringLiteral("liveTools"));
+  tools->setFixedWidth(252);
+  tools->setWidgetResizable(true);
+  tools->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  auto *toolContents = new QWidget;
+  toolContents->setObjectName(QStringLiteral("toolContents"));
+  tools->setWidget(toolContents);
+  auto *toolLayout = new QVBoxLayout(toolContents);
+  toolLayout->setContentsMargins(16, 20, 16, 20);
+  toolLayout->setSpacing(16);
+  auto *alarmTitle = new QLabel(QStringLiteral("实时告警"), toolContents);
+  alarmTitle->setObjectName(QStringLiteral("sectionTitle"));
+  toolLayout->addWidget(alarmTitle);
+  auto *alarmEmpty = new QLabel(QStringLiteral("尚未接入告警服务\n\n当前仅提供视频预览与录像，\n不生成模拟告警。"), toolContents);
+  alarmEmpty->setObjectName(QStringLiteral("muted"));
+  alarmEmpty->setWordWrap(true);
+  alarmEmpty->setMinimumHeight(140);
+  toolLayout->addWidget(alarmEmpty);
+  auto *ptzTitle = new QLabel(QStringLiteral("云台控制"), toolContents);
+  ptzTitle->setObjectName(QStringLiteral("sectionTitle"));
+  toolLayout->addWidget(ptzTitle);
+  auto *ptzHint = new QLabel(QStringLiteral("当前设备未接入云台协议"), toolContents);
+  ptzHint->setObjectName(QStringLiteral("muted"));
+  toolLayout->addWidget(ptzHint);
+  auto *ptz = new QGridLayout;
+  const QStringList directions{QStringLiteral("↖"), QStringLiteral("↑"), QStringLiteral("↗"),
+      QStringLiteral("←"), QStringLiteral("●"), QStringLiteral("→"),
+      QStringLiteral("↙"), QStringLiteral("↓"), QStringLiteral("↘")};
+  for (int i = 0; i < directions.size(); ++i) {
+    auto *button = new QPushButton(directions[i], toolContents);
+    button->setMinimumHeight(36);
+    button->setEnabled(false);
+    ptz->addWidget(button, i / 3, i % 3);
+  }
+  toolLayout->addLayout(ptz);
+  auto *zoom = new QHBoxLayout;
+  zoom->addWidget(new QLabel(QStringLiteral("变倍"), toolContents));
+  for (const auto &text : {QStringLiteral("−"), QStringLiteral("＋")}) {
+    auto *button = new QPushButton(text, toolContents);
+    button->setEnabled(false);
+    zoom->addWidget(button);
+  }
+  toolLayout->addLayout(zoom);
+  toolLayout->addStretch();
+  auto *operations = new QLabel(QStringLiteral("操作提示\n\n从左侧添加设备，配置视频地址\n及录像保存目录后拖入画面。"), toolContents);
+  operations->setObjectName(QStringLiteral("muted"));
+  operations->setWordWrap(true);
+  toolLayout->addWidget(operations);
+
+  auto *bodyLayout = new QHBoxLayout(ui->body);
+  bodyLayout->setContentsMargins(0, 0, 0, 0);
+  bodyLayout->setSpacing(0);
+  bodyLayout->addWidget(ui->left);
+  bodyLayout->addWidget(live_workspace_, 1);
+  bodyLayout->addWidget(ui->playback_wid, 1);
+  bodyLayout->addWidget(live_tools_);
+  auto *footer = new QHBoxLayout;
+  footer->setContentsMargins(16, 5, 16, 5);
+  footer->addWidget(ui->status);
+  footer->addSpacing(20);
+  layout_summary_ = new QLabel(this);
+  layout_summary_->setObjectName(QStringLiteral("muted"));
+  footer->addWidget(layout_summary_);
+  footer->addStretch();
+  auto *connection = new QLabel(this);
+  connection->setObjectName(QStringLiteral("muted"));
+  footer->addWidget(connection);
+  thisVLayout->addLayout(footer);
+  auto *timer = new QTimer(this);
+  auto updateStatus = [this, clock, connection] {
+    clock->setText(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd  HH:mm:ss")));
+    int withFrames = 0;
+    for (int i = 0; i < current_layout_; ++i) {
+      if (!cam_wids[i]) continue;
+      auto *state = channel_cards_[i]->findChild<QLabel *>(QStringLiteral("channelState"));
+      if (cam_wids[i]->hasFrame()) {
+        ++withFrames;
+        if (!state->property("failed").toBool()) state->setText(QStringLiteral("● 已收到视频帧 · 静音预览"));
+      }
+    }
+    connection->setText(QStringLiteral("已收到画面 %1 / %2 路").arg(withFrames).arg(current_layout_));
+  };
+  connect(timer, &QTimer::timeout, this, updateStatus);
+  timer->start(1000);
+  updateStatus();
   connect(ui->normal, &QPushButton::clicked, this, &XViewer::NormalWindow);
   connect(ui->max, &QPushButton::clicked, this, &XViewer::MaxWindow);
   ui->normal->hide();
@@ -326,8 +516,8 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   connect(a, &QAction::triggered, this, &XViewer::StartRecord);
   a = left_menu_->addAction("全部停止录制");
   connect(a, &QAction::triggered, this, &XViewer::StopRecord);
-  // 默认9个视图
-  view(9);
+  const int savedLayout = QSettings(QStringLiteral("MyPlayer"), QStringLiteral("Monitor")).value(QStringLiteral("live/layout"), 4).toInt();
+  view(savedLayout == 1 || savedLayout == 4 || savedLayout == 9 || savedLayout == 16 ? savedLayout : 4);
   if (loadConfiguration && !XCameraConfig::Instance()->LoadDefault()) {
     QTimer::singleShot(0, this, [this] {
       QMessageBox::warning(this, QStringLiteral("配置加载失败"),
@@ -454,13 +644,19 @@ void XViewer::Preview() {
   ResetPlayback();
   date_filters_->hide();
   ui->cam_list->setMaximumHeight(QWIDGETSIZE_MAX);
+  live_workspace_->show();
+  live_tools_->show();
   ui->cams->show();
+  ui->preview->setChecked(true);
   ui->playback_wid->hide();
 }
 
 void XViewer::Playback() {
   date_filters_->show();
   ui->cam_list->setMaximumHeight(100);
+  live_workspace_->hide();
+  live_tools_->hide();
+  ui->playback->setChecked(true);
   ui->playback_wid->show();
   ui->cams->hide();
   if (ui->cam_list->currentRow() < 0 && ui->cam_list->count() > 0)
@@ -699,10 +895,6 @@ void XViewer::SetupPlaybackUi() {
   connect(fullscreen, &QPushButton::clicked, this, [this, fullscreen] {
     if (isFullScreen()) { showNormal(); fullscreen->setText(QStringLiteral("全屏")); }
     else { showFullScreen(); fullscreen->setText(QStringLiteral("退出全屏")); }
-  });
-  auto *escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
-  connect(escape, &QShortcut::activated, this, [this, fullscreen] {
-    if (isFullScreen()) { showNormal(); fullscreen->setText(QStringLiteral("全屏")); }
   });
   connect(playback_position_, &QSlider::sliderReleased, this, [this] {
     if (playback_duration_ > 0) playback_player_->seek(playback_duration_ * playback_position_->value() / 10000);

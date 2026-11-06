@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QTimer>
+#include <QSettings>
 #include <iostream>
 
 int main(int argc, char** argv) {
@@ -14,7 +15,7 @@ int main(int argc, char** argv) {
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption({"source", "Open a local file or RTSP/HTTP source; may be repeated.", "location"});
-    parser.addOption({"layout", "Preview layout: 1, 4, 9 or 16.", "count", "9"});
+    parser.addOption({"layout", "Preview layout: 1, 4, 9 or 16.", "count", "4"});
     parser.addOption({"smoke-test", "Open the application and exit automatically after one second."});
     parser.addOption({"migrate-config", "Load or migrate camera configuration to the installation config directory, then exit."});
     parser.process(app);
@@ -28,7 +29,10 @@ int main(int argc, char** argv) {
         return 0;
     }
     bool valid = false;
-    const int layout = parser.value("layout").toInt(&valid);
+    const int savedLayout = QSettings(QStringLiteral("MyPlayer"), QStringLiteral("Monitor")).value(QStringLiteral("live/layout"), 4).toInt();
+    int layout = savedLayout == 1 || savedLayout == 4 || savedLayout == 9 || savedLayout == 16 ? savedLayout : 4;
+    valid = true;
+    if (parser.isSet("layout")) layout = parser.value("layout").toInt(&valid);
     if (!valid || (layout != 1 && layout != 4 && layout != 9 && layout != 16) ||
         parser.values("source").size() > layout) {
         std::cerr << "Invalid layout or too many sources\n";

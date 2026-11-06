@@ -68,6 +68,12 @@ private slots:
 	void PlayVideo(const QModelIndex& index);
 
 private:
+    QWidget* live_workspace_ = nullptr;
+    QWidget* live_tools_ = nullptr;
+    QLabel* layout_summary_ = nullptr;
+    QLabel* device_summary_ = nullptr;
+    std::array<QWidget*, 16> channel_cards_{};
+    int current_layout_ = 4;
 	void RefreshRecordings();
     void SetupPlaybackUi();
     void ResetPlayback();

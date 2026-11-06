@@ -5,6 +5,7 @@
 #include <QDropEvent>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QPainter>
 
 namespace {
 
@@ -61,6 +62,7 @@ void XCameraWidget::dropEvent(QDropEvent *event) {
     return;
   }
 
+  emit cameraAssigned(QString::fromLocal8Bit(camera.name));
   event->acceptProposedAction();
 }
 
@@ -73,4 +75,15 @@ bool XCameraWidget::Open(const char *url) {
 
 void XCameraWidget::Draw() {
   // Playback and SDL presentation are owned by CoreVideoWidget now.
+}
+
+void XCameraWidget::paintEvent(QPaintEvent *event) {
+  if (hasFrame()) { CoreVideoWidget::paintEvent(event); return; }
+  QPainter painter(this);
+  painter.fillRect(rect(), QColor("#0c1219"));
+  painter.setPen(QColor("#718497"));
+  auto font = painter.font();
+  font.setPixelSize(12);
+  painter.setFont(font);
+  painter.drawText(rect(), Qt::AlignCenter, QStringLiteral("拖入设备开始预览"));
 }

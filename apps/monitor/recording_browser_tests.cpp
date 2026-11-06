@@ -1,6 +1,8 @@
 #include "xviewer.h"
 #include "xcamera_config.h"
 #include "xcalendar.h"
+#include "xcamera_widget.h"
+#include <QMenuBar>
 #include <QApplication>
 #include <QDir>
 #include <QFile>
@@ -23,6 +25,16 @@ int main(int argc, char **argv) {
     if (!ok) { std::cerr << message << '\n'; ++errors; }
   };
   XViewer viewer(nullptr, false); // Never load or migrate real user configuration.
+  check(viewer.findChildren<QMenuBar *>().isEmpty(), "native menu bar removed");
+  check(viewer.OpenPreview({}, 4), "open four-way layout");
+  check(viewer.findChildren<XCameraWidget *>().size() == 4, "four camera cards");
+  for (int count : {16, 1, 9, 4}) {
+    check(viewer.OpenPreview({}, count), "switch layout");
+    check(viewer.findChildren<XCameraWidget *>().size() == count, "pane lifetime follows layout");
+    auto *button = viewer.findChild<QPushButton *>(QStringLiteral("layout%1").arg(count));
+    check(button && button->isChecked(), "layout toolbar selection follows layout");
+  }
+  check(!viewer.OpenPreview({}, 3), "reject unsupported layout");
   auto *config = XCameraConfig::Instance();
   const QString fixedPath = XCameraConfig::DefaultPath();
   const QString legacy = temporary.filePath(QStringLiteral("legacy/monitor-cams.db"));
