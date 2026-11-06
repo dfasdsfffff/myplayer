@@ -325,7 +325,9 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 
 让使用方自行编译、静态链接或直接复制源码，都不自动意味着允许闭源分发。若目标包含闭源商业宿主，应先完成授权核查，再确定发行政策。
 
-## 11. 实施与验证记录（2026-11-06）
+## 11. 实施与验证记录（2026-11-06，首版提交快照）
+
+本节保留提交 `5efab6a` 的 QPainter 显示实现及当时验证结果。按后续要求，当前分支已恢复共享 SDL 显示，变更及验证见第 12 节；本节的 QPainter 描述和旧 ZIP 不代表当前后端。
 
 ### 已完成的实现
 
@@ -369,4 +371,31 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 - UTF-8 中文文件/字幕已测试，网络错误分类与关闭已测；所有带凭据 URL/第三方 FFmpeg 日志及实际认证服务仍需专项隐私/认证验证。SDK 自有诊断不输出原始地址，但不会覆盖宿主全局 FFmpeg 日志回调。
 - 两应用已编译并通过上述真实 UI/集成路径，但没有宣称完整手工交互/格式/音轨字幕组合回归已全部完成；第 9 节相关广义验收项保持未勾选。
 - GPL/第三方许可清单已提供；闭源商业授权、对应源码义务及最终二进制完整许可证审计没有替使用方完成。
+
+## 12. SDL 显示恢复（2026-11-06）
+
+按用户要求，先创建 `feature/player-sdk-sdl` 并以 `5efab6a` 提交第 11 节的完整 SDK 实现，保留可回退节点，再在该分支恢复 SDL 显示。Core 公开 API、异步生命周期和两个应用的 SDK 接入保持不变，本轮没有修改 `play_core`。
+
+- 共享 `VideoWidget` 使用 Qt 管理的原生子窗口，SDL_CreateWindowFrom 绑定，优先硬件 renderer、失败时尝试 SDL software renderer；普通 YUV420P 直接上传 IYUV 纹理，BGRA 直接上传纹理。
+- BT.2020 YUV 因 SDL2 没有对应转换模式，保留 swscale 转 BGRA 的定向回退，不让普通 YUV 帧全量转 RGB。SAR/旋转、位图和 libass 文字/ASS/SRT 字幕统一由 SDL 合成。
+- QPainter 只保留空背景/业务占位，不绘制视频。QImage 仅在显式 `grabVideoFrame()` 时通过 SDL_RenderReadPixels 读回，用于截图/验证，不是常规播放中转。
+- 原生窗口销毁前释放 SDL renderer/texture/window 包装；Qt 仍拥有原生窗口。每控件取得并释放自己的 SDL video subsystem 引用，不调用全局 SDL_Quit，不破坏宿主已有初始化。
+- 无界面 offscreen/minimal 测试使用 SDL surface/software renderer，不把其结果当作 native/hardware 验证。实际 windows 平台另外运行画面/字幕及生命周期测试。
+- 实际主窗口验证暴露“原生子窗口覆盖后，父控件 update 不一定触发绘制”的首帧停滞问题；改为 GUI 线程收到帧直接提交 SDL，并新增嵌套控件连续呈现回归。
+- 基准报告升级 schema 3，统计 SDL_RenderPresent 返回，不能据其返回推断显示器可见或 GPU 完成；schema 2 保留作之前 QPainter 快照的历史含义。
+
+验证日志使用 `build/sdk-sdl-*.log`，本轮截图为 `build/sdk-sdl-widget.png`，实际播放器报告为 `build/sdk-sdl-player-ui.json`。之前 `dist/PlayerSDK-1.0.0-source/` 是提交 `5efab6a` 的 QPainter 快照，不覆盖它。
+
+最终验证结果：
+
+| 项目 | 结果 |
+| --- | --- |
+| Debug 完整构建/回归 | **46/46 通过**；`build/sdk-sdl-debug-tests.log` |
+| Release 完整构建/回归 | **46/46 通过**；`build/sdk-sdl-release-tests.log` |
+| 原生 windows SDL 显示 | 视频/字幕、嵌套控件连续呈现、BGRA/IYUV、BT.2020 回退、SAR/90° 旋转、resize/clear、控件/播放器销毁顺序、宿主 SDL video 初始化共存均通过；SDL 读回截图已检查 |
+| 实际 MyPlayer 主窗口 | MPEG4/AAC 640×360 样本播放 2 秒，139 次 GUI 帧交付、137 次新帧 SDL present 返回，正常关闭回收且无错误；这些不是解码帧率或屏幕可见性计数 |
+| 监控 | 全量套件中的 16 路本地预览/切源/销毁/分段录像和窗口 smoke 通过 |
+| 仓库外 SDK 源码包 | 新输出 `build/sdk-sdl-source-final/PlayerSDK-1.0.0-source.zip` 解压到临时目录，Release consumer 编译、三个 SDK 测试 **3/3 通过**，原生 Qt consumer 启动/退出通过；见 `build/sdk-sdl-consumer-*.log` |
+
+SDL 后续改动按用户要求作为独立提交保存在 `feature/player-sdk-sdl` 分支，未推送。仍不宣称完成长时间/GPU/4K 性能、真实摄像机及干净机器验证。
 

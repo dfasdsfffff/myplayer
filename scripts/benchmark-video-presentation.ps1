@@ -131,7 +131,7 @@ foreach ($fixture in $fixtures) {
     try {
         if (!(Test-Path $reportPath -PathType Leaf)) { throw "player report missing" }
         $playerReport = Get-Content -Raw $reportPath | ConvertFrom-Json
-        if ($playerReport.schema_version -ne 2 -or $playerReport.benchmark -ne "myplayer_qt_sdk_playback") {
+        if ($playerReport.schema_version -ne 3 -or $playerReport.benchmark -ne "myplayer_qt_sdk_playback") {
             throw "unexpected player report schema"
         }
     } catch { $reportError = $_.Exception.Message }

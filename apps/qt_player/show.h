@@ -39,7 +39,7 @@ signals:
     void SigSeekBack();
     void SigAddVolume();
     void SigSubVolume();
-    // QPainter submission, not compositor/display visibility.
+    // SDL_RenderPresent return, not compositor/display visibility.
     void SigVideoFrameSubmitted();
 protected:
     void dropEvent(QDropEvent*) override;

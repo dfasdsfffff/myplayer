@@ -174,7 +174,7 @@ bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
   --benchmark-run-ms 10000 --benchmark-timeout-ms 30000
 ```
 
-基准模式请求软件解码、1 倍速、关闭循环/断点恢复及 1280×720 窗口。SDK 迁移后的播放器报告使用 schema 2 / `myplayer_qt_sdk_playback`，以 `video_frame_painter_submissions` 记录共享控件提交，不再将 QPainter 提交标为 SDL。GUI 收到的帧数与共享 VideoWidget 的 QPainter 呈现回调分别统计，不是解码帧/丢帧计数，也不证明屏幕实际可见。CPU 以一个逻辑核心为 100%；纯视频样本不测音画同步，短时结果不是长期稳定性结论。
+基准模式请求软件解码、1 倍速、关闭循环/断点恢复及 1280×720 窗口。SDK 共享控件恢复 SDL 后，播放器报告使用 schema 3 / `myplayer_qt_sdk_playback`，以 `video_frame_sdl_present_returns` 记录 SDL 呈现返回；schema 2 仅用于之前的 QPainter 实现。GUI 收到的帧数与共享 VideoWidget 的 SDL 呈现回调分别统计，不是解码帧/丢帧计数，也不证明屏幕实际可见。CPU 以一个逻辑核心为 100%；纯视频样本不测音画同步，短时结果不是长期稳定性结论。
 
 ## 双软件免安装打包
 

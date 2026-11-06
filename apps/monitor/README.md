@@ -144,6 +144,6 @@ ctest --test-dir build/monitor -C Release --output-on-failure
 
 ## 实现与来源
 
-每个预览窗格和录像回放窗口各持有一个公开 SDK `QtPlayer`，显示统一由 `VideoWidget` 处理；Core 与 Qt 各用最新帧邮箱，不逐帧积压 Qt 消息。Qt 组件通过 swscale/QImage/QPainter 显示 CPU 帧和字幕，不再维护监控专用 SDL renderer/33ms 轮询。硬件解码帧仍经系统内存，不是零拷贝显示；不得沿用旧 SDL 路径的性能结论。录像仍由独立 FFmpeg 封装线程完成，使用公开 `NetworkRuntime` lease，不访问核心私有对象。
+每个预览窗格和录像回放窗口各持有一个公开 SDK `QtPlayer`，显示统一由 `VideoWidget` 处理；Core 与 Qt 各用最新帧邮箱，不逐帧积压 Qt 消息。Qt 组件通过 SDL 纹理显示 CPU 帧和字幕，普通 YUV420P 直接上传 IYUV，只有 BT.2020 颜色空间需要 swscale 回退；不再维护监控专用 renderer/33ms 轮询，而是共享控件管理 SDL。硬件解码帧仍经系统内存，不是零拷贝显示；性能仍需实测。录像仍由独立 FFmpeg 封装线程完成，使用公开 `NetworkRuntime` lease，不访问核心私有对象。
 
 界面、日历、相机配置及图标改编自用户提供的 `h265-ffmpeg/2_project/xviewer`（Apache-2.0），对应许可证保留在 `REFERENCE-LICENSE.txt`；本应用不修改外部参考项目。原有图标仅作为参考界面资源保留，不表示本应用是任何厂商的官方产品。

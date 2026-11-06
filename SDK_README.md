@@ -56,6 +56,8 @@ player->open(QUrl::fromLocalFile(filePath));
 player->play();
 ```
 
+`VideoWidget` 使用 SDL2 渲染到 Qt 管理的原生子窗口，优先硬件渲染器、失败时尝试 SDL 软件渲染器。普通 YUV420P 直接上传 IYUV 纹理，BGRA 直接上传 BGRA 纹理；仅 SDL2 无对应色彩转换模式的 BT.2020 YUV 路径使用 swscale 转 BGRA。画面、位图和 libass 字幕均由 SDL 合成，QPainter 只绘制无视频时的背景，不承担视频显示。`grabVideoFrame()` 显式通过 SDL 读回包含字幕的画面，正常播放不读回、不额外生成 QImage。offscreen/minimal 自动测试使用 SDL surface/software renderer，不将此结果冒充硬件渲染验证。
+
 `QtPlayer` 所有方法仅能在 QObject 所在线程调用。所有 Qt 信号在该线程交付。Core 可跨线程提交命令的许可不适用于 QObject。一个 player 仅绑定一个 view；绑定新 view 会自动解绑旧 view。先销毁 view 或先销毁 player 均会安全解绑。`VideoWidget` 也支持手工提交公开 CPU 帧；字幕支持嵌入 ASS/文本/位图以及外部 ASS/SSA/SRT。
 
 ### 构建选项

@@ -16,7 +16,7 @@ target_include_directories(player_sdk_qt
 )
 target_link_libraries(player_sdk_qt
     PUBLIC PlayerSDK::Core Qt6::Core Qt6::Gui Qt6::Widgets
-    PRIVATE ${FFMPEG_LIBRARIES} PkgConfig::LIBASS
+    PRIVATE SDL2::SDL2 ${FFMPEG_LIBRARIES} PkgConfig::LIBASS
 )
 if(MSVC)
     target_compile_options(player_sdk_qt PRIVATE /utf-8 /Zc:__cplusplus)

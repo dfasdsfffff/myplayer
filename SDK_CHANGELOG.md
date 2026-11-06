@@ -1,5 +1,14 @@
 # SDK 变更记录
 
+## 未发布 — 恢复共享 SDL 显示后端
+
+- 在 `feature/player-sdk-sdl` 分支保留首版 SDK 提交 `5efab6a`，随后仅调整 Qt 显示层及验证/文档。
+- VideoWidget 恢复 SDL 原生子窗口、硬件优先/软件回退渲染器，普通 YUV420P 直接上传 IYUV，BGRA 直接上传纹理；BT.2020 保留定向 swscale 转换。
+- 视频/位图/文字/ASS 字幕由 SDL 合成；Qt 仅负责窗口布局、输入事件及空背景。
+- 原生窗口销毁前释放 SDL 资源；独立持有 SDL video 初始化引用，不调用全局 SDL_Quit。
+- 新增 `grabVideoFrame()` 用于显式 SDL 像素读回；无界面测试使用 SDL software surface，不影响正常播放路径。
+- 基准报告 schema 3 记录 SDL_RenderPresent 返回，不沿用 QPainter 字段。
+
 ## 1.0.0 — 首版源码 SDK（2026-11-06，本地实现，尚未创建发行标签）
 
 ### 新增

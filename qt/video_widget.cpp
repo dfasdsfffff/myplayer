@@ -1,6 +1,13 @@
 #include <player_sdk_qt/video_widget.h>
 #include <player_sdk_qt/qt_player.h>
+#define SDL_MAIN_HANDLED
+#include <SDL.h>
+#include "sdl_video_surface.h"
 #include <QPainter>
+#include <QGuiApplication>
+#include <QResizeEvent>
+#include <QDebug>
+#include <vector>
 #include <QFile>
 #include <QRegularExpression>
 #include <QVariant>
@@ -12,7 +19,18 @@ extern "C" {
 namespace player_sdk_qt {
 struct VideoWidget::Impl {
     QPointer<QtPlayer> player;
-    QImage image;
+    SdlVideoSurface* surface{nullptr};
+    SDL_Window* window{nullptr};
+    SDL_Renderer* videoRenderer{nullptr};
+    SDL_Texture* texture{nullptr};
+    SDL_Surface* softwareSurface{nullptr};
+    QSize textureSize;
+    Uint32 textureFormat{0};
+    bool videoReference{false};
+    bool needsUpload{false};
+    bool headless{QGuiApplication::platformName() == "offscreen" || QGuiApplication::platformName() == "minimal"};
+    QImage readback;
+    std::vector<uint8_t> converted;
     std::shared_ptr<const play_core::VideoFrame> frame;
     std::shared_ptr<const play_core::SubtitleFrame> subtitle;
     qint64 position{0};
@@ -25,6 +43,9 @@ struct VideoWidget::Impl {
     SwsContext* scaler{nullptr};
     Impl() { if (renderer) ass_set_fonts(renderer, nullptr, "Arial", 1, nullptr, 1); }
     ~Impl() {
+        if (surface) { surface->repaint = {}; surface->releasing = {}; }
+        destroyVideo();
+        if (videoReference) SDL_QuitSubSystem(SDL_INIT_VIDEO);
         if (embedded) ass_free_track(embedded);
         if (external) ass_free_track(external);
         if (renderer) ass_renderer_done(renderer);
@@ -44,41 +65,184 @@ struct VideoWidget::Impl {
                         subtitle->startMs,std::max<qint64>(1,subtitle->endMs-subtitle->startMs));
                 } else if (subtitle->assOrText.find("[Script Info]") != std::string::npos)
                     ass_process_data(embedded,subtitle->assOrText.data(),static_cast<int>(subtitle->assOrText.size()));
+                else {
+                    std::string text = subtitle->assOrText;
+                    std::string escaped;
+                    for (char ch : text) {
+                        if (ch == '\n') escaped += "\\N";
+                        else if (ch == '{' || ch == '}' || ch == '\\') { escaped += '\\'; escaped += ch; }
+                        else escaped += ch;
+                    }
+                    std::string header = "[Script Info]\nScriptType: v4.00+\nPlayResX: 384\nPlayResY: 288\n[V4+ Styles]\n"
+                        "Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\n"
+                        "Style: Default,Arial,24,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,1\n[Events]\n"
+                        "Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n";
+                    ass_process_codec_private(embedded,header.data(),static_cast<int>(header.size()));
+                    auto packet = "0,0,Default,,0,0,0,," + escaped;
+                    ass_process_chunk(embedded,packet.data(),static_cast<int>(packet.size()),subtitle->startMs,
+                        std::max<qint64>(1,subtitle->endMs-subtitle->startMs));
+                }
             }
         }
     }
     void setFrame(std::shared_ptr<const play_core::VideoFrame> f) {
-        frame = std::move(f); image = {}; fresh = false;
-        if (!frame) return;
-        const auto& n = *frame;
-        if (n.width <= 0 || n.height <= 0) return;
-        if (n.format == play_core::VideoFrameFormat::Bgra32) {
-            image = QImage(n.bgra.data(), n.width, n.height, n.bytesPerLine, QImage::Format_ARGB32).copy();
-        } else {
-            scaler = sws_getCachedContext(scaler, n.width, n.height, AV_PIX_FMT_YUV420P,
-                n.width, n.height, AV_PIX_FMT_BGRA, SWS_BILINEAR, nullptr, nullptr, nullptr);
-            if (!scaler) return;
-            const int colors = n.colorSpace == play_core::ColorSpace::Bt709 ? SWS_CS_ITU709 :
-                n.colorSpace == play_core::ColorSpace::Bt2020 ? SWS_CS_BT2020 : SWS_CS_ITU601;
-            sws_setColorspaceDetails(scaler, sws_getCoefficients(colors), n.colorRange == play_core::ColorRange::Full,
-                sws_getCoefficients(colors), 1, 0, 1 << 16, 1 << 16);
-            image = QImage(n.width, n.height, QImage::Format_ARGB32);
-            const uint8_t* src[4]{n.planes[0].data.get(), n.planes[1].data.get(), n.planes[2].data.get(), nullptr};
-            int strides[4]{n.planes[0].stride,n.planes[1].stride,n.planes[2].stride,0};
-            uint8_t* dst[4]{image.bits(),nullptr,nullptr,nullptr}; int ds[4]{static_cast<int>(image.bytesPerLine()),0,0,0};
-            sws_scale(scaler, src, strides, 0, n.height, dst, ds);
+        frame = std::move(f); fresh = bool(frame); needsUpload = bool(frame); readback = {};
+        if (!frame) destroyVideo();
+        if (surface) surface->setVisible(frame && !headless);
+    }
+    void destroyVideo() {
+        if (texture) SDL_DestroyTexture(texture);
+        if (videoRenderer) SDL_DestroyRenderer(videoRenderer);
+        if (window) SDL_DestroyWindow(window); // SDL_CreateWindowFrom does not own Qt's native window.
+        if (softwareSurface) SDL_FreeSurface(softwareSurface);
+        texture = nullptr; videoRenderer = nullptr; window = nullptr; softwareSurface = nullptr;
+        textureSize = {}; textureFormat = 0; needsUpload = bool(frame);
+    }
+    bool ensureVideo(QSize size) {
+        if (videoRenderer && (!headless || QSize(softwareSurface->w,softwareSurface->h) == size)) return true;
+        destroyVideo();
+        if (!videoReference) {
+            // Always take our own reference, even if the host initialized SDL first.
+            if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) return false;
+            videoReference = true;
         }
-        fresh = !image.isNull();
+        if (headless) {
+            softwareSurface = SDL_CreateRGBSurfaceWithFormat(0,size.width(),size.height(),32,SDL_PIXELFORMAT_ARGB8888);
+            if (softwareSurface) videoRenderer = SDL_CreateSoftwareRenderer(softwareSurface);
+        } else {
+            window = SDL_CreateWindowFrom(reinterpret_cast<void*>(surface->winId()));
+            if (window) {
+                videoRenderer = SDL_CreateRenderer(window,-1,SDL_RENDERER_ACCELERATED);
+                if (!videoRenderer) videoRenderer = SDL_CreateRenderer(window,-1,SDL_RENDERER_SOFTWARE);
+            }
+        }
+        if (!videoRenderer) { qWarning() << "SDL video renderer:" << SDL_GetError(); destroyVideo(); return false; }
+        return true;
+    }
+    bool upload() {
+        const auto& f = *frame;
+        const bool yuv = f.format == play_core::VideoFrameFormat::Yuv420P;
+        if (f.width <= 0 || f.height <= 0) return false;
+        if (yuv) {
+            for (int i=0;i<3;++i) {
+                const int width = i ? (f.width+1)/2 : f.width;
+                const int height = i ? (f.height+1)/2 : f.height;
+                if (!f.planes[i].data || f.planes[i].stride < width || f.planes[i].height < height) return false;
+            }
+        } else if (f.bytesPerLine < static_cast<int64_t>(f.width)*4 ||
+            f.bgra.size() < static_cast<size_t>(f.bytesPerLine)*f.height) return false;
+        // SDL2 has no BT.2020 conversion mode. Keep a targeted CPU fallback for
+        // that color space; ordinary YUV420P is uploaded directly as IYUV.
+        const bool convert = yuv && f.colorSpace == play_core::ColorSpace::Bt2020;
+        const Uint32 format = yuv && !convert ? SDL_PIXELFORMAT_IYUV : SDL_PIXELFORMAT_BGRA32;
+        if (!texture || textureSize != QSize(f.width,f.height) || textureFormat != format) {
+            if (texture) SDL_DestroyTexture(texture);
+            texture = SDL_CreateTexture(videoRenderer,format,SDL_TEXTUREACCESS_STREAMING,f.width,f.height);
+            textureSize = QSize(f.width,f.height); textureFormat = format;
+            if (!texture) return false;
+            SDL_SetTextureScaleMode(texture,SDL_ScaleModeLinear);
+            needsUpload = true;
+        }
+        if (!needsUpload) return true;
+        int result;
+        if (format == SDL_PIXELFORMAT_IYUV) {
+            result = SDL_UpdateYUVTexture(texture,nullptr,f.planes[0].data.get(),f.planes[0].stride,
+                f.planes[1].data.get(),f.planes[1].stride,f.planes[2].data.get(),f.planes[2].stride);
+        } else if (convert) {
+            scaler = sws_getCachedContext(scaler,f.width,f.height,AV_PIX_FMT_YUV420P,
+                f.width,f.height,AV_PIX_FMT_BGRA,SWS_BILINEAR,nullptr,nullptr,nullptr);
+            if (!scaler) return false;
+            sws_setColorspaceDetails(scaler,sws_getCoefficients(SWS_CS_BT2020),f.colorRange == play_core::ColorRange::Full,
+                sws_getCoefficients(SWS_CS_BT2020),1,0,1<<16,1<<16);
+            converted.resize(static_cast<size_t>(f.width)*f.height*4);
+            const uint8_t* src[4]{f.planes[0].data.get(),f.planes[1].data.get(),f.planes[2].data.get(),nullptr};
+            int strides[4]{f.planes[0].stride,f.planes[1].stride,f.planes[2].stride,0};
+            uint8_t* dst[4]{converted.data(),nullptr,nullptr,nullptr}; int ds[4]{f.width*4,0,0,0};
+            if (sws_scale(scaler,src,strides,0,f.height,dst,ds) != f.height) return false;
+            result = SDL_UpdateTexture(texture,nullptr,converted.data(),f.width*4);
+        } else result = SDL_UpdateTexture(texture,nullptr,f.bgra.data(),f.bytesPerLine);
+        if (result == 0) needsUpload = false;
+        return result == 0;
+    }
+    bool drawBitmap(const uint8_t* data,int width,int height,int stride,const SDL_Rect& target,double rotation = 0) {
+        if (!data || width<=0 || height<=0 || stride < static_cast<int64_t>(width)*4) return false;
+        auto* bitmap = SDL_CreateTexture(videoRenderer,SDL_PIXELFORMAT_BGRA32,SDL_TEXTUREACCESS_STATIC,width,height);
+        if (!bitmap) return false;
+        SDL_SetTextureBlendMode(bitmap,SDL_BLENDMODE_BLEND);
+        const bool ok = SDL_UpdateTexture(bitmap,nullptr,data,stride) == 0 &&
+            SDL_RenderCopyEx(videoRenderer,bitmap,nullptr,&target,rotation,nullptr,SDL_FLIP_NONE) == 0;
+        SDL_DestroyTexture(bitmap); return ok;
+    }
+    bool render(QSize size,bool capture = false) {
+        if (!frame || size.isEmpty() || !ensureVideo(size) || !upload()) return false;
+        int width=size.width(),height=size.height(); SDL_GetRendererOutputSize(videoRenderer,&width,&height);
+        const auto& f = *frame;
+        const double sar = f.sampleAspectRatio.num>0 && f.sampleAspectRatio.den>0 ? double(f.sampleAspectRatio.num)/f.sampleAspectRatio.den : 1.;
+        const double angle = std::isfinite(f.rotationDegrees) ? f.rotationDegrees : 0;
+        const double radians = angle * 3.14159265358979323846 / 180.;
+        const double cw = f.width*sar, ch = f.height;
+        const double boundW = std::abs(cw*std::cos(radians))+std::abs(ch*std::sin(radians));
+        const double boundH = std::abs(cw*std::sin(radians))+std::abs(ch*std::cos(radians));
+        const double scale = std::min(width/boundW,height/boundH);
+        SDL_Rect target{static_cast<int>(std::lround((width-cw*scale)/2)),static_cast<int>(std::lround((height-ch*scale)/2)),
+            std::max(1,static_cast<int>(std::lround(cw*scale))),std::max(1,static_cast<int>(std::lround(ch*scale)))};
+        SDL_SetRenderDrawColor(videoRenderer,0,0,0,255);
+        if (SDL_RenderClear(videoRenderer) != 0) return false;
+        // SDL2 conversion mode is global: set/restore around each synchronous
+        // draw on the QObject GUI thread so mixed-color multi-view playback works.
+        const auto oldMode = SDL_GetYUVConversionMode();
+        SDL_SetYUVConversionMode(f.colorRange == play_core::ColorRange::Full ? SDL_YUV_CONVERSION_JPEG :
+            f.colorSpace == play_core::ColorSpace::Bt709 ? SDL_YUV_CONVERSION_BT709 : SDL_YUV_CONVERSION_BT601);
+        const int copied = SDL_RenderCopyEx(videoRenderer,texture,nullptr,&target,angle,nullptr,SDL_FLIP_NONE);
+        SDL_RenderFlush(videoRenderer);
+        SDL_SetYUVConversionMode(oldMode);
+        if (copied != 0) return false;
+        if (!external && subtitle && position >= subtitle->startMs && position <= subtitle->endMs) {
+            for (const auto& b : subtitle->bitmaps) {
+                if (b.width<=0 || b.height<=0 || b.stride<=0 || b.bgra.size()<static_cast<size_t>(b.stride)*b.height) continue;
+                const double dx=(b.x+b.width/2.)*sar-cw/2., dy=b.y+b.height/2.-ch/2.;
+                const int bw=static_cast<int>(std::lround(b.width*sar*scale)), bh=static_cast<int>(std::lround(b.height*scale));
+                SDL_Rect dest{static_cast<int>(std::lround(width/2.+scale*(dx*std::cos(radians)-dy*std::sin(radians))-bw/2.)),
+                    static_cast<int>(std::lround(height/2.+scale*(dx*std::sin(radians)+dy*std::cos(radians))-bh/2.)),bw,bh};
+                drawBitmap(b.bgra.data(),b.width,b.height,b.stride,dest,angle);
+            }
+        }
+        auto* track = external ? external : embedded;
+        if (track && renderer) {
+            ass_set_frame_size(renderer,width,height); int changed=0;
+            for (auto* img=ass_render_frame(renderer,track,position,&changed);img;img=img->next) {
+                if (img->w<=0 || img->h<=0) continue;
+                std::vector<uint8_t> pixels(static_cast<size_t>(img->w)*img->h*4);
+                for (int y=0;y<img->h;++y) for(int x=0;x<img->w;++x) {
+                    auto* pixel=&pixels[(static_cast<size_t>(y)*img->w+x)*4];
+                    pixel[0]=(img->color>>8)&255; pixel[1]=(img->color>>16)&255; pixel[2]=(img->color>>24)&255;
+                    pixel[3]=static_cast<uint8_t>(img->bitmap[y*img->stride+x]*(255-(img->color&255))/255);
+                }
+                drawBitmap(pixels.data(),img->w,img->h,img->w*4,{img->dst_x,img->dst_y,img->w,img->h});
+            }
+        }
+        if (capture) {
+            readback=QImage(width,height,QImage::Format_ARGB32);
+            if (SDL_RenderReadPixels(videoRenderer,nullptr,SDL_PIXELFORMAT_ARGB8888,readback.bits(),static_cast<int>(readback.bytesPerLine())) != 0)
+                readback={};
+        }
+        SDL_RenderPresent(videoRenderer);
+        return true;
     }
 };
 VideoWidget::VideoWidget(QWidget* parent) : QWidget(parent), impl_(std::make_unique<Impl>()) {
     setAttribute(Qt::WA_OpaquePaintEvent); setMinimumSize(16,16);
+    impl_->surface = new SdlVideoSurface(this);
+    impl_->surface->hide();
+    impl_->surface->repaint = [this] { present(); };
+    impl_->surface->setGeometry(rect());
+    impl_->surface->releasing = [this] { impl_->destroyVideo(); };
 }
 VideoWidget::~VideoWidget() = default;
 QtPlayer* VideoWidget::player() const { return impl_->player; }
-void VideoWidget::setVideoFrame(std::shared_ptr<const play_core::VideoFrame> frame) { impl_->setFrame(std::move(frame)); update(); }
-void VideoWidget::setSubtitleFrame(std::shared_ptr<const play_core::SubtitleFrame> frame) { impl_->setSubtitle(std::move(frame)); update(); }
-void VideoWidget::setPosition(qint64 milliseconds) { impl_->position = milliseconds; update(); }
+void VideoWidget::setVideoFrame(std::shared_ptr<const play_core::VideoFrame> frame) { impl_->setFrame(std::move(frame)); update(); present(); }
+void VideoWidget::setSubtitleFrame(std::shared_ptr<const play_core::SubtitleFrame> frame) { impl_->setSubtitle(std::move(frame)); update(); present(); }
+void VideoWidget::setPosition(qint64 milliseconds) { impl_->position = milliseconds; update(); present(); }
 bool VideoWidget::hasExternalSubtitle() const { return impl_->external != nullptr; }
 quint64 VideoWidget::presentedFrames() const { return impl_->presented; }
 void VideoWidget::setPlayer(QtPlayer* p) {
@@ -95,9 +259,9 @@ void VideoWidget::setPlayer(QtPlayer* p) {
     connect(this, &QObject::destroyed, p, [p, self = static_cast<QObject*>(this)] {
         if (p->property("_player_sdk_view").value<QObject*>() == self) p->setProperty("_player_sdk_view", QVariant());
     });
-    connect(p, &QtPlayer::videoFrameChanged, this, [this](auto frame) { impl_->setFrame(std::move(frame)); update(); });
-    connect(p, &QtPlayer::subtitleChanged, this, [this](auto sub) { impl_->setSubtitle(std::move(sub)); update(); });
-    connect(p, &QtPlayer::positionChanged, this, [this](qint64 ms) { impl_->position = ms; update(); });
+    connect(p,&QtPlayer::videoFrameChanged,this,&VideoWidget::setVideoFrame);
+    connect(p,&QtPlayer::subtitleChanged,this,&VideoWidget::setSubtitleFrame);
+    connect(p,&QtPlayer::positionChanged,this,&VideoWidget::setPosition);
     connect(p, &QObject::destroyed, this, [this] { impl_->player = nullptr; impl_->setFrame({}); impl_->setSubtitle({}); update(); });
 }
 bool VideoWidget::loadExternalSubtitle(const QString& filename) {
@@ -121,53 +285,29 @@ bool VideoWidget::loadExternalSubtitle(const QString& filename) {
     }
     auto* track = ass_read_memory(impl_->library, data.data(), data.size(), nullptr);
     if (!track) return false;
-    clearExternalSubtitle(); impl_->external = track; update(); return true;
+    if (impl_->external) ass_free_track(impl_->external);
+    impl_->external = track; update(); present(); return true;
 }
 void VideoWidget::clearExternalSubtitle() {
-    if (impl_->external) { ass_free_track(impl_->external); impl_->external = nullptr; } update();
+    if (impl_->external) { ass_free_track(impl_->external); impl_->external = nullptr; } update(); present();
 }
 void VideoWidget::paintEvent(QPaintEvent*) {
-    QPainter p(this); p.fillRect(rect(), Qt::black);
-    if (impl_->image.isNull() || !impl_->frame) return;
-    const auto& f = *impl_->frame;
-    double sar = f.sampleAspectRatio.den > 0 && f.sampleAspectRatio.num > 0 ? double(f.sampleAspectRatio.num) / f.sampleAspectRatio.den : 1;
-    QSizeF unrotated(f.width * sar, f.height);
-    const bool quarter = std::abs(std::fmod(std::abs(f.rotationDegrees),180.) - 90.) < .01;
-    QSizeF bounds = quarter ? QSizeF(unrotated.height(),unrotated.width()) : unrotated;
-    const double scale = std::min(width()/bounds.width(), height()/bounds.height());
-    p.save(); p.translate(rect().center()); p.rotate(f.rotationDegrees); p.scale(scale,scale);
-    const QRectF target(-unrotated.width()/2,-unrotated.height()/2,unrotated.width(),unrotated.height());
-    p.drawImage(target,impl_->image);
-    if (impl_->subtitle && impl_->position >= impl_->subtitle->startMs && impl_->position <= impl_->subtitle->endMs) {
-        for (const auto& b : impl_->subtitle->bitmaps) {
-            QImage bitmap(b.bgra.data(), b.width,b.height,b.stride,QImage::Format_ARGB32);
-            p.drawImage(QRectF(target.left()+b.x*sar,target.top()+b.y,b.width*sar,b.height),bitmap);
-        }
+    QPainter painter(this); painter.fillRect(rect(),Qt::black); // Empty/background only; video is SDL.
+    painter.end();
+    present();
+}
+void VideoWidget::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    impl_->surface->setGeometry(rect()); present();
+}
+void VideoWidget::present() {
+    if (!isVisible()) return;
+    if (impl_->render(size()) && impl_->fresh) {
+        impl_->fresh=false; ++impl_->presented; emit framePresented();
     }
-    p.restore();
-    if (!impl_->external && impl_->subtitle && !impl_->subtitle->assPacket &&
-        impl_->subtitle->assOrText.find("[Script Info]") == std::string::npos &&
-        impl_->position >= impl_->subtitle->startMs && impl_->position <= impl_->subtitle->endMs) {
-        const QString text = QString::fromUtf8(impl_->subtitle->assOrText);
-        const auto bounds = rect().adjusted(12,12,-12,-12);
-        auto font = p.font(); font.setPixelSize(std::max(14,height()/22)); p.setFont(font);
-        p.setPen(Qt::black); p.drawText(bounds.translated(1,1),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextWordWrap,text);
-        p.setPen(Qt::white); p.drawText(bounds,Qt::AlignHCenter|Qt::AlignBottom|Qt::TextWordWrap,text);
-    }
-    auto* track = impl_->external ? impl_->external : impl_->embedded;
-    if (track && impl_->renderer) {
-        ass_set_frame_size(impl_->renderer,width(),height()); int changed = 0;
-        auto* img = ass_render_frame(impl_->renderer,track,impl_->position,&changed);
-        for (; img; img = img->next) {
-            QImage glyph(img->w,img->h,QImage::Format_ARGB32);
-            const auto color = img->color;
-            for (int y=0;y<img->h;++y) for(int x=0;x<img->w;++x) {
-                const int alpha = img->bitmap[y*img->stride+x] * (255-(color & 255)) / 255;
-                glyph.setPixel(x,y,qRgba((color>>24)&255,(color>>16)&255,(color>>8)&255,alpha));
-            }
-            p.drawImage(img->dst_x,img->dst_y,glyph);
-        }
-    }
-    if (impl_->fresh) { ++impl_->presented; impl_->fresh = false; emit framePresented(); }
+}
+QImage VideoWidget::grabVideoFrame() {
+    if (!impl_->render(size(),true)) return {};
+    return impl_->readback;
 }
 }

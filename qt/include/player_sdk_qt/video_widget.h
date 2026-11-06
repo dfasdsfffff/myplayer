@@ -1,5 +1,6 @@
 #pragma once
 #include <QWidget>
+#include <QImage>
 #include <QPointer>
 #include <play_core/video_frame.h>
 #include <memory>
@@ -22,11 +23,16 @@ public:
     void setSubtitleFrame(std::shared_ptr<const play_core::SubtitleFrame> frame);
     void setPosition(qint64 milliseconds);
     bool hasExternalSubtitle() const;
+    // Explicit SDL renderer readback including subtitles; not used in playback.
+    QImage grabVideoFrame();
 signals:
+    // Emitted for a fresh frame after SDL_RenderPresent returns; not a monitor/compositor fence.
     void framePresented();
 protected:
     void paintEvent(QPaintEvent*) override;
+    void resizeEvent(QResizeEvent*) override;
 private:
+    void present();
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

@@ -25,7 +25,7 @@ set_tests_properties(player_sdk_tests PROPERTIES TIMEOUT 60 ENVIRONMENT "SDL_AUD
 if(TARGET PlayerSDK::QtWidgets)
     qt_add_executable(player_sdk_qt_tests qt_player_tests.cpp ../media_fixture_builder.cpp)
     target_include_directories(player_sdk_qt_tests PRIVATE .. ${FFMPEG_INCLUDE_DIRS})
-    target_link_libraries(player_sdk_qt_tests PRIVATE PlayerSDK::QtWidgets ${FFMPEG_LIBRARIES})
+    target_link_libraries(player_sdk_qt_tests PRIVATE PlayerSDK::QtWidgets SDL2::SDL2 ${FFMPEG_LIBRARIES})
     if(MSVC)
         target_compile_options(player_sdk_qt_tests PRIVATE /utf-8 /Zc:__cplusplus)
     endif()

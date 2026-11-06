@@ -71,7 +71,7 @@ Core 依赖 FFmpeg、SDL2、SoundTouch 和 sigslot，不依赖 Qt/libass。Qt �
        → SDL 音频回调 → 设备/音频时钟
 视频：pictq → 刷新线程按时钟选帧 → CPU 转换 → 公开不可变快照
        → Core 独立串行事件线程/最新帧邮箱
-       → QtPlayer QObject 线程/最新帧邮箱 → VideoWidget QImage/QPainter
+       → QtPlayer QObject 线程/最新帧邮箱 → VideoWidget SDL 纹理/RenderPresent
 字幕：subpq → 时间选择 → 公开字幕事件 → VideoWidget（libass/位图/普通文字）
 ```
 
@@ -94,7 +94,7 @@ Qt 主线程不执行解封装或解码。每实例另有控制及事件线程�
 
 SDL 输出为 `AUDIO_S16SYS`。PCM 回调从有界环形队列读取、补静音、缩放音量并更新估算时钟，不在回调内阻塞解码或重采样。默认 `CONFIG_AVFILTER=0`，SoundTouch 位于当前重采样分支，不能从 UI 倍速选项推断所有格式下的音画同步已验证；公开倍速范围与内部统一为 `[0.1,2.0]`。
 
-内部偶数尺寸 YUV420P 路径保留 AVFrame 引用，其他格式经 swscale 转 BGRA；公开 SDK 帧再复制成独立只读 CPU 数据，避免与可复用解码缓冲产生可变别名。Qt 显示使用 QImage/QPainter，YUV 通过 swscale 按颜色范围/空间转换，支持 SAR 和旋转；不再是 SDL GPU 纹理呈现，不能沿用旧性能结论。
+内部偶数尺寸 YUV420P 路径保留 AVFrame 引用，其他格式经 swscale 转 BGRA；公开 SDK 帧再复制成独立只读 CPU 数据，避免与可复用解码缓冲产生可变别名。Qt 的共享 VideoWidget 使用 SDL 原生子窗口和渲染器，普通 YUV420P 直接上传 IYUV 纹理，BGRA 直接上传纹理，支持 SAR 与旋转。SDL2 没有 BT.2020 转换模式，该颜色空间保留 swscale 转 BGRA 回退。Qt 只管理窗口/布局/事件，QPainter 只用于空背景；字幕经 SDL 混合。SDL 资源在原生窗口销毁前释放，SDL video subsystem 持有并释放自己的初始化引用。offscreen 测试使用 SDL software renderer/surface，实际 windows 渲染另测；不凭更换后端宣称 GPU 性能结论。
 
 D3D11VA 仍只在 Windows 实现，偏好不保证设备可用；硬件帧下载到 CPU，不是 GPU 零拷贝。PQ/HLG 仅标记，不提供完整 HDR 色调映射。运行中硬解下载失败不保证无缝软回退。
 
