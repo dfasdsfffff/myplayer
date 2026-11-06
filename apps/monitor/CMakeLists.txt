@@ -92,6 +92,23 @@ if(MONITOR_BUILD_TESTS)
     if(MSVC)
         target_compile_options(monitor_integration_tests PRIVATE /utf-8)
     endif()
+    qt_add_executable(monitor_recording_browser_tests
+        recording_browser_tests.cpp
+        xviewer.cpp xviewer.h xviewer.ui
+        xcamera_config.cpp xcamera_config.h
+        xcamera_widget.cpp xcamera_widget.h
+        xcamera_record.cpp xcamera_record.h
+        xcalendar.cpp xcalendar.h
+        xplayvideo.cpp xplayvideo.h xplayvideo.ui
+        core_video_widget.cpp core_video_widget.h
+    )
+    target_link_libraries(monitor_recording_browser_tests PRIVATE PlayerSDK::QtWidgets ${FFMPEG_LIBRARIES})
+    target_include_directories(monitor_recording_browser_tests PRIVATE ${FFMPEG_INCLUDE_DIRS})
+    if(MSVC)
+        target_compile_options(monitor_recording_browser_tests PRIVATE /utf-8)
+    endif()
+    add_test(NAME monitor_recording_browser_tests COMMAND monitor_recording_browser_tests)
+    set_tests_properties(monitor_recording_browser_tests PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_AUDIODRIVER=dummy")
     add_test(NAME monitor_integration_tests COMMAND monitor_integration_tests)
     add_test(NAME monitor_window_smoke_test COMMAND myplayer_monitor --smoke-test --layout 16)
     set_tests_properties(monitor_window_smoke_test PROPERTIES TIMEOUT 15)
@@ -101,7 +118,7 @@ endif()
 if(WIN32)
     set(monitor_runtime_targets myplayer_monitor)
     if(TARGET monitor_integration_tests)
-        list(APPEND monitor_runtime_targets monitor_integration_tests)
+        list(APPEND monitor_runtime_targets monitor_integration_tests monitor_recording_browser_tests)
     endif()
     get_target_property(qt_qmake Qt6::qmake IMPORTED_LOCATION)
     get_filename_component(qt_bin "${qt_qmake}" DIRECTORY)

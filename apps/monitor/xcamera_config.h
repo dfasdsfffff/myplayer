@@ -1,6 +1,8 @@
 #pragma once
 #include <mutex>
 #include <vector>
+#include <QString>
+#include <QStringList>
 struct XCameraData {
   char name[1024] = {0};      // 相机名称
   char url[4096] = {0};       // 主码流
@@ -25,9 +27,13 @@ public:
   ///
   bool DelCam(int index);
   ///
-  bool Save(const char *path);
+  static QString DefaultPath();
+  bool LoadDefault();
+  // Existing destination always wins, including an invalid destination.
+  bool LoadOrMigrate(const QString &destination, const QStringList &legacyPaths);
+  bool Save(const QString &path = DefaultPath());
   ///
-  bool Load(const char *path);
+  bool Load(const QString &path);
   ///
   bool Replace(int index, const XCameraData &data);
 

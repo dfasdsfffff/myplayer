@@ -112,7 +112,7 @@ SDK 自身公开错误不返回原始带凭据 URL；`RedactMediaLocation` 保�
 
 本地续播使用 canonical 路径 SHA-1 为键，进度标脏后合并保存；网络来源不建立本地续播目标。恢复需要可 seek、非直播、有效时长和 `ShouldResume`，接近结束按 `ShouldClearResume` 清理。列表/最近文件的持久化使用凭据过滤，不自动覆盖监控配置。
 
-监控 `monitor-cams.db` 是相对工作目录的原生结构二进制文件，不是 SQLite；记录可能包含明文 URL 凭据，需按敏感配置保护，不是跨平台结构协议。录像来自摄像机 `save_path` 并追加索引目录；`XCameraRecord` 直接 FFmpeg packet remux 分段，不经 SDK 显示帧。
+监控配置固定在 EXE 目录下的 `config/monitor-cams.db`，与启动工作目录无关；首次启动在新配置不存在时迁移工作目录、EXE 目录或其上一级目录的旧 `monitor-cams.db`，保留原文件，并将相对录像地址按旧配置目录转换为绝对路径。该文件是原生结构二进制记录，不是 SQLite；可能包含明文 URL 凭据，需按敏感配置保护，不是跨平台结构协议。安装目录需要写权限，加载/迁移/保存失败会提示。录像来自摄像机 `save_path` 并追加索引目录；`XCameraRecord` 直接 FFmpeg packet remux 分段，不经 SDK 显示帧。
 
 ## 7. 测试与排查
 

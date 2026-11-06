@@ -11,6 +11,7 @@
 class XCameraWidget;
 class XCameraRecord;
 class QMenu;
+class QLabel;
 
 namespace Ui {
 	class XViewer;
@@ -18,7 +19,7 @@ namespace Ui {
 class XViewer : public QWidget {
 	Q_OBJECT
 public:
-	explicit XViewer(QWidget* parent = nullptr);
+	explicit XViewer(QWidget* parent = nullptr, bool loadConfiguration = true);
 	~XViewer();
 	bool OpenPreview(const QStringList& sources, int layout);
 signals:
@@ -63,6 +64,10 @@ private slots:
 	void PlayVideo(const QModelIndex& index);
 
 private:
+	void RefreshRecordings();
+	QLabel* recording_summary_ = nullptr;
+	QLabel* recording_path_ = nullptr;
+	QLabel* recording_empty_ = nullptr;
 	Ui::XViewer* ui;
 	std::array<XCameraWidget*, 16> cam_wids{};
 	std::vector<XCameraRecord*> records;

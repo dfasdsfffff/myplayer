@@ -17,15 +17,18 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QTimerEvent>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QDir>
+#include <QRegularExpression>
+#include <QSignalBlocker>
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <vector>
 #include <cstring>
 #include <iostream>
 #include <sstream>
-#define CAM_CONF_PATH "monitor-cams.db"
 #define C(x) QString::fromLocal8Bit(x)
 
 using namespace std;
@@ -165,18 +168,22 @@ void XViewer::SetCam(int index) {
     return true;
   };
   if (!copyField(data.name, name_edit->text()) || !copyField(data.url, url_edit->text()) ||
-      !copyField(data.sub_url, suburl_edit->text()) || !copyField(data.save_path, save_path_edit->text()))
+      !copyField(data.sub_url, suburl_edit->text()) ||
+      !copyField(data.save_path, QDir(save_path_edit->text()).absolutePath()))
     return;
   if (index == -1) // 添加
     c->Push(data);
   else { // 修改
     c->SetCam(index, data);
   }
-  c->Save(CAM_CONF_PATH);
+  if (!c->Save())
+    QMessageBox::warning(this, QStringLiteral("配置保存失败"),
+        QStringLiteral("无法保存设备配置，请检查目录写入权限：\n%1\n本次修改仅在当前进程中生效。")
+            .arg(XCameraConfig::DefaultPath()));
   RefreshCams();
 }
 
-XViewer::XViewer(QWidget *parent) : QWidget{parent} {
+XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   ui = new Ui::XViewer();
   ui->setupUi(this);
   setWindowFlags(Qt::Window);
@@ -315,8 +322,52 @@ XViewer::XViewer(QWidget *parent) : QWidget{parent} {
   connect(a, &QAction::triggered, this, &XViewer::StopRecord);
   // 默认9个视图
   view(9);
-  XCameraConfig::Instance()->Load(CAM_CONF_PATH);
+  if (loadConfiguration && !XCameraConfig::Instance()->LoadDefault()) {
+    QTimer::singleShot(0, this, [this] {
+      QMessageBox::warning(this, QStringLiteral("配置加载失败"),
+          QStringLiteral("无法加载或迁移设备配置。请检查文件格式和目录权限：\n%1\n原文件未删除，也不会覆盖已有配置。")
+              .arg(XCameraConfig::DefaultPath()));
+    });
+  }
   ui->time_list->clear();
+
+  // Replace the narrow, unlabeled list with an expanding recording browser.
+  auto *oldPlaybackLayout = ui->playback_wid->layout();
+  oldPlaybackLayout->removeWidget(ui->time_list);
+  oldPlaybackLayout->removeWidget(ui->cal);
+  delete oldPlaybackLayout;
+  auto *playbackLayout = new QVBoxLayout(ui->playback_wid);
+  playbackLayout->setContentsMargins(12, 12, 12, 12);
+  playbackLayout->setSpacing(10);
+  auto *toolbar = new QHBoxLayout;
+  recording_summary_ = new QLabel(QStringLiteral("录像回放"), ui->playback_wid);
+  recording_summary_->setObjectName(QStringLiteral("recordingSummary"));
+  toolbar->addWidget(recording_summary_, 1);
+  auto *refreshButton = new QPushButton(QStringLiteral("刷新录像"), ui->playback_wid);
+  refreshButton->setObjectName(QStringLiteral("refreshRecordings"));
+  toolbar->addWidget(refreshButton);
+  connect(refreshButton, &QPushButton::clicked, this, &XViewer::RefreshRecordings);
+  playbackLayout->addLayout(toolbar);
+  recording_path_ = new QLabel(ui->playback_wid);
+  recording_path_->setWordWrap(true);
+  recording_path_->setTextFormat(Qt::PlainText);
+  recording_path_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  playbackLayout->addWidget(recording_path_);
+  auto *browser = new QHBoxLayout;
+  auto *clips = new QVBoxLayout;
+  clips->addWidget(new QLabel(QStringLiteral("录制列表 · 双击回放"), ui->playback_wid));
+  ui->time_list->setMaximumWidth(QWIDGETSIZE_MAX);
+  ui->time_list->setMinimumWidth(160);
+  ui->time_list->setTextElideMode(Qt::ElideMiddle);
+  clips->addWidget(ui->time_list, 1);
+  recording_empty_ = new QLabel(ui->playback_wid);
+  recording_empty_->setObjectName(QStringLiteral("recordingEmpty"));
+  recording_empty_->setWordWrap(true);
+  clips->addWidget(recording_empty_);
+  browser->addLayout(clips, 1);
+  ui->cal->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+  browser->addWidget(ui->cal);
+  playbackLayout->addLayout(browser, 1);
   RefreshCams();
   //
   connect(ui->add_cam, &QPushButton::clicked, this, &XViewer::AddCam);
@@ -325,8 +376,10 @@ XViewer::XViewer(QWidget *parent) : QWidget{parent} {
   connect(ui->preview, &QPushButton::clicked, this, &XViewer::Preview);
   connect(ui->playback, &QPushButton::clicked, this, &XViewer::Playback);
   Preview();
-  connect(ui->cam_list, &QListWidget::clicked, this, &XViewer::SelectCamera);
-  connect(ui->cal, &XCalendar::clicked, this, &XViewer::SelectDate);
+  connect(ui->cam_list, &QListWidget::currentRowChanged, this,
+          [this](int) { RefreshRecordings(); });
+  connect(ui->cal, &XCalendar::selectionChanged, this,
+          [this] { SelectDate(ui->cal->selectedDate()); });
   connect(ui->time_list, &QListWidget::doubleClicked, this,
           &XViewer::PlayVideo);
   //
@@ -384,7 +437,10 @@ void XViewer::DelCam() {
   if (button == QMessageBox::Yes) {
     auto c = XCameraConfig::Instance();
     c->DelCam(row);
-    c->Save(CAM_CONF_PATH);
+    if (!c->Save())
+      QMessageBox::warning(this, QStringLiteral("配置保存失败"),
+          QStringLiteral("无法保存设备配置，请检查目录写入权限：\n%1\n本次修改仅在当前进程中生效。")
+              .arg(XCameraConfig::DefaultPath()));
     RefreshCams();
   }
 }
@@ -419,6 +475,8 @@ void XViewer::StopRecord() {
     delete record;
   }
   records.clear();
+  if (recording_summary_ && ui->playback_wid->isVisible())
+    RefreshRecordings();
 }
 
 void XViewer::Preview() {
@@ -429,52 +487,81 @@ void XViewer::Preview() {
 void XViewer::Playback() {
   ui->playback_wid->show();
   ui->cams->hide();
+  if (ui->cam_list->currentRow() < 0 && ui->cam_list->count() > 0)
+    ui->cam_list->setCurrentRow(0);
+  RefreshRecordings();
+}
+
+void XViewer::RefreshRecordings() {
+  SelectCamera(ui->cam_list->currentIndex());
 }
 
 void XViewer::SelectCamera(const QModelIndex &index) {
-  auto conf = XCameraConfig::Instance();
-  auto data = conf->GetCam(index.row());
-  if (data.name[0] == '\0') {
-    return;
-  }
-  stringstream ss;
-  ss << data.save_path << '/' << index.row() << '/';
-  QDir dir(QString::fromStdString(ss.str()));
+  const auto selectedDate = ui->cal->selectedDate();
   ui->cal->ClearDate();
   ui->time_list->clear();
   cam_videos.clear();
-  if (!dir.exists())
+  recording_path_->clear();
+  if (!index.isValid()) {
+    SelectDate(selectedDate);
+    recording_empty_->setText(QStringLiteral("请选择设备以查看录像。"));
     return;
-  // 获取文件列表
-  QStringList fileters;
-  fileters << "*.mp4" << "*.avi";
-  auto files = dir.entryInfoList(fileters, QDir::Filter::Files |
-                                               QDir::Filter::NoDotAndDotDot);
-  for (auto &file : std::as_const(files)) {
-    qDebug() << file.fileName();
-    auto s = file.baseName();
-    s = s.right(s.length() - 4);
-    auto dateTime = QDateTime::fromString(s.left(19), "yyyy_MM_dd_hh_mm_ss");
+  }
+  const auto data = XCameraConfig::Instance()->GetCam(index.row());
+  const QDir root(QString::fromLocal8Bit(data.save_path));
+  const QDir dir(root.filePath(QString::number(index.row())));
+  recording_path_->setText(QStringLiteral("录像目录：%1").arg(QDir::toNativeSeparators(dir.absolutePath())));
+  // Match recorder names, including same-second collision suffixes.
+  static const QRegularExpression namePattern(
+      QStringLiteral("^cam_(\\d{4}_\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2})(?:_\\d+)?$"));
+  const auto files = dir.entryInfoList({QStringLiteral("*.mp4"), QStringLiteral("*.avi")},
+                                     QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+  for (const auto &file : files) {
+    const auto match = namePattern.match(file.completeBaseName());
+    if (!match.hasMatch())
+      continue;
+    const auto dateTime = QDateTime::fromString(match.captured(1), QStringLiteral("yyyy_MM_dd_HH_mm_ss"));
     if (!dateTime.isValid())
       continue;
-    // qDebug() << dateTime.date();
     ui->cal->AddDate(dateTime.date());
-    XCamVideo video;
-    video.datetime = dateTime;
-    video.filepath = file.absoluteFilePath();
-    cam_videos[dateTime.date()].push_back(video);
+    cam_videos[dateTime.date()].push_back({file.absoluteFilePath(), dateTime});
   }
+  for (auto &[date, videos] : cam_videos) {
+    std::sort(videos.begin(), videos.end(), [](const XCamVideo &a, const XCamVideo &b) {
+      return a.datetime == b.datetime ? a.filepath < b.filepath : a.datetime < b.datetime;
+    });
+  }
+  const auto date = cam_videos.empty() || cam_videos.contains(selectedDate)
+                        ? selectedDate : cam_videos.rbegin()->first;
+  {
+    const QSignalBlocker blocker(ui->cal);
+    ui->cal->setSelectedDate(date);
+    ui->cal->setCurrentPage(date.year(), date.month());
+  }
+  SelectDate(date);
+  if (!dir.exists())
+    recording_empty_->setText(QStringLiteral("录像目录尚不存在，请确认保存地址并开始录制。"));
 }
 
 void XViewer::SelectDate(QDate date) {
-  auto dates = cam_videos[date];
   ui->time_list->clear();
-  for (auto &d : std::as_const(dates)) {
-    auto item = new QListWidgetItem(d.datetime.time().toString());
-    // 添加路径
-    item->setData(Qt::UserRole, d.filepath);
-    ui->time_list->addItem(item);
+  const auto found = cam_videos.find(date);
+  if (found != cam_videos.end()) {
+    for (const auto &video : found->second) {
+      auto *item = new QListWidgetItem(
+          video.datetime.time().toString(QStringLiteral("HH:mm:ss")) +
+          QStringLiteral("  ·  ") + QFileInfo(video.filepath).fileName());
+      item->setData(Qt::UserRole, video.filepath);
+      item->setToolTip(QDir::toNativeSeparators(video.filepath));
+      ui->time_list->addItem(item);
+    }
   }
+  recording_summary_->setText(QStringLiteral("%1 · %2 段录像")
+      .arg(date.toString(QStringLiteral("yyyy-MM-dd"))).arg(ui->time_list->count()));
+  recording_empty_->setText(cam_videos.empty()
+      ? QStringLiteral("该设备暂无录像。请确认保存目录，录制完成后点击刷新。")
+      : QStringLiteral("所选日期没有录像，请选择日历中标记的日期。"));
+  recording_empty_->setVisible(ui->time_list->count() == 0);
 }
 
 void XViewer::PlayVideo(const QModelIndex &index) {

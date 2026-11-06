@@ -1,4 +1,5 @@
 #include "xviewer.h"
+#include "xcamera_config.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QTimer>
@@ -15,7 +16,17 @@ int main(int argc, char** argv) {
     parser.addOption({"source", "Open a local file or RTSP/HTTP source; may be repeated.", "location"});
     parser.addOption({"layout", "Preview layout: 1, 4, 9 or 16.", "count", "9"});
     parser.addOption({"smoke-test", "Open the application and exit automatically after one second."});
+    parser.addOption({"migrate-config", "Load or migrate camera configuration to the installation config directory, then exit."});
     parser.process(app);
+    if (parser.isSet("migrate-config")) {
+        if (!XCameraConfig::Instance()->LoadDefault()) {
+            std::cerr << "Configuration load/migration failed; existing files were preserved.\n";
+            return 1;
+        }
+        std::cout << "Configuration: " << XCameraConfig::DefaultPath().toStdString() << '\n';
+        std::cout << "Devices: " << XCameraConfig::Instance()->GetCamCount() << '\n';
+        return 0;
+    }
     bool valid = false;
     const int layout = parser.value("layout").toInt(&valid);
     if (!valid || (layout != 1 && layout != 4 && layout != 9 && layout != 16) ||
