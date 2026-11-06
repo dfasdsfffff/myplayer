@@ -1,0 +1,61 @@
+#pragma once
+// The adapter uses casts only while these explicitly checked wire values match.
+// If the C++ enums change, add a translation rather than changing the C ABI.
+#define PS_CHECK(type, cpp, c) static_assert(static_cast<int32_t>(play_core::type::cpp) == c)
+PS_CHECK(ErrorCode, None, PS_OK);
+PS_CHECK(ErrorCode, InvalidArgument, PS_ERROR_INVALID_ARGUMENT);
+PS_CHECK(ErrorCode, InvalidState, PS_ERROR_INVALID_STATE);
+PS_CHECK(ErrorCode, Capacity, PS_ERROR_CAPACITY);
+PS_CHECK(ErrorCode, Cancelled, PS_ERROR_CANCELLED);
+PS_CHECK(ErrorCode, Media, PS_ERROR_MEDIA);
+PS_CHECK(ErrorCode, Internal, PS_ERROR_INTERNAL);
+PS_CHECK(ErrorCode, Timeout, PS_ERROR_TIMEOUT);
+PS_CHECK(ErrorCode, Authentication, PS_ERROR_AUTHENTICATION);
+PS_CHECK(ErrorCode, NotFound, PS_ERROR_NOT_FOUND);
+PS_CHECK(ErrorCode, UnsupportedProtocol, PS_ERROR_UNSUPPORTED_PROTOCOL);
+PS_CHECK(ErrorCode, NetworkUnavailable, PS_ERROR_NETWORK_UNAVAILABLE);
+PS_CHECK(ErrorCode, ConnectionLost, PS_ERROR_CONNECTION_LOST);
+PS_CHECK(ErrorCode, InvalidMedia, PS_ERROR_INVALID_MEDIA);
+PS_CHECK(ErrorCode, DecoderFailure, PS_ERROR_DECODER_FAILURE);
+PS_CHECK(PlayerState, Closed, PS_STATE_CLOSED);
+PS_CHECK(PlayerState, Opening, PS_STATE_OPENING);
+PS_CHECK(PlayerState, Ready, PS_STATE_READY);
+PS_CHECK(PlayerState, Playing, PS_STATE_PLAYING);
+PS_CHECK(PlayerState, Paused, PS_STATE_PAUSED);
+PS_CHECK(PlayerState, Reconnecting, PS_STATE_RECONNECTING);
+PS_CHECK(PlayerState, Stopped, PS_STATE_STOPPED);
+PS_CHECK(PlayerState, Closing, PS_STATE_CLOSING);
+PS_CHECK(PlayerState, Ended, PS_STATE_ENDED);
+PS_CHECK(PlayerState, Failed, PS_STATE_FAILED);
+PS_CHECK(PlayerEvent::Type, State, PS_EVENT_STATE);
+PS_CHECK(PlayerEvent::Type, MediaInfo, PS_EVENT_MEDIA_INFO);
+PS_CHECK(PlayerEvent::Type, Position, PS_EVENT_POSITION);
+PS_CHECK(PlayerEvent::Type, Operation, PS_EVENT_OPERATION);
+PS_CHECK(PlayerEvent::Type, Video, PS_EVENT_VIDEO);
+PS_CHECK(PlayerEvent::Type, Subtitle, PS_EVENT_SUBTITLE);
+PS_CHECK(PlayerEvent::Type, Ended, PS_EVENT_ENDED);
+PS_CHECK(PlayerEvent::Type, Error, PS_EVENT_ERROR);
+PS_CHECK(PlayerEvent::Type, Closed, PS_EVENT_CLOSED);
+PS_CHECK(OperationStatus, Succeeded, PS_OPERATION_SUCCEEDED);
+PS_CHECK(OperationStatus, Failed, PS_OPERATION_FAILED);
+PS_CHECK(OperationStatus, Cancelled, PS_OPERATION_CANCELLED);
+PS_CHECK(OperationStatus, Superseded, PS_OPERATION_SUPERSEDED);
+PS_CHECK(HardwareDecode, Auto, PS_HARDWARE_AUTO);
+PS_CHECK(HardwareDecode, Disabled, PS_HARDWARE_DISABLED);
+PS_CHECK(HardwareDecode, D3D11VA, PS_HARDWARE_D3D11VA);
+PS_CHECK(RtspTransport, Tcp, PS_RTSP_TCP);
+PS_CHECK(RtspTransport, Udp, PS_RTSP_UDP);
+PS_CHECK(MediaType, Unknown, PS_MEDIA_UNKNOWN);
+PS_CHECK(MediaType, Video, PS_MEDIA_VIDEO);
+PS_CHECK(MediaType, Audio, PS_MEDIA_AUDIO);
+PS_CHECK(MediaType, Subtitle, PS_MEDIA_SUBTITLE);
+PS_CHECK(VideoFrameFormat, Bgra32, PS_VIDEO_BGRA32);
+PS_CHECK(VideoFrameFormat, Yuv420P, PS_VIDEO_YUV420P);
+PS_CHECK(ColorSpace, Unknown, PS_COLOR_UNKNOWN);
+PS_CHECK(ColorSpace, Bt601, PS_COLOR_BT601);
+PS_CHECK(ColorSpace, Bt709, PS_COLOR_BT709);
+PS_CHECK(ColorSpace, Bt2020, PS_COLOR_BT2020);
+PS_CHECK(ColorRange, Unknown, PS_RANGE_UNKNOWN);
+PS_CHECK(ColorRange, Limited, PS_RANGE_LIMITED);
+PS_CHECK(ColorRange, Full, PS_RANGE_FULL);
+#undef PS_CHECK

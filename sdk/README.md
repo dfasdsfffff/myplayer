@@ -1,14 +1,14 @@
 # PlayerSDK 1.0.0 源码接入指南
 
-`play_core` 本身是 Core SDK（静态库），没有额外的核心包装库。支持的公开接口仅为 `core/include/play_core/`，Qt 接口为 `qt/include/player_sdk_qt/`。`src/`、`PlaybackRuntime`、`VideoCtl` 和 controller 均是私有实现/回归测试接口，不属于源码兼容承诺。
+`play_core` 本身是 Core SDK（静态库），没有额外的核心包装库。公开 C++ 接口为 `core/include/play_core/`，Qt 接口为 `qt/include/player_sdk_qt/`；新增 C ABI 接口为 `c/include/player_sdk_c/`，使用与兼容约定见 [C ABI 指南](c/README.md)。`src/`、`PlaybackRuntime`、`VideoCtl` 和 controller 均是私有实现/回归测试接口，不属于源码兼容承诺。
 
 ## 源码目录
 
-本目录是独立 SDK 根目录，可直接作为宿主的 CMake 子项目。`core/` 是核心源码，`qt/` 是 Qt 组件，`examples/` 是使用示例，`tests/api/` 是公开接口测试，`tests/consumer/` 是外部接入测试，`third_party/sigslot/` 是随包依赖。公开 include 和链接目标名不变。仓库根目录仍用于构建两个应用及私有回归测试。
+本目录是独立 SDK 根目录，可直接作为宿主的 CMake 子项目。`core/` 是核心源码，`c/` 是 C ABI 适配层，`qt/` 是 Qt 组件，`examples/` 是使用示例，`tests/api/` 是公开接口测试，`tests/consumer/` 是外部接入测试，`third_party/sigslot/` 是随包依赖。公开 include 和链接目标名不变。仓库根目录仍用于构建两个应用及私有回归测试。
 
 ## 1. 依赖与构建
 
-首版目标是 Windows x64、C++20、CMake 3.25+、MSVC；可选组件要求 Qt Widgets 6.8+。这是源码 API，不提供稳定 ABI，也不支持把旧 EXE 直接替换 DLL 升级。
+首版目标是 Windows x64、C++20、CMake 3.25+、MSVC；可选组件要求 Qt Widgets 6.8+。Core 与 Qt 仍是源码 API，不提供稳定 C++ ABI。新增的 `PlayerSDK::C` 共享库以版本化 C 接口提供独立二进制边界，默认构建，可通过 `PLAYER_SDK_BUILD_C=OFF` 关闭。
 
 当前开发环境依赖：FFmpeg 9.0.1（avcodec/avdevice/avfilter/avformat/avutil/swresample/swscale）、SDL 2.32.10、SoundTouch 2.4.1 的 SoundTouchDLL、sigslot 1.2.3、Qt 6.9.3、libass 0.17.5。实际构建验证记录见文末；最低版本之外的组合不自动视为验证通过。
 

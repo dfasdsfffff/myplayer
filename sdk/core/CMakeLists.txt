@@ -30,7 +30,7 @@ add_library(play_core STATIC ${PLAY_CORE_SOURCES})
 if(PLAYER_SDK_INTERNAL_REGRESSIONS)
     target_sources(play_core PRIVATE src/playback_runtime.cpp src/playback_controller.cpp src/playback_controller_videoctl.cpp)
 endif()
-set_target_properties(play_core PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+set_target_properties(play_core PROPERTIES POSITION_INDEPENDENT_CODE ON AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 add_library(PlayerSDK::Core ALIAS play_core)
 
 target_compile_features(play_core PUBLIC cxx_std_20)
