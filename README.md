@@ -2,10 +2,10 @@
 
 本仓库包含两个 Windows 桌面软件，共用 C++20 播放核心 `play_core`：
 
-| 软件 | 用途 | 源码入口 | CMake 目标 |
-| --- | --- | --- | --- |
-| MyPlayer | 媒体播放、播放列表、字幕、播放设置 | `apps/qt_player/main.cpp` | `myplayer` |
-| MyPlayer Monitor | 多路视频预览、设备管理、录像与录像回放 | `apps/monitor/main.cpp` | `myplayer_monitor` |
+| 软件 | 用途 | 源码入口 | CMake 子目录 | CMake 目标 |
+| --- | --- | --- | --- | --- |
+| MyPlayer | 媒体播放、播放列表、字幕、播放设置 | `apps/qt_player/main.cpp` | `apps/qt_player/CMakeLists.txt` | `myplayer` |
+| MyPlayer Monitor | 多路视频预览、设备管理、录像与录像回放 | `apps/monitor/main.cpp` | `apps/monitor/CMakeLists.txt` | `myplayer_monitor` |
 
 技术栈：Qt 6 Widgets、FFmpeg、SDL2、SoundTouch、sigslot；播放器另用 libass 渲染字幕。项目基于 GPL 上游 [itisyang/playerdemo](https://github.com/itisyang/playerdemo)，保留原作者归属与许可证。
 
@@ -82,8 +82,8 @@ Preset 本身只显式启用播放器，不会自动启用监控；Release 没�
 ```text
 bin/myplayer.exe                         # Release 播放器
 bin/myplayer_debug.exe                   # Debug 播放器
-build/apps/monitor/Release/myplayer_monitor.exe
-build/apps/monitor/Debug/myplayer_monitor.exe
+bin/myplayer_monitor.exe                 # Release 监控软件
+bin/myplayer_monitor_debug.exe           # Debug 监控软件
 ```
 
 播放器构建会复制可由 CMake 目标识别的运行库及 Qt platform 插件，监控构建还会调用 `windeployqt`。构建输出不等于完整免安装发行包；第三方 DLL 的间接依赖、Qt 插件、MSVC 运行库及许可证部署见“打包”。
@@ -99,7 +99,7 @@ build/apps/monitor/Debug/myplayer_monitor.exe
 | `MYPLAYER_ENABLE_WARNINGS` | `ON` | 项目警告设置 |
 | `MYPLAYER_ENABLE_SANITIZERS` | `OFF` | 支持的编译器上的 ASan/UBSan，非 Windows GUI 验证 |
 
-`PLAYERDEMO_QT_ROOT` 指向 Qt SDK 前缀；`PLAYERDEMO_OUTPUT_DIR` 只控制播放器默认运行输出位置；`PLAYERDEMO_SIGSLOT_ROOT` 默认指向 `lib/sigslot-1.2.3`。`PLAYERDEMO_DEPS_ROOT` 不是启用顶层 bundled 二进制依赖的开关。
+`PLAYERDEMO_QT_ROOT` 指向 Qt SDK 前缀；`PLAYERDEMO_OUTPUT_DIR` 控制两个应用的默认运行输出位置，默认是仓库 `bin/`；`PLAYERDEMO_SIGSLOT_ROOT` 默认指向 `lib/sigslot-1.2.3`。`PLAYERDEMO_DEPS_ROOT` 不是启用顶层 bundled 二进制依赖的开关。
 
 ### 仅播放核心
 
@@ -171,7 +171,7 @@ bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
 
 ## 双软件免安装打包
 
-使用上文的 **Windows x64 / Visual Studio 多配置生成器** 同时启用两个应用；需要完整依赖安装目录、Qt 的 `windeployqt.exe`、Qt 许可证文本和可再分发的 MSVC CRT DLL。打包脚本目前按 VS 的 `apps/monitor/Release/` 布局查找监控 EXE，不承诺支持 Ninja 或仅监控 standalone 构建。
+使用上文的 **Windows x64 / Visual Studio 多配置生成器** 同时启用两个应用；需要完整依赖安装目录、Qt 的 `windeployqt.exe`、Qt 许可证文本和可再分发的 MSVC CRT DLL。监控 EXE 从 `PLAYERDEMO_OUTPUT_DIR`（默认仓库 `bin/`）读取；脚本不承诺支持 Ninja 或仅监控 standalone 构建。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1 `
@@ -199,8 +199,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1
 ## 目录与维护入口
 
 ```text
-apps/qt_player/    播放器 Qt UI、字幕渲染、设置、播放基准
-apps/monitor/      监控 Qt UI、设备配置、录像与回放
+apps/qt_player/    播放器 Qt UI 子项目 CMake、字幕渲染、设置、播放基准
+apps/monitor/      监控 Qt UI 子项目 CMake、设备配置、录像与回放
 play_core/         公共播放运行时、解封装/解码、队列、时钟、网络输入
 cmake/             告警与安装规则
 scripts/           双软件打包、媒体兼容性和性能验证脚本

@@ -131,11 +131,14 @@ Windows 监控目标的构建后步骤已复制 CMake 可识别的运行时 DLL�
 
 ```powershell
 cmake -S apps/monitor -B build/monitor -G "Visual Studio 18 2026" -A x64 `
-  -DMONITOR_USE_BUNDLED_DEPS=ON -DMONITOR_BUILD_TESTS=ON `
+  -DMONITOR_USE_BUNDLED_DEPS=ON `
+  -DMONITOR_BUILD_TESTS=ON `
   "-DCMAKE_PREFIX_PATH=$qt"
 cmake --build build/monitor --config Release --target myplayer_monitor monitor_integration_tests
 ctest --test-dir build/monitor -C Release --output-on-failure
 ```
+
+无论顶层集成构建还是独立构建，监控程序及构建所需运行库都输出到仓库 `bin/`（Debug 为 `myplayer_monitor_debug.exe`，Release 为 `myplayer_monitor.exe`）。
 
 这些测试不能证明真实 RTSP 摄像头兼容性、16 路 4K 性能、长时间录像可靠性、网络重连期间录像完整性或全部音视频编码组合。预览使用核心的默认网络超时和有限重连策略，但 UI 无网络参数设置、ONVIF 发现、PTZ、自动扫描或摄像头配置下发功能；不会自动连接任何参考项目设备。
 
