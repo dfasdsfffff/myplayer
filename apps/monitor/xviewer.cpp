@@ -3,7 +3,13 @@
 #include "xcamera_config.h"
 #include "xcamera_record.h"
 #include "xcamera_widget.h"
-#include "xplayvideo.h"
+#include <player_sdk_qt/qt_player.h>
+#include <player_sdk_qt/video_widget.h>
+#include <QComboBox>
+#include <QSlider>
+#include <QTimeEdit>
+#include <QSplitter>
+#include <QShortcut>
 #include <QDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -191,7 +197,7 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   setWindowIcon(QIcon(QStringLiteral(":/img/xv.ico")));
   const QSize available = QGuiApplication::primaryScreen()->availableGeometry().size();
   resize(qMin(1200, available.width() - 60), qMin(760, available.height() - 80));
-  setMinimumSize(640, 400);
+  setMinimumSize(980, 680);
   setStyleSheet(R"(
     QWidget#XViewer, QWidget#body, QWidget#cams { background: #171a1f; color: #e6e9ed; font-family: "Microsoft YaHei UI"; font-size: 11px; }
     QWidget#head { background: #202328; }
@@ -236,8 +242,7 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   ui->normal->hide();
   ui->close->hide();
   ui->head->setMaximumHeight(38);
-  ui->left->setMinimumWidth(140);
-  ui->left->setMaximumWidth(150);
+  ui->left->setFixedWidth(248);
   ui->cam_list->setIconSize(QSize(18, 18));
   ui->add_cam->setText(QStringLiteral("添加"));
   ui->set_cam->setText(QStringLiteral("编辑"));
@@ -274,7 +279,8 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   headHLayout->setSpacing(6);
 
   auto *sideLayout = qobject_cast<QVBoxLayout *>(ui->left->layout());
-  sideLayout->setSpacing(5);
+  sideLayout->setSpacing(8);
+  sideLayout->setAlignment(Qt::AlignTop);
   auto *deviceTitle = new QLabel(QStringLiteral("设备列表"), ui->left);
   sideLayout->insertWidget(0, deviceTitle);
   auto *search = new QLineEdit(ui->left);
@@ -331,43 +337,7 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   }
   ui->time_list->clear();
 
-  // Replace the narrow, unlabeled list with an expanding recording browser.
-  auto *oldPlaybackLayout = ui->playback_wid->layout();
-  oldPlaybackLayout->removeWidget(ui->time_list);
-  oldPlaybackLayout->removeWidget(ui->cal);
-  delete oldPlaybackLayout;
-  auto *playbackLayout = new QVBoxLayout(ui->playback_wid);
-  playbackLayout->setContentsMargins(12, 12, 12, 12);
-  playbackLayout->setSpacing(10);
-  auto *toolbar = new QHBoxLayout;
-  recording_summary_ = new QLabel(QStringLiteral("录像回放"), ui->playback_wid);
-  recording_summary_->setObjectName(QStringLiteral("recordingSummary"));
-  toolbar->addWidget(recording_summary_, 1);
-  auto *refreshButton = new QPushButton(QStringLiteral("刷新录像"), ui->playback_wid);
-  refreshButton->setObjectName(QStringLiteral("refreshRecordings"));
-  toolbar->addWidget(refreshButton);
-  connect(refreshButton, &QPushButton::clicked, this, &XViewer::RefreshRecordings);
-  playbackLayout->addLayout(toolbar);
-  recording_path_ = new QLabel(ui->playback_wid);
-  recording_path_->setWordWrap(true);
-  recording_path_->setTextFormat(Qt::PlainText);
-  recording_path_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  playbackLayout->addWidget(recording_path_);
-  auto *browser = new QHBoxLayout;
-  auto *clips = new QVBoxLayout;
-  clips->addWidget(new QLabel(QStringLiteral("录制列表 · 双击回放"), ui->playback_wid));
-  ui->time_list->setMaximumWidth(QWIDGETSIZE_MAX);
-  ui->time_list->setMinimumWidth(160);
-  ui->time_list->setTextElideMode(Qt::ElideMiddle);
-  clips->addWidget(ui->time_list, 1);
-  recording_empty_ = new QLabel(ui->playback_wid);
-  recording_empty_->setObjectName(QStringLiteral("recordingEmpty"));
-  recording_empty_->setWordWrap(true);
-  clips->addWidget(recording_empty_);
-  browser->addLayout(clips, 1);
-  ui->cal->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
-  browser->addWidget(ui->cal);
-  playbackLayout->addLayout(browser, 1);
+  SetupPlaybackUi();
   RefreshCams();
   //
   connect(ui->add_cam, &QPushButton::clicked, this, &XViewer::AddCam);
@@ -386,6 +356,7 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
 }
 
 XViewer::~XViewer() {
+  ResetPlayback();
   StopRecord();
   for (auto*& pane : cam_wids) {
     delete pane;
@@ -480,11 +451,16 @@ void XViewer::StopRecord() {
 }
 
 void XViewer::Preview() {
+  ResetPlayback();
+  date_filters_->hide();
+  ui->cam_list->setMaximumHeight(QWIDGETSIZE_MAX);
   ui->cams->show();
   ui->playback_wid->hide();
 }
 
 void XViewer::Playback() {
+  date_filters_->show();
+  ui->cam_list->setMaximumHeight(100);
   ui->playback_wid->show();
   ui->cams->hide();
   if (ui->cam_list->currentRow() < 0 && ui->cam_list->count() > 0)
@@ -494,9 +470,11 @@ void XViewer::Playback() {
 
 void XViewer::RefreshRecordings() {
   SelectCamera(ui->cam_list->currentIndex());
+  scan_status_->setText(QStringLiteral("最近扫描 %1").arg(QTime::currentTime().toString(QStringLiteral("HH:mm:ss"))));
 }
 
 void XViewer::SelectCamera(const QModelIndex &index) {
+  ResetPlayback();
   const auto selectedDate = ui->cal->selectedDate();
   ui->cal->ClearDate();
   ui->time_list->clear();
@@ -539,18 +517,21 @@ void XViewer::SelectCamera(const QModelIndex &index) {
     ui->cal->setCurrentPage(date.year(), date.month());
   }
   SelectDate(date);
-  if (!dir.exists())
-    recording_empty_->setText(QStringLiteral("录像目录尚不存在，请确认保存地址并开始录制。"));
+  if (!dir.exists() || !dir.isReadable())
+    recording_empty_->setText(QStringLiteral("录像目录不存在或不可读，请检查保存地址及访问权限。"));
 }
 
 void XViewer::SelectDate(QDate date) {
+  ResetPlayback();
   ui->time_list->clear();
   const auto found = cam_videos.find(date);
   if (found != cam_videos.end()) {
     for (const auto &video : found->second) {
+      if (video.datetime.time() < filter_from_->time() || video.datetime.time() > filter_to_->time()) continue;
       auto *item = new QListWidgetItem(
           video.datetime.time().toString(QStringLiteral("HH:mm:ss")) +
-          QStringLiteral("  ·  ") + QFileInfo(video.filepath).fileName());
+          QString(QChar(10)) + QFileInfo(video.filepath).fileName());
+      item->setSizeHint(QSize(240, 68));
       item->setData(Qt::UserRole, video.filepath);
       item->setToolTip(QDir::toNativeSeparators(video.filepath));
       ui->time_list->addItem(item);
@@ -560,19 +541,34 @@ void XViewer::SelectDate(QDate date) {
       .arg(date.toString(QStringLiteral("yyyy-MM-dd"))).arg(ui->time_list->count()));
   recording_empty_->setText(cam_videos.empty()
       ? QStringLiteral("该设备暂无录像。请确认保存目录，录制完成后点击刷新。")
-      : QStringLiteral("所选日期没有录像，请选择日历中标记的日期。"));
+      : QStringLiteral("所选日期或开始时间范围内没有录像。请调整筛选条件。"));
   recording_empty_->setVisible(ui->time_list->count() == 0);
+
 }
 
 void XViewer::PlayVideo(const QModelIndex &index) {
-  auto item = ui->time_list->currentItem();
-  if (!item)
-    return;
-  QString path = item->data(Qt::UserRole).toString();
-  qDebug() << path;
-  XPlayVideo play;
-  play.Open(path.toLocal8Bit().constData());
-  play.exec();
+  auto *item = ui->time_list->item(index.row());
+  if (!item) return;
+  ResetPlayback();
+  playback_path_ = item->data(Qt::UserRole).toString();
+  playback_file_->setText(QFileInfo(playback_path_).fileName());
+  playback_file_->setToolTip(playback_path_);
+  const auto request = playback_player_->open(QUrl::fromLocalFile(playback_path_));
+  if (request) playback_player_->play();
+  else playback_file_->setText(QStringLiteral("无法受理播放请求，请重试。"));
+}
+
+void XViewer::ResetPlayback() {
+  if (!playback_player_) return;
+  playback_player_->close();
+  playback_path_.clear();
+  playback_duration_ = 0;
+  playback_view_->setVideoFrame({});
+  playback_position_->setValue(0);
+  playback_position_->setEnabled(false);
+  playback_pause_->setEnabled(false);
+  playback_clock_->setText(QStringLiteral("00:00 / --:--"));
+  playback_file_->setText(QStringLiteral("双击右侧录像开始回放"));
 }
 
 ////////////////////////////////////////
@@ -601,3 +597,150 @@ void XViewer::mousePressEvent(QMouseEvent *ev) {
 }
 
 void XViewer::mouseReleaseEvent(QMouseEvent *ev) { mouse_press = false; }
+
+void XViewer::SetupPlaybackUi() {
+  auto *old = ui->playback_wid->layout();
+  old->removeWidget(ui->time_list); old->removeWidget(ui->cal); delete old;
+  auto label = [](const QString &text, QWidget *parent) {
+    auto *value = new QLabel(text, parent); value->setTextFormat(Qt::PlainText);
+    value->setWordWrap(true); return value;
+  };
+  date_filters_ = new QWidget(ui->left);
+  auto *filters = new QVBoxLayout(date_filters_);
+  filters->setContentsMargins(0, 8, 0, 0); filters->setSpacing(10);
+  filters->setAlignment(Qt::AlignTop);
+  filters->addWidget(label(QStringLiteral("录像日期"), date_filters_));
+  ui->cal->setParent(date_filters_);
+  ui->cal->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+  ui->cal->setHorizontalHeaderFormat(QCalendarWidget::SingleLetterDayNames);
+  ui->cal->setFixedHeight(210);
+  ui->cal->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+  filters->addWidget(ui->cal);
+  filters->addWidget(label(QStringLiteral("圆点表示当天有录像"), date_filters_));
+  filters->addWidget(label(QStringLiteral("开始时间范围"), date_filters_));
+  auto *times = new QHBoxLayout;
+  filter_from_ = new QTimeEdit(QTime(0, 0), date_filters_);
+  filter_to_ = new QTimeEdit(QTime(23, 59, 59), date_filters_);
+  filter_from_->setObjectName(QStringLiteral("recordingFrom"));
+  filter_to_->setObjectName(QStringLiteral("recordingTo"));
+  for (auto *time : {filter_from_, filter_to_}) time->setButtonSymbols(QAbstractSpinBox::NoButtons);
+  for (auto *time : {filter_from_, filter_to_}) time->setDisplayFormat(QStringLiteral("HH:mm:ss"));
+  times->addWidget(filter_from_); times->addWidget(label(QStringLiteral("—"), date_filters_)); times->addWidget(filter_to_);
+  filters->addLayout(times);
+  auto *query = new QPushButton(QStringLiteral("查询录像"), date_filters_);
+  query->setObjectName(QStringLiteral("queryRecordings")); filters->addWidget(query);
+  connect(query, &QPushButton::clicked, this, [this] {
+    if (filter_from_->time() > filter_to_->time()) {
+      QMessageBox::information(this, QStringLiteral("时间范围"), QStringLiteral("开始时间不能晚于结束时间。")); return;
+    }
+    SelectDate(ui->cal->selectedDate());
+  });
+  recording_path_ = label({}, date_filters_);
+  recording_path_->setTextInteractionFlags(Qt::TextSelectableByMouse); filters->addWidget(recording_path_);
+  qobject_cast<QVBoxLayout *>(ui->left->layout())->addWidget(date_filters_);
+  auto *root = new QVBoxLayout(ui->playback_wid);
+  root->setContentsMargins(16, 12, 16, 12); root->setSpacing(14);
+  auto *heading = new QHBoxLayout;
+  auto *title = label(QStringLiteral("录像回放"), ui->playback_wid);
+  title->setStyleSheet(QStringLiteral("font-size:22px;font-weight:600;color:#edf2f7;")); heading->addWidget(title, 1);
+  scan_status_ = label({}, ui->playback_wid); heading->addWidget(scan_status_);
+  auto *refresh = new QPushButton(QStringLiteral("刷新录像"), ui->playback_wid);
+  refresh->setObjectName(QStringLiteral("refreshRecordings")); heading->addWidget(refresh);
+  connect(refresh, &QPushButton::clicked, this, &XViewer::RefreshRecordings); root->addLayout(heading);
+  auto *split = new QSplitter(Qt::Horizontal, ui->playback_wid);
+  split->setChildrenCollapsible(false); root->addWidget(split, 1);
+  auto *preview = new QWidget(split);
+  auto *previewLayout = new QVBoxLayout(preview);
+  previewLayout->setContentsMargins(0, 0, 12, 0); previewLayout->setSpacing(12);
+  previewLayout->addWidget(label(QStringLiteral("回放预览"), preview));
+  playback_player_ = new player_sdk_qt::QtPlayer(this);
+  playback_view_ = new player_sdk_qt::VideoWidget(preview);
+  playback_view_->setObjectName(QStringLiteral("recordingVideo")); playback_view_->setPlayer(playback_player_);
+  playback_view_->setMinimumSize(280, 180);
+  playback_view_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding); previewLayout->addWidget(playback_view_, 1);
+  playback_position_ = new QSlider(Qt::Horizontal, preview);
+  playback_position_->setRange(0, 10000); playback_position_->setObjectName(QStringLiteral("recordingPosition"));
+  previewLayout->addWidget(playback_position_);
+  auto *controls = new QHBoxLayout;
+  playback_pause_ = new QPushButton(QStringLiteral("播放"), preview);
+  playback_pause_->setObjectName(QStringLiteral("recordingPause"));
+  auto *stop = new QPushButton(QStringLiteral("关闭"), preview);
+  controls->addWidget(playback_pause_); controls->addWidget(stop);
+  playback_clock_ = label({}, preview); controls->addWidget(playback_clock_, 1);
+  auto *speed = new QComboBox(preview); speed->setObjectName(QStringLiteral("recordingSpeed"));
+  for (double rate : {0.2, 0.5, 1.0, 1.5, 2.0}) speed->addItem(QString::number(rate, 'f', 1) + QStringLiteral("×"), rate);
+  speed->setCurrentIndex(2); controls->addWidget(speed);
+  auto *mute = new QPushButton(QStringLiteral("静音"), preview);
+  mute->setCheckable(true); controls->addWidget(mute);
+  connect(mute, &QPushButton::toggled, this, [this](bool muted) { playback_player_->setVolume(muted ? 0.0 : 1.0); });
+  auto *fullscreen = new QPushButton(QStringLiteral("全屏"), preview); controls->addWidget(fullscreen);
+  previewLayout->addLayout(controls);
+  playback_file_ = label({}, preview); playback_file_->setObjectName(QStringLiteral("recordingFile"));
+  playback_file_->setMinimumHeight(40); previewLayout->addWidget(playback_file_);
+  previewLayout->addWidget(label(QStringLiteral("双击录像回放 · 时长在文件打开后读取"), preview));
+  auto *listPanel = new QWidget(split); listPanel->setMinimumWidth(230);
+  auto *listLayout = new QVBoxLayout(listPanel); listLayout->setContentsMargins(12, 0, 0, 0); listLayout->setSpacing(12);
+  listLayout->addWidget(label(QStringLiteral("录制列表 · 按开始时间排序"), listPanel));
+  recording_summary_ = label({}, listPanel); recording_summary_->setObjectName(QStringLiteral("recordingSummary"));
+  listLayout->addWidget(recording_summary_);
+  ui->time_list->setMaximumWidth(QWIDGETSIZE_MAX); ui->time_list->setMinimumWidth(0);
+  ui->time_list->setTextElideMode(Qt::ElideMiddle); ui->time_list->setSpacing(4); listLayout->addWidget(ui->time_list, 1);
+  recording_empty_ = label({}, listPanel); recording_empty_->setObjectName(QStringLiteral("recordingEmpty"));
+  listLayout->addWidget(recording_empty_);
+  split->setStretchFactor(0, 3); split->setStretchFactor(1, 1); split->setSizes({650, 280});
+  connect(stop, &QPushButton::clicked, this, &XViewer::ResetPlayback);
+  connect(playback_pause_, &QPushButton::clicked, this, [this] {
+    const auto state = playback_player_->state();
+    if (state == play_core::PlayerState::Ended) {
+      playback_player_->open(QUrl::fromLocalFile(playback_path_)); playback_player_->play();
+    } else playback_player_->setPaused(state == play_core::PlayerState::Playing);
+  });
+  connect(speed, &QComboBox::currentIndexChanged, this, [this, speed] { playback_player_->setPlaybackRate(speed->currentData().toDouble()); });
+  connect(fullscreen, &QPushButton::clicked, this, [this, fullscreen] {
+    if (isFullScreen()) { showNormal(); fullscreen->setText(QStringLiteral("全屏")); }
+    else { showFullScreen(); fullscreen->setText(QStringLiteral("退出全屏")); }
+  });
+  auto *escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+  connect(escape, &QShortcut::activated, this, [this, fullscreen] {
+    if (isFullScreen()) { showNormal(); fullscreen->setText(QStringLiteral("全屏")); }
+  });
+  connect(playback_position_, &QSlider::sliderReleased, this, [this] {
+    if (playback_duration_ > 0) playback_player_->seek(playback_duration_ * playback_position_->value() / 10000);
+  });
+  connect(playback_player_, &player_sdk_qt::QtPlayer::mediaInfoChanged, this, [this](auto info) {
+    playback_duration_ = info && info->duration ? info->duration->count() : 0;
+    playback_position_->setEnabled(info && info->seekable && playback_duration_ > 0);
+  });
+  connect(playback_player_, &player_sdk_qt::QtPlayer::positionChanged, this, [this](qint64 ms) {
+    auto format = [](qint64 value) {
+      const auto sec = qMax<qint64>(0, value / 1000);
+      return QStringLiteral("%1:%2:%3").arg(sec / 3600, 2, 10, QLatin1Char('0')).arg(sec / 60 % 60, 2, 10, QLatin1Char('0')).arg(sec % 60, 2, 10, QLatin1Char('0'));
+    };
+    playback_clock_->setText(format(ms) + QStringLiteral(" / ") + (playback_duration_ > 0 ? format(playback_duration_) : QStringLiteral("--:--")));
+    if (!playback_position_->isSliderDown() && playback_duration_ > 0)
+      playback_position_->setValue(static_cast<int>(qBound<qint64>(0LL, ms * 10000 / playback_duration_, 10000LL)));
+  });
+  connect(playback_player_, &player_sdk_qt::QtPlayer::stateChanged, this, [this](auto state) {
+    playback_pause_->setEnabled(state == play_core::PlayerState::Playing || state == play_core::PlayerState::Paused || state == play_core::PlayerState::Ready || state == play_core::PlayerState::Ended);
+    playback_pause_->setText(state == play_core::PlayerState::Playing ? QStringLiteral("暂停") : state == play_core::PlayerState::Ended ? QStringLiteral("重播") : QStringLiteral("播放"));
+  });
+  connect(playback_player_, &player_sdk_qt::QtPlayer::errorOccurred, this, [this](const QString &error) { playback_file_->setText(QStringLiteral("回放失败：%1").arg(error)); });
+  setStyleSheet(styleSheet() + QStringLiteral(R"(
+    QWidget#playback_wid { background:#101419; }
+    QListWidget { background:#181e25; border:1px solid #2b3541; border-radius:6px; }
+    QListWidget::item { padding:8px; }
+    QListWidget::item:selected { background:#193d32; color:#56d6a0; }
+    QTimeEdit, QComboBox { background:#202832;color:#edf2f7;border:1px solid #2b3541;border-radius:4px;padding:4px; }
+    QSplitter::handle { background:#2b3541; }
+    QSlider::groove:horizontal { height:6px;background:#2b3541;border-radius:3px; }
+    QSlider::sub-page:horizontal { background:#56d6a0;border-radius:3px; }
+    QSlider::handle:horizontal { background:#e6fff2;width:12px;margin:-3px 0;border-radius:6px; }
+    QPushButton { padding:6px 10px; }
+    QPushButton:disabled { color:#657181; }
+    QCalendarWidget QToolButton { color:#edf2f7;background:#202832;border:0; }
+    QCalendarWidget QAbstractItemView { selection-background-color:#193d32;selection-color:#56d6a0; }
+  )"));
+  for (auto *caption : ui->left->findChildren<QLabel *>())
+    caption->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+  ResetPlayback();
+}

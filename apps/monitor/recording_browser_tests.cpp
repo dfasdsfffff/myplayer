@@ -8,6 +8,9 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QTemporaryDir>
+#include <QTimeEdit>
+#include <QSlider>
+#include <player_sdk_qt/qt_player.h>
 #include <cstring>
 #include <iostream>
 
@@ -98,6 +101,22 @@ int main(int argc, char **argv) {
   refresh->click();
   check(calendar->selectedDate() == QDate(2024, 1, 2) && clips->count() == 2,
         "refresh falls back from empty date to latest recording date");
+  auto *from = viewer.findChild<QTimeEdit *>(QStringLiteral("recordingFrom"));
+  auto *to = viewer.findChild<QTimeEdit *>(QStringLiteral("recordingTo"));
+  auto *query = viewer.findChild<QPushButton *>(QStringLiteral("queryRecordings"));
+  auto *position = viewer.findChild<QSlider *>(QStringLiteral("recordingPosition"));
+  check(from && to && query && position, "embedded controls and filters exist");
+  if (!from || !to || !query || !position) return 1;
+  from->setTime(QTime(15, 0)); query->click();
+  check(clips->count() == 0 && !empty->isHidden(), "time filter empty state");
+  from->setTime(QTime(14, 5, 6)); to->setTime(QTime(14, 5, 6)); query->click();
+  check(clips->count() == 2, "inclusive time filter includes same-second clips");
+  from->setTime(QTime(0, 0)); to->setTime(QTime(23, 59, 59)); query->click();
+  auto *player = viewer.findChild<player_sdk_qt::QtPlayer *>();
+  check(player && !position->isEnabled(), "player starts closed with seek disabled");
+  check(QMetaObject::invokeMethod(&viewer, "Preview", Qt::DirectConnection), "return to preview");
+  check(calendar->isHidden() || !calendar->isVisibleTo(&viewer), "date filters hidden in preview");
+  check(QMetaObject::invokeMethod(&viewer, "Playback", Qt::DirectConnection), "return to playback");
   devices->clear();
   check(clips->count() == 0, "clearing devices clears stale recordings");
   std::cout << "Recording browser errors=" << errors << '\n';

@@ -12,6 +12,10 @@ class XCameraWidget;
 class XCameraRecord;
 class QMenu;
 class QLabel;
+class QSlider;
+class QPushButton;
+class QTimeEdit;
+namespace player_sdk_qt { class QtPlayer; class VideoWidget; }
 
 namespace Ui {
 	class XViewer;
@@ -65,6 +69,20 @@ private slots:
 
 private:
 	void RefreshRecordings();
+    void SetupPlaybackUi();
+    void ResetPlayback();
+    QWidget* date_filters_ = nullptr;
+    player_sdk_qt::QtPlayer* playback_player_ = nullptr;
+    player_sdk_qt::VideoWidget* playback_view_ = nullptr;
+    QLabel* playback_file_ = nullptr;
+    QLabel* playback_clock_ = nullptr;
+    QLabel* scan_status_ = nullptr;
+    QSlider* playback_position_ = nullptr;
+    QPushButton* playback_pause_ = nullptr;
+    QTimeEdit* filter_from_ = nullptr;
+    QTimeEdit* filter_to_ = nullptr;
+    qint64 playback_duration_ = 0;
+    QString playback_path_;
 	QLabel* recording_summary_ = nullptr;
 	QLabel* recording_path_ = nullptr;
 	QLabel* recording_empty_ = nullptr;

@@ -8,16 +8,19 @@ void XCalendar::paintCell(QPainter *painter, const QRect &rect,
   if (!hasVideo(date)) {
     return QCalendarWidget::paintCell(painter, rect, date);
   }
-  auto font = painter->font();
-  font.setBold(true);
   painter->save();
-  painter->setPen(QColor(255, 0, 0));
-  painter->setFont(font);
+  painter->setRenderHint(QPainter::Antialiasing);
+  const QRect tile = rect.adjusted(2, 2, -2, -2);
+  painter->setPen(Qt::NoPen);
   if (date == selectedDate()) {
-    painter->setBrush(QColor(118, 178, 224));
-    painter->drawRect(rect);
+    painter->setBrush(QColor("#193d32"));
+    painter->drawRoundedRect(tile, 5, 5);
   }
-  painter->drawText(rect, Qt::AlignCenter, QString::number(date.day()));
+  painter->setPen(QColor("#56d6a0"));
+  painter->drawText(rect.adjusted(0, -2, 0, -2), Qt::AlignCenter, QString::number(date.day()));
+  painter->setPen(Qt::NoPen);
+  painter->setBrush(QColor("#56d6a0"));
+  painter->drawEllipse(QPointF(rect.center().x(), rect.bottom() - 4), 1.5, 1.5);
   painter->restore();
 }
 
