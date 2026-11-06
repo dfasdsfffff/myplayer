@@ -47,11 +47,11 @@
 以下 PowerShell 示例假定已按下文独立构建 Release，并从仓库根目录启动：
 
 ```powershell
-& ./build/monitor/Release/myplayer_monitor.exe
-& ./build/monitor/Release/myplayer_monitor.exe --layout 4 --source "D:/video/example.mp4"
-& ./build/monitor/Release/myplayer_monitor.exe --layout 4 `
+& ./bin/myplayer_monitor.exe
+& ./bin/myplayer_monitor.exe --layout 4 --source "D:/video/example.mp4"
+& ./bin/myplayer_monitor.exe --layout 4 `
   --source "rtsp://camera-a/stream" --source "rtsp://camera-b/stream"
-& ./build/monitor/Release/myplayer_monitor.exe --smoke-test --layout 16
+& ./bin/myplayer_monitor.exe --smoke-test --layout 16
 ```
 
 | 参数 | 实际行为 |
@@ -88,10 +88,10 @@ cmake -S . -B build/full -G "Visual Studio 18 2026" -A x64 `
   -DMYPLAYER_BUILD_QT_APP=ON -DMYPLAYER_BUILD_MONITOR=ON `
   -DBUILD_TESTING=OFF
 cmake --build build/full --config Release --target myplayer myplayer_monitor
-& ./build/full/apps/monitor/Release/myplayer_monitor.exe
+& ./bin/myplayer_monitor.exe
 ```
 
-默认单播放器输出到仓库 `bin/`；监控则在 `build/full/apps/monitor/Release/`，不要将两者的可执行文件路径混用。若只需从根项目构建监控，可设 `MYPLAYER_BUILD_QT_APP=OFF`；这不会启用下面的备份依赖分支，根项目仍需查找到核心依赖。
+两个应用默认都输出到仓库 `bin/`，可通过 `PLAYERDEMO_OUTPUT_DIR` 修改。监控的 Release 文件名为 `myplayer_monitor.exe`，Debug 为 `myplayer_monitor_debug.exe`；独立构建监控时也使用相同规则。若只需从根项目构建监控，可设 `MYPLAYER_BUILD_QT_APP=OFF`；这不会启用下面的备份依赖分支，根项目仍需查找到核心依赖。
 
 ### 方式二：独立构建监控，显式使用仓库备份依赖
 
@@ -102,7 +102,7 @@ cmake -S apps/monitor -B build/monitor -G "Visual Studio 18 2026" -A x64 `
   -DMONITOR_BUILD_TESTS=OFF `
   "-DCMAKE_PREFIX_PATH=$qt"
 cmake --build build/monitor --config Release --target myplayer_monitor
-& ./build/monitor/Release/myplayer_monitor.exe
+& ./bin/myplayer_monitor.exe
 ```
 
 `MONITOR_USE_BUNDLED_DEPS` 默认 **OFF**，只在 `apps/monitor` 作为顶层工程时定义，开启后仅支持 Windows x64：直接选用 `lib/ffmpeg-7.1.1` 的头文件/导入库、`lib/SDL2/cmake` 和 `lib/soundtouch-2.3.3/lib`，无需借用已清理的整仓构建产物；Qt 仍须另外安装。该路径也不构建单播放器或要求其 libass UI 依赖。关闭此选项时，应提供能查找 FFmpeg、SDL2、SoundTouch 的 toolchain 或包前缀，例如加入：

@@ -42,6 +42,8 @@ else()
     set(MYPLAYER_ROOT "${PROJECT_SOURCE_DIR}")
 endif()
 
+set(PLAYERDEMO_OUTPUT_DIR "${MYPLAYER_ROOT}/bin" CACHE PATH "Runtime output directory")
+
 qt_add_executable(myplayer_monitor
     main.cpp
     xviewer.cpp xviewer.h xviewer.ui
@@ -62,6 +64,11 @@ qt_add_resources(myplayer_monitor monitor_icons
 )
 target_link_libraries(myplayer_monitor PRIVATE play_core Qt6::Core Qt6::Gui Qt6::Widgets)
 target_include_directories(myplayer_monitor PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(myplayer_monitor PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}/$<0:>"
+    OUTPUT_NAME_DEBUG "myplayer_monitor_debug"
+    OUTPUT_NAME_RELEASE "myplayer_monitor"
+)
 if(MSVC)
     target_compile_options(myplayer_monitor PRIVATE /utf-8)
 endif()
@@ -86,23 +93,29 @@ if(MONITOR_BUILD_TESTS)
 endif()
 
 if(WIN32)
-    add_custom_command(TARGET myplayer_monitor POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:myplayer_monitor> $<TARGET_FILE_DIR:myplayer_monitor>
-        COMMAND_EXPAND_LISTS
-    )
-    if(MONITOR_USE_BUNDLED_DEPS)
-        foreach(component avcodec-61 avdevice-61 avfilter-10 avformat-61 avutil-59 swresample-5 swscale-8 postproc-58)
-            add_custom_command(TARGET myplayer_monitor POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${MYPLAYER_ROOT}/lib/ffmpeg-7.1.1/bin/${component}.dll"
-                    "$<TARGET_FILE_DIR:myplayer_monitor>"
-            )
-        endforeach()
+    set(monitor_runtime_targets myplayer_monitor)
+    if(TARGET monitor_integration_tests)
+        list(APPEND monitor_runtime_targets monitor_integration_tests)
     endif()
     get_target_property(qt_qmake Qt6::qmake IMPORTED_LOCATION)
     get_filename_component(qt_bin "${qt_qmake}" DIRECTORY)
-    add_custom_command(TARGET myplayer_monitor POST_BUILD
-        COMMAND "${qt_bin}/windeployqt.exe" "$<TARGET_FILE:myplayer_monitor>" --no-translations --no-compiler-runtime
-    )
+    foreach(runtime_target IN LISTS monitor_runtime_targets)
+        add_custom_command(TARGET ${runtime_target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:${runtime_target}> $<TARGET_FILE_DIR:${runtime_target}>
+            COMMAND_EXPAND_LISTS
+        )
+        if(MONITOR_USE_BUNDLED_DEPS)
+            foreach(component avcodec-61 avdevice-61 avfilter-10 avformat-61 avutil-59 swresample-5 swscale-8 postproc-58)
+                add_custom_command(TARGET ${runtime_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${MYPLAYER_ROOT}/lib/ffmpeg-7.1.1/bin/${component}.dll"
+                        "$<TARGET_FILE_DIR:${runtime_target}>"
+                )
+            endforeach()
+        endif()
+        add_custom_command(TARGET ${runtime_target} POST_BUILD
+            COMMAND "${qt_bin}/windeployqt.exe" "$<TARGET_FILE:${runtime_target}>" --no-translations --no-compiler-runtime
+        )
+    endforeach()
 endif()

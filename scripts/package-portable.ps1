@@ -49,7 +49,7 @@ foreach ($app in @(
     if ($LASTEXITCODE -ne 0) { throw "Release install failed with exit code $LASTEXITCODE." }
     $binPath = Join-Path $stagePath "bin"
     if ($app.Name -eq "MyPlayerMonitor") {
-        $monitorExe = Join-Path $buildPath "apps/monitor/$Configuration/myplayer_monitor.exe"
+        $monitorExe = Join-Path (Get-CacheValue "PLAYERDEMO_OUTPUT_DIR") "myplayer_monitor.exe"
         Assert-RequiredPath $monitorExe
         Copy-Item -LiteralPath $monitorExe -Destination $binPath
         Remove-Item -LiteralPath (Join-Path $binPath "myplayer.exe")

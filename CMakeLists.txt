@@ -39,7 +39,10 @@ find_package(SoundTouch CONFIG REQUIRED)
 if(MYPLAYER_BUILD_QT_APP)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(LIBASS REQUIRED IMPORTED_TARGET libass)
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
+    qt_standard_project_setup()
+    set(CMAKE_AUTORCC ON)
+    set(CMAKE_INCLUDE_CURRENT_DIR ON)
 endif()
 
 add_subdirectory(play_core)
@@ -49,141 +52,26 @@ if(MYPLAYER_BUILD_MONITOR)
 endif()
 
 if(MYPLAYER_BUILD_QT_APP)
-    if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)
-        message(STATUS "Mapping Qt debug config to release")
-        set_target_properties(Qt6::Core Qt6::Gui Qt6::Widgets PROPERTIES
-            MAP_IMPORTED_CONFIG_DEBUG "Release"
-        )
-    endif()
-
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-
-set(HEADER_FILES
-    ${PLAYERDEMO_QT_APP_DIR}/about.h
-    ${PLAYERDEMO_QT_APP_DIR}/app_preferences.h
-    ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.h
-    ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.h
-    ${PLAYERDEMO_QT_APP_DIR}/globalhelper.h
-    ${PLAYERDEMO_QT_APP_DIR}/latest_video_frame_mailbox.h
-    ${PLAYERDEMO_QT_APP_DIR}/mainwid.h
-    ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.h
-    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.h
-    ${PLAYERDEMO_QT_APP_DIR}/medialist.h
-    ${PLAYERDEMO_QT_APP_DIR}/playlist.h
-    ${PLAYERDEMO_QT_APP_DIR}/playlistfile.h
-    ${PLAYERDEMO_QT_APP_DIR}/resource.h
-    ${PLAYERDEMO_QT_APP_DIR}/settingwid.h
-    ${PLAYERDEMO_QT_APP_DIR}/show.h
-    ${PLAYERDEMO_QT_APP_DIR}/subtitle_renderer.h
-    ${PLAYERDEMO_QT_APP_DIR}/title.h
-    ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.h
-    ${PLAYERDEMO_QT_APP_DIR}/playback_benchmark.h
-)
-
-set(SOURCE_FILES
-    ${PLAYERDEMO_QT_APP_DIR}/main.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/about.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/app_preferences.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/CustomSlider.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/globalhelper.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/latest_video_frame_mailbox.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/mainwid.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/media_format_registry.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/media_location_privacy.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/medialist.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/playlist.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/playlistfile.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/settingwid.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/show.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/subtitle_renderer.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/title.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/playback_runtime_bridge.cpp
-    ${PLAYERDEMO_QT_APP_DIR}/playback_status_presenter.cpp
-)
-
-set(UI_FILES
-    ${PLAYERDEMO_QT_APP_DIR}/about.ui
-    ${PLAYERDEMO_QT_APP_DIR}/ctrlbar.ui
-    ${PLAYERDEMO_QT_APP_DIR}/form.ui
-    ${PLAYERDEMO_QT_APP_DIR}/mainwid.ui
-    ${PLAYERDEMO_QT_APP_DIR}/playlist.ui
-    ${PLAYERDEMO_QT_APP_DIR}/settingwid.ui
-    ${PLAYERDEMO_QT_APP_DIR}/show.ui
-    ${PLAYERDEMO_QT_APP_DIR}/title.ui
-)
-
-set(QRC_FILES
-    ${PLAYERDEMO_QT_APP_DIR}/mainwid.qrc
-)
-
-if(WIN32)
-    configure_file(
-        "${PLAYERDEMO_QT_APP_DIR}/myplayer_version.rc.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/apps/qt_player/myplayer_version.rc"
-        @ONLY
-    )
-    set(RC_FILES "${CMAKE_CURRENT_BINARY_DIR}/apps/qt_player/myplayer_version.rc")
-endif()
-
-add_executable(${PROJECT_NAME} WIN32
-    ${SOURCE_FILES}
-    ${HEADER_FILES}
-    ${UI_FILES}
-    ${QRC_FILES}
-    ${RC_FILES}
-    ${PLAYERDEMO_QT_APP_DIR}/playback_benchmark.cpp
-)
-
-
-
-target_include_directories(${PROJECT_NAME} PRIVATE
-    ${PLAYERDEMO_QT_APP_DIR}
-)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE
-    play_core
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    PkgConfig::LIBASS
-)
-
-if(WIN32)
-    get_filename_component(MYPLAYER_QT_ROOT "${Qt6_DIR}/../../.." ABSOLUTE)
-endif()
-
-function(myplayer_deploy_runtime_dependencies target)
     if(WIN32)
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_RUNTIME_DLLS:${target}>
-                $<TARGET_FILE_DIR:${target}>
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${MYPLAYER_QT_ROOT}/plugins/platforms"
-                "$<TARGET_FILE_DIR:${target}>/platforms"
-            COMMAND_EXPAND_LISTS
-        )
+        get_filename_component(MYPLAYER_QT_ROOT "${Qt6_DIR}/../../.." ABSOLUTE)
     endif()
-endfunction()
 
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PLAYERDEMO_OUTPUT_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${PLAYERDEMO_OUTPUT_DIR}"
-    OUTPUT_NAME_DEBUG "myplayer_debug"
-    OUTPUT_NAME_RELEASE "myplayer"
-)
+    # Shared by the player and the existing Qt regression-test targets.
+    function(myplayer_deploy_runtime_dependencies target)
+        if(WIN32)
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_RUNTIME_DLLS:${target}>
+                    $<TARGET_FILE_DIR:${target}>
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${MYPLAYER_QT_ROOT}/plugins/platforms"
+                    "$<TARGET_FILE_DIR:${target}>/platforms"
+                COMMAND_EXPAND_LISTS
+            )
+        endif()
+    endfunction()
 
-myplayer_deploy_runtime_dependencies(${PROJECT_NAME})
-
-myplayer_enable_warnings(${PROJECT_NAME})
-myplayer_enable_sanitizers(${PROJECT_NAME})
-
-myplayer_install_release_tree(${PROJECT_NAME})
+    add_subdirectory(apps/qt_player)
 endif()
 
 if(BUILD_TESTING)
