@@ -2,7 +2,7 @@
 
 ## 1. 方案状态与目标
 
-本文原为 SDK 设计方案。2026-11-06 已按该方案实现首版源码 API、构建隔离、Qt 组件和两个应用迁移；原设计章节保留作为需求依据，实际 API/状态表/限制以 [SDK_README.md](../SDK_README.md)、公开头文件和文末“实施与验证记录”为准。没有创建发行标签，不将本机自动化验证当作干净机器、真实摄像机、长时性能或许可审计结论。
+本文原为 SDK 设计方案。2026-11-06 已按该方案实现首版源码 API、构建隔离、Qt 组件和两个应用迁移；原设计章节保留作为需求依据，实际 API/状态表/限制以 [SDK 接入指南](../sdk/README.md)、公开头文件和文末“实施与验证记录”为准。没有创建发行标签，不将本机自动化验证当作干净机器、真实摄像机、长时性能或许可审计结论。
 
 首版直接将现有 `play_core` 改造为源码 SDK，采用“源码交付 + C++ API + 可选 Qt Widgets 组件”，不在其上新增独立的 `player_sdk` 包装库。使用方将 SDK 作为 CMake 子项目加入自己的工程，用自己的工具链一起构建，无需理解 FFmpeg、SDL 和内部线程即可集成播放。现有 `apps/qt_player` 与 `apps/monitor` 保留，逐步迁移为 SDK 的真实使用方，不再新增第三个独立播放器。
 
@@ -12,7 +12,7 @@
 
 Core 提供播放控制、内置音频输出和 CPU 视频帧交付，不负责非 Qt 窗口显示。Qt Widgets 组件提供可直接嵌入的显示控件；非 Qt 宿主自行渲染帧，首版不提供传入 `HWND` 即播放的 Windows 渲染适配器。
 
-当前架构说明见[开发指南](PROJECT_GUIDE.md)，现有构建、测试及成品打包步骤见[根 README](../README.md)。源码 SDK 接入、构建与部署的当前说明见 [SDK_README.md](../SDK_README.md)；本文保留最初建设目标，并在文末记录具体实现/验证边界。
+当前架构说明见[开发指南](PROJECT_GUIDE.md)，现有构建、测试及成品打包步骤见[根 README](../README.md)。源码 SDK 接入、构建与部署的当前说明见 [SDK 接入指南](../sdk/README.md)；本文保留最初建设目标，并在文末记录具体实现/验证边界。
 
 ## 2. 现有基础与缺口
 
@@ -27,9 +27,9 @@ Core 提供播放控制、内置音频输出和 CPU 视频帧交付，不负责�
 
 主要代码依据：
 
-- [核心 CMake](../play_core/CMakeLists.txt)：当前公开整个核心源码目录及 FFmpeg、sigslot 包含路径，链接依赖公开传递。
-- [PlaybackRuntime](../play_core/src/playback_runtime.h)：实例入口、控制接口与事件。
-- [媒体源及状态定义](../play_core/src/media_source.h)：网络配置、错误、轨道和媒体信息；公开类型仍包含 FFmpeg 类型。
+- [核心 CMake](../sdk/core/CMakeLists.txt)：当前公开整个核心源码目录及 FFmpeg、sigslot 包含路径，链接依赖公开传递。
+- [PlaybackRuntime](../sdk/core/src/playback_runtime.h)：实例入口、控制接口与事件。
+- [媒体源及状态定义](../sdk/core/src/media_source.h)：网络配置、错误、轨道和媒体信息；公开类型仍包含 FFmpeg 类型。
 - [Qt 播放器桥接](../apps/qt_player/playback_runtime_bridge.h)：Qt 事件投递、会话隔离和最新帧邮箱的已有基础。
 - [监控显示组件](../apps/monitor/core_video_widget.cpp)：另一套核心接入和 SDL 显示实现。
 
@@ -298,7 +298,7 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 - [x] 关闭播放器后，保留的帧仍可读取并安全释放；RAII 和异常策略经过测试。
 - [ ] UTF-8 中文路径及带凭据 URL 正确处理，公开错误与日志不泄露凭据。
 - [x] Core SDK 就是改造后的 `play_core` target，没有额外的核心包装库或重复公开运行时入口。
-- [x] 外部应用及 Qt 组件只包含 `play_core/include/` 中的公开头文件，不访问 `VideoCtl`、内部 controller 或原生信号。
+- [x] 外部应用及 Qt 组件只包含 `sdk/core/include/` 中的公开头文件，不访问 `VideoCtl`、内部 controller 或原生信号。
 - [x] 仓库外 C++ 工程通过 `add_subdirectory()` 接入，不需要 Qt 或内部头文件。
 - [x] 仓库外 Qt Widgets 工程仅链接公开 target 即可显示视频和字幕（独立 consumer 编译/启动，公开 Qt 测试验证视频与字幕）。
 - [x] 嵌入时不自动构建 SDK 应用、测试和示例，不改变宿主输出目录、CRT 或全局选项。
@@ -331,12 +331,12 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 
 ### 已完成的实现
 
-1. **公开边界**：`play_core/include/play_core/{player,media_source,video_frame,network_runtime}.h`；公开类型无 FFmpeg/SDL/sigslot 依赖。`play_core/src/` 收拢原管线。`PlayerSDK::Core` 是原静态 `play_core` 的 alias，无额外 Core 包装库。
+1. **公开边界**：`sdk/core/include/play_core/{player,media_source,video_frame,network_runtime}.h`；公开类型无 FFmpeg/SDL/sigslot 依赖。`sdk/core/src/` 收拢原管线。`PlayerSDK::Core` 是原静态 `play_core` 的 alias，无额外 Core 包装库。
 2. **入口与生命周期**：`Player::Impl` 直接管理私有 `VideoCtl`，不经过旧 Runtime/Controller；独立串行命令和事件上下文、operation/session、唯一结算、128 请求预算、最多 32 订阅、帧/位置/字幕合并。旧 Runtime 仅在仓库白盒测试模式编译，不作为源码 SDK 接口。
-3. **控制语义**：open 初始暂停、play 可排队、设置式暂停、保留会话 stop、异步 close、毫秒主时钟/定位结果、轨道应用结果、重连取消/恢复、最终错误分类；位置和帧 PTS 归一化媒体起始偏移。完整合法状态表与异常/注销约束见 [SDK_README](../SDK_README.md)。
+3. **控制语义**：open 初始暂停、play 可排队、设置式暂停、保留会话 stop、异步 close、毫秒主时钟/定位结果、轨道应用结果、重连取消/恢复、最终错误分类；位置和帧 PTS 归一化媒体起始偏移。完整合法状态表与异常/注销约束见 [SDK_README](../sdk/README.md)。
 4. **帧与字幕**：发布独立不可变 CPU 存储，持帧不阻止关闭；内嵌文字/ASS 包不再被旧位图格式检查丢弃，保留样式头；Qt 共享视频/字幕显示。
 5. **Qt 与应用**：可选 `PlayerSDK::QtWidgets`，`QtPlayer` 有 QObject 线程投递和 UI 侧预算，`VideoWidget` 有单视图绑定/双向销毁保护。两个应用改为仅使用公开 SDK；播放器播放列表/历史与监控录制仍在应用。
-6. **源码发行**：默认 Core-only、外部 consumer 构建隔离、Core/Qt 示例、公开 API 测试、依赖/部署/许可清单、迁移说明和 `SDK_CHANGELOG.md`；`scripts/package-sdk.cmake` 生成不含 apps/build/DLL 的独立源码包。
+6. **源码发行**：默认 Core-only、外部 consumer 构建隔离、Core/Qt 示例、公开 API 测试、依赖/部署/许可清单、迁移说明和 `sdk/CHANGELOG.md`；`scripts/package-sdk.cmake` 生成不含 apps/build/DLL 的独立源码包。
 
 ### 本机验证环境与结果
 
@@ -346,10 +346,10 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 | --- | --- | --- |
 | Debug 全量构建/测试 | **46/46 通过** | `build/sdk-debug-build.log`、`build/sdk-debug-tests.log` |
 | Release 全量构建/测试 | **46/46 通过** | `build/sdk-release-build.log`、`build/sdk-release-tests.log` |
-| 公开 Core 生命周期 | 打开不推进、play/pause、1234ms 定位、stop/restart、A→B→C、双实例/关闭、保留帧、重复 close/reopen、UTF-8 中文路径、慢回调容量、回调内 close、异常隔离通过 | `tests/sdk/player_sdk_tests.cpp` |
+| 公开 Core 生命周期 | 打开不推进、play/pause、1234ms 定位、stop/restart、A→B→C、双实例/关闭、保留帧、重复 close/reopen、UTF-8 中文路径、慢回调容量、回调内 close、异常隔离通过 | `sdk/tests/api/player_sdk_tests.cpp` |
 | SDK 网络取消 | loopback HTTP 的打开中关闭、10 秒重连退避中关闭，旧 open 取消结算且 close 在测试的 1500ms 窗口内完成 | `tests/network_integration_tests.cpp` |
-| SDL 共存 | 宿主先初始化 SDL 后，反复双实例创建/销毁不破坏宿主 subsystem | `tests/sdk/runtime_coexistence_tests.cpp` |
-| Qt 真实呈现 | 视频帧呈现、UI 停顿后最新帧、请求容量、UTF-8 SRT、先销毁 player/view 和单视图切换通过；另以 windows 平台运行并检查截图，画面/字幕可见 | `tests/sdk/qt_player_tests.cpp`、`build/sdk-widget-final.png` |
+| SDL 共存 | 宿主先初始化 SDL 后，反复双实例创建/销毁不破坏宿主 subsystem | `sdk/tests/api/runtime_coexistence_tests.cpp` |
+| Qt 真实呈现 | 视频帧呈现、UI 停顿后最新帧、请求容量、UTF-8 SRT、先销毁 player/view 和单视图切换通过；另以 windows 平台运行并检查截图，画面/字幕可见 | `sdk/tests/api/qt_player_tests.cpp`、`build/sdk-widget-final.png` |
 | 监控真实集成 | 16 路本地媒体、切源、销毁窗格、禁音频拒绝纯音频、2 秒分段录制、主窗口 smoke 通过（Debug/Release） | `monitor_integration_tests`、`monitor_window_smoke_test` |
 | 实际播放器路径 | Release 打开生成的 MPEG4/AAC 640×360 测试片，2 秒运行后正常 close/回收，报告无错误；QPainter 提交有计数，不当作 compositor 可见/性能上限结论 | `build/sdk-player-ui-schema2.json`（schema 2） |
 | 仓库外无 Qt consumer | 独立临时目录、宿主 C++17/BUILD_SHARED_LIBS/BUILD_TESTING/CRT/输出目录隔离检查，Core 编译/运行通过；不查找 Qt | `build/sdk-consumer-configure.log`、`build/sdk-consumer-build.log` |

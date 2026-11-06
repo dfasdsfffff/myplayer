@@ -1,5 +1,11 @@
 # SDK 变更记录
 
+## 未发布 — SDK 目录统一
+
+- SDK 源码、Qt 组件、示例、公开测试、外部接入测试及 sigslot 收拢到 `sdk/`。
+- 独立构建、宿主嵌入与源码包共用同一个 CMake 入口；公开 include 和目标名不变。
+- 应用与私有回归测试仍位于仓库根目录，SDK 专用测试夹具放在 `sdk/tests/`。
+
 ## 未发布 — 恢复共享 SDL 显示后端
 
 - 在 `feature/player-sdk-sdl` 分支保留首版 SDK 提交 `5efab6a`，随后仅调整 Qt 显示层及验证/文档。
@@ -33,4 +39,4 @@
 
 ### 不包含
 
-C ABI、稳定二进制 ABI、预编译 SDK、共享 Core 构建承诺、QML、跨平台保证、零拷贝/HDR 支持、商业授权结论。详细契约、部署与未验证边界见 `SDK_README.md`。
+C ABI、稳定二进制 ABI、预编译 SDK、共享 Core 构建承诺、QML、跨平台保证、零拷贝/HDR 支持、商业授权结论。详细契约、部署与未验证边界见 `README.md`。

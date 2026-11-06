@@ -27,7 +27,7 @@ list(TRANSFORM PLAY_CORE_SOURCES PREPEND "src/")
 add_library(play_core STATIC ${PLAY_CORE_SOURCES})
 # Legacy entry points exist only to keep the original white-box regressions.
 # They are not compiled into an embedded/source-release SDK.
-if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING AND PROJECT_NAME STREQUAL "myplayer")
+if(PLAYER_SDK_INTERNAL_REGRESSIONS)
     target_sources(play_core PRIVATE src/playback_runtime.cpp src/playback_controller.cpp src/playback_controller_videoctl.cpp)
 endif()
 set_target_properties(play_core PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)

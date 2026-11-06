@@ -35,7 +35,7 @@ Source: <https://www.surina.net/soundtouch/>.
 Used for signal/slot utilities.
 
 Portable license text: `licenses/sigslot-LICENSE`.
-Source is included under `lib/sigslot-1.2.3/` in the project repository.
+Source is included under `sdk/third_party/sigslot/` in the project repository.
 
 ## Qt 6
 

@@ -1,6 +1,6 @@
 # MyPlayer 开发指南
 
-本文说明当前源码边界与排查入口，不代替构建、运行或性能验收报告。应用构建与成品打包见[根 README](../README.md)，公开 SDK 构建/API/状态表/线程契约见[SDK_README](../SDK_README.md)，SDK 实施验收记录见[方案](PLAYER_SDK_PLAN.md)。
+本文说明当前源码边界与排查入口，不代替构建、运行或性能验收报告。应用构建与成品打包见[根 README](../README.md)，公开 SDK 构建/API/状态表/线程契约见[SDK_README](../sdk/README.md)，SDK 实施验收记录见[方案](PLAYER_SDK_PLAN.md)。
 
 ## 1. 层次与依赖方向
 
@@ -8,9 +8,9 @@
 | --- | --- |
 | MyPlayer | `apps/qt_player/main.cpp` → `MainWid`；播放列表、最近文件、设置、音轨/字幕选择 |
 | MyPlayer Monitor | `apps/monitor/main.cpp` → `XViewer`；多路预览、摄像机配置、分段录像、检索及回放 |
-| Qt SDK | `qt/include/player_sdk_qt/`；`QtPlayer` 负责 QObject 投递/生命周期，`VideoWidget` 负责统一画面和字幕显示 |
-| Core SDK | `play_core/include/play_core/`；`Player` 是唯一受支持的 C++ 播放入口，别名 `PlayerSDK::Core` 对应静态 target `play_core` |
-| 私有核心 | `play_core/src/`；解封装、解码、队列、同步、音频输出、网络输入/重连 |
+| Qt SDK | `sdk/qt/include/player_sdk_qt/`；`QtPlayer` 负责 QObject 投递/生命周期，`VideoWidget` 负责统一画面和字幕显示 |
+| Core SDK | `sdk/core/include/play_core/`；`Player` 是唯一受支持的 C++ 播放入口，别名 `PlayerSDK::Core` 对应静态 target `play_core` |
+| 私有核心 | `sdk/core/src/`；解封装、解码、队列、同步、音频输出、网络输入/重连 |
 
 两个应用均通过公开 Qt SDK 接入 Core，不再包含 Core 私有头文件。SDK 不反向依赖应用。旧 `PlaybackRuntime`、`PlaybackController` 仅为历史白盒测试保留，在仓库启用 `BUILD_TESTING` 时编入，嵌入/独立源码发行不编入这些入口；没有 `Player → PlaybackRuntime → Controller` 的 SDK 转发链。
 
@@ -32,7 +32,7 @@ Core 依赖 FFmpeg、SDL2、SoundTouch 和 sigslot，不依赖 Qt/libass。Qt �
 
 公开头文件不出现 FFmpeg、SDL、sigslot 或 `VideoCtl`。SDK 对外使用不可变帧快照；关闭和销毁不会使宿主保留的帧失效。
 
-### 私有核心（以下文件均位于 `play_core/src/`）
+### 私有核心（以下文件均位于 `sdk/core/src/`）
 
 | 文件/类型 | 职责 |
 | --- | --- |
@@ -116,12 +116,12 @@ SDK 自身公开错误不返回原始带凭据 URL；`RedactMediaLocation` 保�
 
 ## 7. 测试与排查
 
-- 公开 SDK：`tests/sdk`，测试受理/终结、生命周期、毫秒、UTF-8、慢回调/队列预算、异常、保留帧、SDL 共存；Qt 测真实画面、字幕、UI 卡顿、双向销毁。
-- 外部宿主：`tests/consumer` 可复制出仓库测试 Core/Qt targets 和宿主构建隔离；`scripts/package-sdk.cmake` 验证最小源码发行。
+- 公开 SDK：`sdk/tests/api`，测试受理/终结、生命周期、毫秒、UTF-8、慢回调/队列预算、异常、保留帧、SDL 共存；Qt 测真实画面、字幕、UI 卡顿、双向销毁。
+- 外部宿主：`sdk/tests/consumer` 可复制出仓库测试 Core/Qt targets 和宿主构建隔离；`scripts/package-sdk.cmake` 验证最小源码发行。
 - 私有管线：队列/时钟、decoder/reader、audio、hardware、seek/track、media compatibility、network integration；历史 Runtime 仅供这些白盒测试。
 - 应用：设置/列表/隐私/主窗口、`show_widget_tests`（源码契约，不等于真实 UI）、监控 16 路预览/切换/销毁/分段录制和 smoke。
 - 旧 SDL subtitle renderer 和邮箱仅保留为 `tests/support` 回归夹具，不参与应用或 SDK 显示。
-- 修改打开/派发/状态从 `play_core/src/player.cpp` 和 `qt/qt_player.cpp` 入手；具体 I/O/取消见 `stream_reader`、`network_input`、`reconnect_controller`、`VideoCtl::LoopThread`。
+- 修改打开/派发/状态从 `sdk/core/src/player.cpp` 和 `sdk/qt/qt_player.cpp` 入手；具体 I/O/取消见 `stream_reader`、`network_input`、`reconnect_controller`、`VideoCtl::LoopThread`。
 - 修改色彩/显示/字幕从共享 `qt/video_widget.cpp` 入手，不再分别修改两套应用 renderer。字幕解码另查 `decoder_workers` 与 `subtitle_dispatcher`。
 
 实际注册条件、超时、dummy/offscreen 环境以 CMake 为准。自动短时测试不能替代真实摄像机、长时同步、GPU/格式覆盖、性能和干净机器发行验收。[历史播放核心评审](playback-core-review.md)保留线索，不是本次重新审计结论。

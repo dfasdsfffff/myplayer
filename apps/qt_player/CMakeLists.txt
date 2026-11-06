@@ -1,5 +1,5 @@
 if(NOT TARGET PlayerSDK::QtWidgets)
-    add_subdirectory("${PROJECT_SOURCE_DIR}/qt" "${CMAKE_CURRENT_BINARY_DIR}/sdk-qt")
+    add_subdirectory("${PROJECT_SOURCE_DIR}/sdk/qt" "${CMAKE_CURRENT_BINARY_DIR}/sdk-qt")
 endif()
 
 if(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE)

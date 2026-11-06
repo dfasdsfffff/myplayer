@@ -24,7 +24,7 @@ if(TARGET myplayer OR TARGET myplayer_monitor OR TARGET play_core_refactor_tests
 endif()
 get_target_property(core_includes play_core INTERFACE_INCLUDE_DIRECTORIES)
 foreach(path IN LISTS core_includes)
-    if(NOT path MATCHES "/play_core/include$")
+    if(NOT path MATCHES "/core/include$")
         message(FATAL_ERROR "Private include leaked: ${path}")
     endif()
 endforeach()

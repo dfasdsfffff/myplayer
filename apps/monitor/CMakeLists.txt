@@ -33,9 +33,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     endif()
     find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
     qt_standard_project_setup()
-    set(PLAYERDEMO_SIGSLOT_ROOT "${MYPLAYER_ROOT}/lib/sigslot-1.2.3")
-    include("${MYPLAYER_ROOT}/cmake/MyPlayerWarnings.cmake")
-    add_subdirectory("${MYPLAYER_ROOT}/play_core" "${CMAKE_CURRENT_BINARY_DIR}/play_core")
+    set(PLAYERDEMO_SIGSLOT_ROOT "${MYPLAYER_ROOT}/sdk/third_party/sigslot")
+    include("${MYPLAYER_ROOT}/sdk/cmake/MyPlayerWarnings.cmake")
+    add_subdirectory("${MYPLAYER_ROOT}/sdk/core" "${CMAKE_CURRENT_BINARY_DIR}/play_core")
 else()
     find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
     qt_standard_project_setup()
@@ -43,7 +43,7 @@ else()
 endif()
 
 if(NOT TARGET PlayerSDK::QtWidgets)
-    add_subdirectory("${MYPLAYER_ROOT}/qt" "${CMAKE_CURRENT_BINARY_DIR}/sdk-qt")
+    add_subdirectory("${MYPLAYER_ROOT}/sdk/qt" "${CMAKE_CURRENT_BINARY_DIR}/sdk-qt")
 endif()
 
 set(PLAYERDEMO_OUTPUT_DIR "${MYPLAYER_ROOT}/bin" CACHE PATH "Runtime output directory")
@@ -84,9 +84,9 @@ if(MONITOR_BUILD_TESTS)
         monitor_integration_tests.cpp
         core_video_widget.cpp core_video_widget.h
         xcamera_record.cpp xcamera_record.h
-        "${MYPLAYER_ROOT}/tests/media_fixture_builder.cpp"
+        "${MYPLAYER_ROOT}/sdk/tests/media_fixture_builder.cpp"
     )
-    target_include_directories(monitor_integration_tests PRIVATE "${MYPLAYER_ROOT}/tests")
+    target_include_directories(monitor_integration_tests PRIVATE "${MYPLAYER_ROOT}/sdk/tests")
     target_link_libraries(monitor_integration_tests PRIVATE PlayerSDK::QtWidgets ${FFMPEG_LIBRARIES})
     target_include_directories(monitor_integration_tests PRIVATE ${FFMPEG_INCLUDE_DIRS})
     if(MSVC)

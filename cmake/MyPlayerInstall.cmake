@@ -28,7 +28,7 @@ function(myplayer_install_release_tree target)
         "${PROJECT_SOURCE_DIR}/THIRD-PARTY-NOTICES.md"
         DESTINATION "."
     )
-    install(FILES "${PROJECT_SOURCE_DIR}/lib/sigslot-1.2.3/LICENSE"
+    install(FILES "${PROJECT_SOURCE_DIR}/sdk/third_party/sigslot/LICENSE"
         DESTINATION "licenses"
         RENAME "sigslot-LICENSE"
     )

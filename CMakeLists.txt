@@ -9,7 +9,7 @@ option(PLAYER_SDK_BUILD_TESTS "Build SDK public API tests" OFF)
 # Embedded SDK mode has its own directory scope: no CTest, application output,
 # CRT, warning flags or Qt setup are imposed on the host.
 if(NOT PROJECT_IS_TOP_LEVEL)
-    include(cmake/PlayerSDK.cmake)
+    add_subdirectory(sdk)
     return()
 endif()
 
@@ -24,13 +24,13 @@ include(CTest)
 option(MYPLAYER_ENABLE_WARNINGS "Enable project warning flags" ON)
 option(MYPLAYER_ENABLE_SANITIZERS "Enable supported sanitizers" OFF)
 
-include(cmake/MyPlayerWarnings.cmake)
+include(sdk/cmake/MyPlayerWarnings.cmake)
 include(cmake/MyPlayerInstall.cmake)
 
 option(PLAYERDEMO_MAP_QT_DEBUG_TO_RELEASE "Use release Qt libraries for Debug builds" OFF)
 
 set(PLAYERDEMO_DEPS_ROOT "${PROJECT_SOURCE_DIR}/lib" CACHE PATH "Repository third-party source root")
-set(PLAYERDEMO_SIGSLOT_ROOT "${PLAYERDEMO_DEPS_ROOT}/sigslot-1.2.3" CACHE PATH "sigslot header-only dependency root")
+set(PLAYERDEMO_SIGSLOT_ROOT "${PROJECT_SOURCE_DIR}/sdk/third_party/sigslot" CACHE PATH "sigslot header-only dependency root")
 set(PLAYERDEMO_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/bin" CACHE PATH "Runtime output directory")
 set(PLAYERDEMO_QT_ROOT "" CACHE PATH "Optional Qt installation prefix, for example C:/Qt/6.9.3/msvc2022_64")
 set(PLAYERDEMO_QT_APP_DIR "${PROJECT_SOURCE_DIR}/apps/qt_player")
@@ -57,18 +57,12 @@ if(MYPLAYER_BUILD_QT_APP)
     set(CMAKE_INCLUDE_CURRENT_DIR ON)
 endif()
 
-add_subdirectory(play_core)
-
-if(PLAYER_SDK_BUILD_QT OR MYPLAYER_BUILD_QT_APP OR MYPLAYER_BUILD_MONITOR)
-    add_subdirectory(qt)
+# Keep private legacy entry points restricted to repository regressions.
+set(PLAYER_SDK_INTERNAL_REGRESSIONS ${BUILD_TESTING})
+if(MYPLAYER_BUILD_QT_APP OR MYPLAYER_BUILD_MONITOR)
+    set(PLAYER_SDK_BUILD_QT ON)
 endif()
-if(PLAYER_SDK_BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif()
-if(PLAYER_SDK_BUILD_TESTS)
-    enable_testing()
-    add_subdirectory(tests/sdk)
-endif()
+add_subdirectory(sdk)
 
 if(MYPLAYER_BUILD_MONITOR)
     add_subdirectory(apps/monitor)
@@ -140,7 +134,7 @@ add_executable(playback_settings_tests
 )
 
 target_include_directories(playback_settings_tests PRIVATE
-    ${PROJECT_SOURCE_DIR}/play_core/src
+    ${PROJECT_SOURCE_DIR}/sdk/core/src
 )
 
 add_test(NAME playback_settings_tests COMMAND playback_settings_tests)
@@ -166,7 +160,7 @@ add_executable(globalhelper_privacy_tests
 
 target_include_directories(globalhelper_privacy_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core/src
+    ${PROJECT_SOURCE_DIR}/sdk/core/src
 )
 
 target_link_libraries(globalhelper_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
@@ -187,7 +181,7 @@ add_executable(playlist_privacy_tests
 
 target_include_directories(playlist_privacy_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core/src
+    ${PROJECT_SOURCE_DIR}/sdk/core/src
 )
 
 target_link_libraries(playlist_privacy_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
@@ -219,7 +213,7 @@ add_executable(playlist_navigation_tests
 
 target_include_directories(playlist_navigation_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core/src
+    ${PROJECT_SOURCE_DIR}/sdk/core/src
 )
 
 target_link_libraries(playlist_navigation_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
@@ -437,7 +431,7 @@ add_test(NAME subtitle_dispatcher_tests COMMAND subtitle_dispatcher_tests)
 
 if(MYPLAYER_BUILD_QT_APP)
 add_executable(latest_frame_mailbox_unit_tests tests/latest_video_frame_mailbox_tests.cpp tests/support/latest_video_frame_mailbox.cpp)
-target_include_directories(latest_frame_mailbox_unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support ${PROJECT_SOURCE_DIR}/play_core/src)
+target_include_directories(latest_frame_mailbox_unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support ${PROJECT_SOURCE_DIR}/sdk/core/src)
 target_link_libraries(latest_frame_mailbox_unit_tests PRIVATE Qt6::Core ${FFMPEG_LIBRARIES})
 add_test(NAME latest_frame_mailbox_unit_tests COMMAND latest_frame_mailbox_unit_tests)
 add_executable(subtitle_renderer_tests
@@ -447,7 +441,7 @@ add_executable(subtitle_renderer_tests
 
 target_include_directories(subtitle_renderer_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tests/support
-    ${PROJECT_SOURCE_DIR}/play_core/src
+    ${PROJECT_SOURCE_DIR}/sdk/core/src
 )
 
 target_link_libraries(subtitle_renderer_tests PRIVATE
@@ -462,17 +456,17 @@ set_tests_properties(subtitle_renderer_tests PROPERTIES
 )
 
 add_executable(latest_video_frame_mailbox_tests
-    tests/sdk/qt_player_tests.cpp
-    tests/media_fixture_builder.cpp
+    sdk/tests/api/qt_player_tests.cpp
+    sdk/tests/media_fixture_builder.cpp
 )
 
 target_include_directories(latest_video_frame_mailbox_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core/src
+    ${PROJECT_SOURCE_DIR}/sdk/core/src
 )
 
 target_link_libraries(latest_video_frame_mailbox_tests PRIVATE PlayerSDK::QtWidgets ${FFMPEG_LIBRARIES})
-target_include_directories(latest_video_frame_mailbox_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests)
+target_include_directories(latest_video_frame_mailbox_tests PRIVATE ${PROJECT_SOURCE_DIR}/sdk/tests)
 add_test(NAME latest_video_frame_mailbox_tests COMMAND latest_video_frame_mailbox_tests)
 set_tests_properties(latest_video_frame_mailbox_tests PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_AUDIODRIVER=dummy")
 endif()
@@ -607,10 +601,11 @@ add_test(NAME hardware_decode_policy_tests COMMAND hardware_decode_policy_tests)
 
 add_executable(media_compatibility_tests
     tests/media_compatibility_tests.cpp
-    tests/media_fixture_builder.cpp
+    sdk/tests/media_fixture_builder.cpp
 )
 target_include_directories(media_compatibility_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tests
+    ${PROJECT_SOURCE_DIR}/sdk/tests
 )
 target_link_libraries(media_compatibility_tests PRIVATE
     play_core
@@ -624,11 +619,12 @@ set_tests_properties(media_compatibility_tests PROPERTIES
 
 add_executable(playback_integration_tests
     tests/playback_integration_tests.cpp
-    tests/media_fixture_builder.cpp
+    sdk/tests/media_fixture_builder.cpp
 )
 
 target_include_directories(playback_integration_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tests
+    ${PROJECT_SOURCE_DIR}/sdk/tests
 )
 
 target_link_libraries(playback_integration_tests PRIVATE
@@ -644,10 +640,11 @@ set_tests_properties(playback_integration_tests PROPERTIES
 
 add_executable(network_integration_tests
     tests/network_integration_tests.cpp
-    tests/media_fixture_builder.cpp
+    sdk/tests/media_fixture_builder.cpp
 )
 target_include_directories(network_integration_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tests
+    ${PROJECT_SOURCE_DIR}/sdk/tests
 )
 target_link_libraries(network_integration_tests PRIVATE
     play_core
@@ -691,7 +688,7 @@ add_executable(main_window_behavior_tests
 )
 target_include_directories(main_window_behavior_tests PRIVATE
     ${PLAYERDEMO_QT_APP_DIR}
-    ${PROJECT_SOURCE_DIR}/play_core/src
+    ${PROJECT_SOURCE_DIR}/sdk/core/src
 )
 target_link_libraries(main_window_behavior_tests PRIVATE
     PlayerSDK::QtWidgets
@@ -728,7 +725,7 @@ foreach(test_target IN LISTS myplayer_build_targets)
             myplayer_deploy_runtime_dependencies(${test_target})
         endif()
         target_include_directories(${test_target} PRIVATE
-            ${PROJECT_SOURCE_DIR}/play_core/src
+            ${PROJECT_SOURCE_DIR}/sdk/core/src
             ${FFMPEG_INCLUDE_DIRS}
             ${PLAYERDEMO_SIGSLOT_ROOT}/include
         )

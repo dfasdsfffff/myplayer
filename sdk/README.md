@@ -1,6 +1,10 @@
 # PlayerSDK 1.0.0 源码接入指南
 
-`play_core` 本身是 Core SDK（静态库），没有额外的核心包装库。支持的公开接口仅为 `play_core/include/play_core/`，Qt 接口为 `qt/include/player_sdk_qt/`。`src/`、`PlaybackRuntime`、`VideoCtl` 和 controller 均是私有实现/回归测试接口，不属于源码兼容承诺。
+`play_core` 本身是 Core SDK（静态库），没有额外的核心包装库。支持的公开接口仅为 `core/include/play_core/`，Qt 接口为 `qt/include/player_sdk_qt/`。`src/`、`PlaybackRuntime`、`VideoCtl` 和 controller 均是私有实现/回归测试接口，不属于源码兼容承诺。
+
+## 源码目录
+
+本目录是独立 SDK 根目录，可直接作为宿主的 CMake 子项目。`core/` 是核心源码，`qt/` 是 Qt 组件，`examples/` 是使用示例，`tests/api/` 是公开接口测试，`tests/consumer/` 是外部接入测试，`third_party/sigslot/` 是随包依赖。公开 include 和链接目标名不变。仓库根目录仍用于构建两个应用及私有回归测试。
 
 ## 1. 依赖与构建
 
@@ -11,7 +15,7 @@
 - 随包提供：SDK 源码、CMake、sigslot 1.2.3 源码及 LICENSE、示例和公开 API 测试。
 - 宿主提供：FFmpeg、SDL2、SoundTouch 二进制/开发文件；启用 Qt 时另提供 Qt 和 libass，以及其字体/文字处理传递依赖。
 - 不包含依赖 DLL，不自动下载、安装依赖或修改工具链。可以复用兼容的 `SDL2::SDL2`、`SoundTouch::SoundTouchDLL` targets；FFmpeg 使用 `FFMPEG_INCLUDE_DIRS`、`FFMPEG_LIBRARIES`（如未预先查找则调用 `find_package(FFMPEG)`）。libass 通过 pkg-config 查找。
-- 仓库的 `vcpkg.json` 记录应用开发依赖。外部宿主可在自己的 vcpkg manifest 声明 `ffmpeg`（含 avdevice、avfilter、swscale、swresample）、`sdl2`、`soundtouch[soundtouchdll]`；Qt 组件再增加 `libass`。用宿主工具链在首次 CMake configure 时选定依赖；不要在已配置的构建目录中更换 triplet/CRT。
+- 仓库根目录的 `vcpkg.json` 记录应用开发依赖。外部宿主可在自己的 vcpkg manifest 声明 `ffmpeg`（含 avdevice、avfilter、swscale、swresample）、`sdl2`、`soundtouch[soundtouchdll]`；Qt 组件再增加 `libass`。用宿主工具链在首次 CMake configure 时选定依赖；不要在已配置的构建目录中更换 triplet/CRT。
 - sigslot 可通过 `PLAYERDEMO_SIGSLOT_ROOT` 指定兼容的自备副本。
 
 ### 无 Qt 宿主
@@ -118,13 +122,13 @@ Core 静态不代表依赖都静态。最终程序需要对应配置的 SDL、So
 
 宿主负责自己的输出目录和部署。Windows 下可用 `windeployqt` 部署 Qt，用 vcpkg app-local 或 `$<TARGET_RUNTIME_DLLS:host>` 部署导入 targets 对应 DLL，并补齐第三方传递依赖。不同架构、CRT、Debug/Release 或同名不同版本 DLL 不可混用。
 
-生成仅包含 SDK 的源码归档（不包含 apps、build、开发机 DLL）：
+从仓库根目录生成仅包含 SDK 的源码归档（不包含 apps、build、开发机 DLL；脚本位于 SDK 目录之外）：
 
 ```powershell
 cmake -DOUTPUT_DIR=build/sdk-source-1.0.0 -P scripts/package-sdk.cmake
 ```
 
-输出目录必须不存在，脚本不覆盖已有发行物。归档使用专用源码根 CMake，单独解压后可以独立或作为子项目构建。许可证见 `licenses/README.md`。外部 FFmpeg/Qt 等依赖的授权文本由最终发行方按实际版本补齐，不将本源码包当成最终商业授权审计报告。
+输出目录必须不存在，脚本不覆盖已有发行物。归档直接使用 `sdk/CMakeLists.txt`，单独解压后可以独立或作为子项目构建。许可证见 `licenses/README.md`。外部 FFmpeg/Qt 等依赖的授权文本由最终发行方按实际版本补齐，不将本源码包当成最终商业授权审计报告。
 
 ### 从旧私有入口迁移
 
@@ -140,9 +144,9 @@ cmake -DOUTPUT_DIR=build/sdk-source-1.0.0 -P scripts/package-sdk.cmake
 
 ## 4. 验证方式与边界
 
-- `tests/consumer` 是可复制到仓库外的宿主：检查构建隔离与公开 include，构建并运行 close 示例。传 `PLAYER_SDK_SOURCE_DIR` 指向仓库或解压源码。
+- `tests/consumer` 是可复制到仓库外的宿主：检查构建隔离与公开 include，构建并运行 close 示例。传 `PLAYER_SDK_SOURCE_DIR` 指向仓库的 `sdk/` 或解压后的 `PlayerSDK/`。
 - `PLAYER_SDK_BUILD_TESTS=ON`：公开 API 生命周期、毫秒定位、会话替代、多实例、保留帧、UTF-8 路径、慢回调容量和回调异常；启用 Qt 后另测真实画面提交、UI 卡顿、字幕及销毁顺序。
 - 仓库完整测试继续覆盖解码、同步、网络超时/重连/取消、字幕、播放列表和监控录制；网络集成额外覆盖 SDK 打开中与重连中关闭。
 - 公开接口第一版不宣称跨平台、GPU 零拷贝、QML、独立 DLL 分发、无限实例或已完成长时性能验证。
 
-具体 Debug/Release、外部宿主及源码归档验证结果见 `docs/PLAYER_SDK_PLAN.md` 的实施记录（仓库文档，不随最小 SDK 包交付）。真实摄像机、长时间播放、HDR、完整媒体格式矩阵、干净机器及法律授权审计不能由本机短时自动测试替代。
+具体 Debug/Release、外部宿主及源码归档验证结果见 `../docs/PLAYER_SDK_PLAN.md` 的实施记录（仓库文档，不随最小 SDK 包交付）。真实摄像机、长时间播放、HDR、完整媒体格式矩阵、干净机器及法律授权审计不能由本机短时自动测试替代。
