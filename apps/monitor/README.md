@@ -128,6 +128,8 @@ Windows 监控目标的构建后步骤已复制 CMake 可识别的运行时 DLL�
 当前测试代码提供：
 
 - `monitor_integration_tests`：生成本地媒体，检查 16 路各自收到帧并经共享 VideoWidget 呈现、禁音频预览拒绝纯音频源、换源、销毁部分窗格、停止会话，以及 2 秒测试分片可被 FFmpeg 重新打开并读包。
+- `monitor_startup_tests`：以无效 SDL 音频驱动启动空预览窗，验证初始化失败可由 `open()` 返回错误，不会在窗口构造时终止进程。
+- `monitor_recording_browser_tests`：检查录像日期、时间筛选和录像列表刷新。
 - `monitor_window_smoke_test`：以 `--smoke-test --layout 16` 打开并自动关闭主窗口，不接真实摄像头。
 
 在完成依赖配置后，可用以下命令构建并执行独立监控测试；是否通过应以实际运行结果为准：
@@ -137,7 +139,7 @@ cmake -S apps/monitor -B build/monitor -G "Visual Studio 18 2026" -A x64 `
   -DMONITOR_USE_BUNDLED_DEPS=ON `
   -DMONITOR_BUILD_TESTS=ON `
   "-DCMAKE_PREFIX_PATH=$qt"
-cmake --build build/monitor --config Release --target myplayer_monitor monitor_integration_tests
+cmake --build build/monitor --config Release
 ctest --test-dir build/monitor -C Release --output-on-failure
 ```
 
@@ -147,6 +149,6 @@ ctest --test-dir build/monitor -C Release --output-on-failure
 
 ## 实现与来源
 
-每个预览窗格和录像回放窗口各持有一个公开 SDK `QtPlayer`，显示统一由 `VideoWidget` 处理；Core 与 Qt 各用最新帧邮箱，不逐帧积压 Qt 消息。Qt 组件通过 SDL 纹理显示 CPU 帧和字幕，普通 YUV420P 直接上传 IYUV，只有 BT.2020 颜色空间需要 swscale 回退；不再维护监控专用 renderer/33ms 轮询，而是共享控件管理 SDL。硬件解码帧仍经系统内存，不是零拷贝显示；性能仍需实测。录像仍由独立 FFmpeg 封装线程完成，使用公开 `NetworkRuntime` lease，不访问核心私有对象。
+每个预览窗格和录像回放窗口各在首次打开媒体时创建独立的公开 SDK `QtPlayer`；音频初始化失败会返回错误，不会阻止空监控窗口启动。显示统一由 `VideoWidget` 处理；Core 与 Qt 各用最新帧邮箱，不逐帧积压 Qt 消息。Qt 组件通过 SDL 纹理显示 CPU 帧和字幕，普通 YUV420P 直接上传 IYUV，并在上传前设置颜色转换模式；只有 BT.2020 颜色空间需要 swscale 回退。不再维护监控专用 renderer/33ms 轮询，而是共享控件管理 SDL。硬件解码帧仍经系统内存，不是零拷贝显示；性能仍需实测。录像仍由独立 FFmpeg 封装线程完成，使用公开 `NetworkRuntime` lease，不访问核心私有对象。
 
 界面、日历、相机配置及图标改编自用户提供的 `h265-ffmpeg/2_project/xviewer`（Apache-2.0），对应许可证保留在 `REFERENCE-LICENSE.txt`；本应用不修改外部参考项目。原有图标仅作为参考界面资源保留，不表示本应用是任何厂商的官方产品。

@@ -9,6 +9,7 @@
 | MyPlayer | `apps/qt_player/main.cpp` → `MainWid`；播放列表、最近文件、设置、音轨/字幕选择 |
 | MyPlayer Monitor | `apps/monitor/main.cpp` → `XViewer`；多路预览、摄像机配置、分段录像、检索及回放 |
 | Qt SDK | `sdk/qt/include/player_sdk_qt/`；`QtPlayer` 负责 QObject 投递/生命周期，`VideoWidget` 负责统一画面和字幕显示 |
+| C SDK | `sdk/c/include/player_sdk_c/`；`PlayerSDK::C` 是默认启用的版本化 C ABI 共享库，调用约定见 [C ABI 指南](../sdk/c/README.md) |
 | Core SDK | `sdk/core/include/play_core/`；`Player` 是唯一受支持的 C++ 播放入口，别名 `PlayerSDK::Core` 对应静态 target `play_core` |
 | 私有核心 | `sdk/core/src/`；解封装、解码、队列、同步、音频输出、网络输入/重连 |
 
@@ -59,7 +60,7 @@ Core 依赖 FFmpeg、SDL2、SoundTouch 和 sigslot，不依赖 Qt/libass。Qt �
 
 `Show` 保留拖放、快捷键、音频占位提示和外置字幕入口，其子 `VideoWidget` 提供统一画面与字幕。`CtrlBar` 负责控制和进度；`Title` 负责标题；`Playlist/MediaList/PlaylistFile` 负责列表导航及 M3U/M3U8；`SettingWid/AppPreferences/GlobalHelper` 负责设置和持久化。
 
-监控 `CoreVideoWidget` 基于同一个 `VideoWidget`，拥有独立 `QtPlayer`，不再维护 SDL 窗口、renderer、texture 或另一套轮询邮箱。静音预览使用 `MediaSource::enableAudio=false`，不是仍解码音轨后只把音量设零。`XPlayVideo` 使用其公开方法提供录像回放/暂停/seek/倍速；`XCameraRecord` 是独立录制路径，不从显示帧转码录像。
+监控 `CoreVideoWidget` 基于同一个 `VideoWidget`，首次打开媒体时才创建独立 `QtPlayer`；构造空窗格不会初始化 SDL 音频，初始化失败由 `open()` 返回错误。不再维护 SDL 窗口、renderer、texture 或另一套轮询邮箱。静音预览使用 `MediaSource::enableAudio=false`，不是仍解码音轨后只把音量设零。`XPlayVideo` 使用其公开方法提供录像回放/暂停/seek/倍速；`XCameraRecord` 是独立录制路径，不从显示帧转码录像。
 
 ```text
 两个应用 / 外部 Qt 宿主
@@ -119,7 +120,7 @@ SDK 自身公开错误不返回原始带凭据 URL；`RedactMediaLocation` 保�
 - 公开 SDK：`sdk/tests/api`，测试受理/终结、生命周期、毫秒、UTF-8、慢回调/队列预算、异常、保留帧、SDL 共存；Qt 测真实画面、字幕、UI 卡顿、双向销毁。
 - 外部宿主：`sdk/tests/consumer` 可复制出仓库测试 Core/Qt targets 和宿主构建隔离；`scripts/package-sdk.cmake` 验证最小源码发行。
 - 私有管线：队列/时钟、decoder/reader、audio、hardware、seek/track、media compatibility、network integration；历史 Runtime 仅供这些白盒测试。
-- 应用：设置/列表/隐私/主窗口、`show_widget_tests`（源码契约，不等于真实 UI）、监控 16 路预览/切换/销毁/分段录制和 smoke。
+- 应用：设置/列表/隐私/主窗口、`show_widget_tests`（源码契约，不等于真实 UI）、监控 16 路预览/切换/销毁/分段录制、无效音频驱动启动回退和 smoke。
 - 旧 SDL subtitle renderer 和邮箱仅保留为 `tests/support` 回归夹具，不参与应用或 SDK 显示。
 - 修改打开/派发/状态从 `sdk/core/src/player.cpp` 和 `sdk/qt/qt_player.cpp` 入手；具体 I/O/取消见 `stream_reader`、`network_input`、`reconnect_controller`、`VideoCtl::LoopThread`。
 - 修改色彩/显示/字幕从共享 `qt/video_widget.cpp` 入手，不再分别修改两套应用 renderer。字幕解码另查 `decoder_workers` 与 `subtitle_dispatcher`。

@@ -13,6 +13,7 @@
 - Gitee 镜像：<https://gitee.com/hu-xiao-yun/myplayer>
 - GitHub 发行版：<https://github.com/dfasdsfffff/myplayer/releases>
 - [源码 SDK 接入、API 契约与发行](sdk/README.md)
+- [C ABI 接入与兼容约定](sdk/c/README.md)
 - [SDK 方案及实施验收记录](docs/PLAYER_SDK_PLAN.md)
 - [开发与架构指南](docs/PROJECT_GUIDE.md)
 - [监控软件使用、配置与独立构建](apps/monitor/README.md)
@@ -100,6 +101,7 @@ bin/myplayer_monitor_debug.exe           # Debug 监控软件
 | `MYPLAYER_BUILD_MONITOR` | `OFF` | 顶层构建中加入监控软件 |
 | `BUILD_TESTING` | `OFF`（Preset 为 ON） | 仓库白盒/应用回归；不替代 SDK、监控专用开关 |
 | `PLAYER_SDK_BUILD_QT` | `OFF` | 可复用 Qt 组件；构建应用时自动引入 |
+| `PLAYER_SDK_BUILD_C` | `ON` | 构建版本化 C ABI 共享库 `PlayerSDK::C`；只需 C++/Qt SDK 时可关闭 |
 | `PLAYER_SDK_BUILD_EXAMPLES` | `OFF` | 公开 Core/Qt 示例 |
 | `PLAYER_SDK_BUILD_TESTS` | `OFF` | SDK 公开接口测试，不随宿主 BUILD_TESTING 自动开启 |
 | `MONITOR_BUILD_TESTS` | `OFF` | 监控集成测试和窗口 smoke 测试，需启用监控子项目 |
@@ -136,7 +138,7 @@ ctest --test-dir build -C Release --output-on-failure
 
 - 播放核心：队列、命令邮箱、解码、音频输出、seek/生命周期、网络读取、硬解策略和媒体兼容性等。
 - 播放器：播放列表、隐私处理、设置、字幕、主窗口和视频呈现等；部分使用 offscreen/dummy 后端。
-- 监控：`monitor_integration_tests` 和 `monitor_window_smoke_test`，仅在 `MONITOR_BUILD_TESTS=ON` 时注册。
+- 监控：`monitor_startup_tests` 验证音频初始化失败时预览窗不会崩溃；`monitor_integration_tests` 覆盖多路预览、换源和录像；`monitor_recording_browser_tests` 覆盖录像检索；`monitor_window_smoke_test` 检查窗口启动。均需 `MONITOR_BUILD_TESTS=ON`。
 - `myplayer --smoke-test` 只创建 QApplication 和播放运行时后退出，**不会打开完整播放器主窗口，也不会播放媒体**。
 - 监控 `--smoke-test` 会显示窗口并在约一秒后退出；未传入视频源时不能证明实际解码、联网或录像可用。
 

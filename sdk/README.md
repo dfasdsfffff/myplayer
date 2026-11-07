@@ -62,7 +62,7 @@ player->open(QUrl::fromLocalFile(filePath));
 player->play();
 ```
 
-`VideoWidget` 使用 SDL2 渲染到 Qt 管理的原生子窗口，优先硬件渲染器、失败时尝试 SDL 软件渲染器。普通 YUV420P 直接上传 IYUV 纹理，BGRA 直接上传 BGRA 纹理；仅 SDL2 无对应色彩转换模式的 BT.2020 YUV 路径使用 swscale 转 BGRA。画面、位图和 libass 字幕均由 SDL 合成，QPainter 只绘制无视频时的背景，不承担视频显示。`grabVideoFrame()` 显式通过 SDL 读回包含字幕的画面，正常播放不读回、不额外生成 QImage。offscreen/minimal 自动测试使用 SDL surface/software renderer，不将此结果冒充硬件渲染验证。
+`VideoWidget` 使用 SDL2 渲染到 Qt 管理的原生子窗口，优先硬件渲染器、失败时尝试 SDL 软件渲染器。普通 YUV420P 直接上传 IYUV 纹理，BGRA 直接上传 BGRA 纹理；仅 SDL2 无对应色彩转换模式的 BT.2020 YUV 路径使用 swscale 转 BGRA。YUV 色彩转换模式在纹理上传前设置，兼容 SDL 软件渲染器在上传时完成的转换，并在本次呈现后恢复原模式。画面、位图和 libass 字幕均由 SDL 合成，QPainter 只绘制无视频时的背景，不承担视频显示。`grabVideoFrame()` 显式通过 SDL 读回包含字幕的画面，正常播放不读回、不额外生成 QImage。offscreen/minimal 自动测试使用 SDL surface/software renderer，不将此结果冒充硬件渲染验证。
 
 `QtPlayer` 所有方法仅能在 QObject 所在线程调用。所有 Qt 信号在该线程交付。Core 可跨线程提交命令的许可不适用于 QObject。一个 player 仅绑定一个 view；绑定新 view 会自动解绑旧 view。先销毁 view 或先销毁 player 均会安全解绑。`VideoWidget` 也支持手工提交公开 CPU 帧；字幕支持嵌入 ASS/文本/位图以及外部 ASS/SSA/SRT。
 
@@ -142,7 +142,7 @@ cmake -DOUTPUT_DIR=build/sdk-source-1.0.0 -P scripts/package-sdk.cmake
 - FFmpeg 枚举/宽高比 → `MediaType`、`Rational`、`ColorSpace/ColorRange`。
 - 播放列表、历史、设置、下一首/随机播放留在应用；两个应用的画面与字幕统一使用 `VideoWidget`。
 
-源码版本政策：1.x 在稳定发布后尽量保持公开源码接口兼容；破坏变更升主版本并给迁移说明。升级后必须重编 SDK 及宿主。不承诺旧二进制兼容；没有 C ABI、`PlayerSDK::Cpp` 或独立 `player_sdk` Core 包装库。
+源码版本政策：1.x 在稳定发布后尽量保持公开 C++ 源码接口兼容；破坏变更升主版本并给迁移说明。升级 C++ SDK 后必须重编 SDK 及宿主，C++ 二进制兼容性不作承诺。现已提供独立的版本化 C ABI 共享库 `PlayerSDK::C`，其兼容与所有权约定见 [C ABI 指南](c/README.md)；没有 `PlayerSDK::Cpp` 或独立 `player_sdk` Core 包装库。
 
 ## 4. 验证方式与边界
 
