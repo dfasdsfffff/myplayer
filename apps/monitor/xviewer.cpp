@@ -752,7 +752,6 @@ void XViewer::Playback() {
 
 void XViewer::RefreshRecordings() {
   SelectCamera(ui->cam_list->currentIndex());
-  scan_status_->setText(QStringLiteral("最近扫描 %1").arg(QTime::currentTime().toString(QStringLiteral("HH:mm:ss"))));
 }
 
 void XViewer::SelectCamera(const QModelIndex &index) {
@@ -761,7 +760,8 @@ void XViewer::SelectCamera(const QModelIndex &index) {
   ui->cal->ClearDate();
   ui->time_list->clear();
   cam_videos.clear();
-  recording_path_->clear();
+  recording_path_->setToolTip({});
+  recording_path_->setEnabled(false);
   if (!index.isValid()) {
     SelectDate(selectedDate);
     recording_empty_->setText(QStringLiteral("请选择设备以查看录像。"));
@@ -770,7 +770,8 @@ void XViewer::SelectCamera(const QModelIndex &index) {
   const auto data = XCameraConfig::Instance()->GetCam(index.row());
   const QDir root(QString::fromLocal8Bit(data.save_path));
   const QDir dir(root.filePath(QString::number(index.row())));
-  recording_path_->setText(QStringLiteral("录像目录：%1").arg(QDir::toNativeSeparators(dir.absolutePath())));
+  recording_path_->setEnabled(true);
+  recording_path_->setToolTip(QDir::toNativeSeparators(dir.absolutePath()));
   // Match recorder names, including same-second collision suffixes.
   static const QRegularExpression namePattern(
       QStringLiteral("^cam_(\\d{4}_\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2})(?:_\\d+)?$"));
@@ -835,6 +836,7 @@ void XViewer::PlayVideo(const QModelIndex &index) {
   playback_path_ = item->data(Qt::UserRole).toString();
   playback_file_->setText(QFileInfo(playback_path_).fileName());
   playback_file_->setToolTip(playback_path_);
+  playback_file_->setVisible(true);
   const auto request = playback_player_->open(QUrl::fromLocalFile(playback_path_));
   if (request) playback_player_->play();
   else playback_file_->setText(QStringLiteral("无法受理播放请求，请重试。"));
@@ -850,7 +852,9 @@ void XViewer::ResetPlayback() {
   playback_position_->setEnabled(false);
   playback_pause_->setEnabled(false);
   playback_clock_->setText(QStringLiteral("00:00 / --:--"));
-  playback_file_->setText(QStringLiteral("双击右侧录像开始回放"));
+  playback_file_->clear();
+  playback_file_->setToolTip({});
+  playback_file_->hide();
 }
 
 ////////////////////////////////////////
@@ -898,13 +902,15 @@ void XViewer::SetupPlaybackUi() {
   ui->cal->setFixedHeight(210);
   ui->cal->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
   filters->addWidget(ui->cal);
-  filters->addWidget(label(QStringLiteral("圆点表示当天有录像"), date_filters_));
-  filters->addWidget(label(QStringLiteral("开始时间范围"), date_filters_));
+  ui->cal->setToolTip(QStringLiteral("圆点表示当天有录像"));
+  filters->addWidget(label(QStringLiteral("开始时间"), date_filters_));
   auto *times = new QHBoxLayout;
   filter_from_ = new QTimeEdit(QTime(0, 0), date_filters_);
   filter_to_ = new QTimeEdit(QTime(23, 59, 59), date_filters_);
   filter_from_->setObjectName(QStringLiteral("recordingFrom"));
   filter_to_->setObjectName(QStringLiteral("recordingTo"));
+  filter_from_->setToolTip(QStringLiteral("录像开始时间下限"));
+  filter_to_->setToolTip(QStringLiteral("录像开始时间上限"));
   for (auto *time : {filter_from_, filter_to_}) time->setButtonSymbols(QAbstractSpinBox::NoButtons);
   for (auto *time : {filter_from_, filter_to_}) time->setDisplayFormat(QStringLiteral("HH:mm:ss"));
   times->addWidget(filter_from_); times->addWidget(label(QStringLiteral("—"), date_filters_)); times->addWidget(filter_to_);
@@ -917,24 +923,16 @@ void XViewer::SetupPlaybackUi() {
     }
     SelectDate(ui->cal->selectedDate());
   });
-  recording_path_ = label({}, date_filters_);
-  recording_path_->setTextInteractionFlags(Qt::TextSelectableByMouse); filters->addWidget(recording_path_);
+  recording_path_ = label(QStringLiteral("录像目录"), date_filters_);
+  filters->addWidget(recording_path_);
   qobject_cast<QVBoxLayout *>(ui->left->layout())->addWidget(date_filters_);
   auto *root = new QVBoxLayout(ui->playback_wid);
-  root->setContentsMargins(16, 12, 16, 12); root->setSpacing(14);
-  auto *heading = new QHBoxLayout;
-  auto *title = label(QStringLiteral("录像回放"), ui->playback_wid);
-  title->setStyleSheet(QStringLiteral("font-size:22px;font-weight:600;color:#edf2f7;")); heading->addWidget(title, 1);
-  scan_status_ = label({}, ui->playback_wid); heading->addWidget(scan_status_);
-  auto *refresh = new QPushButton(QStringLiteral("刷新录像"), ui->playback_wid);
-  refresh->setObjectName(QStringLiteral("refreshRecordings")); heading->addWidget(refresh);
-  connect(refresh, &QPushButton::clicked, this, &XViewer::RefreshRecordings); root->addLayout(heading);
+  root->setContentsMargins(16, 12, 16, 12); root->setSpacing(8);
   auto *split = new QSplitter(Qt::Horizontal, ui->playback_wid);
   split->setChildrenCollapsible(false); root->addWidget(split, 1);
   auto *preview = new QWidget(split);
   auto *previewLayout = new QVBoxLayout(preview);
-  previewLayout->setContentsMargins(0, 0, 12, 0); previewLayout->setSpacing(12);
-  previewLayout->addWidget(label(QStringLiteral("回放预览"), preview));
+  previewLayout->setContentsMargins(0, 0, 8, 0); previewLayout->setSpacing(8);
   playback_player_ = new player_sdk_qt::QtPlayer(this);
   playback_view_ = new player_sdk_qt::VideoWidget(preview);
   playback_view_->setObjectName(QStringLiteral("recordingVideo")); playback_view_->setPlayer(playback_player_);
@@ -958,15 +956,23 @@ void XViewer::SetupPlaybackUi() {
   auto *fullscreen = new QPushButton(QStringLiteral("全屏"), preview); controls->addWidget(fullscreen);
   previewLayout->addLayout(controls);
   playback_file_ = label({}, preview); playback_file_->setObjectName(QStringLiteral("recordingFile"));
-  playback_file_->setMinimumHeight(40); previewLayout->addWidget(playback_file_);
-  previewLayout->addWidget(label(QStringLiteral("双击录像回放 · 时长在文件打开后读取"), preview));
+  previewLayout->addWidget(playback_file_);
   auto *listPanel = new QWidget(split); listPanel->setMinimumWidth(230);
-  auto *listLayout = new QVBoxLayout(listPanel); listLayout->setContentsMargins(12, 0, 0, 0); listLayout->setSpacing(12);
-  listLayout->addWidget(label(QStringLiteral("录制列表 · 按开始时间排序"), listPanel));
+  auto *listLayout = new QVBoxLayout(listPanel);
+  listLayout->setContentsMargins(8, 0, 0, 0); listLayout->setSpacing(8);
+  auto *listHeader = new QHBoxLayout;
+  listHeader->addWidget(label(QStringLiteral("录像"), listPanel), 1);
+  auto *refresh = new QPushButton(QStringLiteral("刷新"), listPanel);
+  refresh->setObjectName(QStringLiteral("refreshRecordings"));
+  refresh->setToolTip(QStringLiteral("重新扫描所选设备的录像"));
+  listHeader->addWidget(refresh);
+  connect(refresh, &QPushButton::clicked, this, &XViewer::RefreshRecordings);
+  listLayout->addLayout(listHeader);
   recording_summary_ = label({}, listPanel); recording_summary_->setObjectName(QStringLiteral("recordingSummary"));
   listLayout->addWidget(recording_summary_);
   ui->time_list->setMaximumWidth(QWIDGETSIZE_MAX); ui->time_list->setMinimumWidth(0);
   ui->time_list->setTextElideMode(Qt::ElideMiddle); ui->time_list->setSpacing(4); listLayout->addWidget(ui->time_list, 1);
+  ui->time_list->setToolTip(QStringLiteral("双击录像开始回放"));
   recording_empty_ = label({}, listPanel); recording_empty_->setObjectName(QStringLiteral("recordingEmpty"));
   listLayout->addWidget(recording_empty_);
   split->setStretchFactor(0, 3); split->setStretchFactor(1, 1); split->setSizes({650, 280});
@@ -1002,7 +1008,10 @@ void XViewer::SetupPlaybackUi() {
     playback_pause_->setEnabled(state == play_core::PlayerState::Playing || state == play_core::PlayerState::Paused || state == play_core::PlayerState::Ready || state == play_core::PlayerState::Ended);
     playback_pause_->setText(state == play_core::PlayerState::Playing ? QStringLiteral("暂停") : state == play_core::PlayerState::Ended ? QStringLiteral("重播") : QStringLiteral("播放"));
   });
-  connect(playback_player_, &player_sdk_qt::QtPlayer::errorOccurred, this, [this](const QString &error) { playback_file_->setText(QStringLiteral("回放失败：%1").arg(error)); });
+  connect(playback_player_, &player_sdk_qt::QtPlayer::errorOccurred, this, [this](const QString &error) {
+    playback_file_->setText(QStringLiteral("回放失败：%1").arg(error));
+    playback_file_->show();
+  });
   setStyleSheet(styleSheet() + QStringLiteral(R"(
     QWidget#playback_wid { background:#101419; }
     QListWidget { background:#181e25; border:1px solid #2b3541; border-radius:6px; }

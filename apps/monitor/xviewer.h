@@ -85,7 +85,6 @@ private:
     player_sdk_qt::VideoWidget* playback_view_ = nullptr;
     QLabel* playback_file_ = nullptr;
     QLabel* playback_clock_ = nullptr;
-    QLabel* scan_status_ = nullptr;
     QSlider* playback_position_ = nullptr;
     QPushButton* playback_pause_ = nullptr;
     QTimeEdit* filter_from_ = nullptr;
