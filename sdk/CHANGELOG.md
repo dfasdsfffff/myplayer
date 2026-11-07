@@ -1,5 +1,10 @@
 # SDK 变更记录
 
+## 未发布 — 视频帧发布去除 CPU 深拷贝
+
+- YUV 平面共享 FFmpeg 引用，BGRA 通过共享所有权保留内部帧；公开 C++ `VideoFrame::bgra` 改为 `shared_ptr<const vector<uint8_t>>`，手动提交帧须提供不可变共享缓冲。
+- 位图字幕纹理在字幕帧生命周期内复用；ASS 字幕在 libass 报告内容未变化时复用纹理，轨道、输出尺寸或 SDL 渲染器变化时失效。
+
 ## 未发布 — C ABI v1
 
 - 新增默认启用的 `PlayerSDK::C` 共享库，保留现有 Core/Qt C++ 接口。

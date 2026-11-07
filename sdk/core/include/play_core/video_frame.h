@@ -2,12 +2,13 @@
 #include <play_core/media_source.h>
 #include <array>
 #include <memory>
+#include <vector>
 namespace play_core {
 enum class VideoFrameFormat { Bgra32, Yuv420P };
 enum class ColorSpace { Unknown, Bt601, Bt709, Bt2020 };
 enum class ColorRange { Unknown, Limited, Full };
 struct VideoPlane { std::shared_ptr<const std::uint8_t> data; int stride{0}; int height{0}; };
-// Shared, immutable CPU storage. Views remain valid while the frame is retained,
+// Shared immutable CPU storage. Views remain valid while the frame is retained,
 // including after close()/Player destruction. Unknown PTS is nullopt.
 struct VideoFrame {
     VideoFrameFormat format{VideoFrameFormat::Bgra32};
@@ -18,7 +19,7 @@ struct VideoFrame {
     ColorRange colorRange{ColorRange::Unknown};
     bool unsupportedHdrTransfer{false};
     std::optional<std::int64_t> timestampMs;
-    std::vector<std::uint8_t> bgra;
+    std::shared_ptr<const std::vector<std::uint8_t>> bgra;
     std::array<VideoPlane, 3> planes;
 };
 struct SubtitleBitmap { int x{0}, y{0}, width{0}, height{0}, stride{0}; std::vector<std::uint8_t> bgra; };

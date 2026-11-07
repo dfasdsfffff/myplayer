@@ -41,6 +41,13 @@ struct VideoWidget::Impl {
     ASS_Track* embedded{nullptr};
     ASS_Track* external{nullptr};
     SwsContext* scaler{nullptr};
+    std::vector<SDL_Texture*> bitmapTextures;
+    std::vector<SDL_Texture*> assTextures;
+    QSize assSize;
+    void clearTextures(std::vector<SDL_Texture*>& textures) {
+        for (auto* item : textures) SDL_DestroyTexture(item);
+        textures.clear();
+    }
     Impl() { if (renderer) ass_set_fonts(renderer, nullptr, "Arial", 1, nullptr, 1); }
     ~Impl() {
         if (surface) { surface->repaint = {}; surface->releasing = {}; }
@@ -54,6 +61,9 @@ struct VideoWidget::Impl {
     }
     void setSubtitle(std::shared_ptr<const play_core::SubtitleFrame> s) {
         subtitle = std::move(s);
+        clearTextures(bitmapTextures);
+        clearTextures(assTextures);
+        assSize = {};
         if (embedded) { ass_free_track(embedded); embedded = nullptr; }
         if (subtitle && !subtitle->assOrText.empty() && library) {
             embedded = ass_new_track(library);
@@ -92,6 +102,8 @@ struct VideoWidget::Impl {
     }
     void destroyVideo() {
         if (texture) SDL_DestroyTexture(texture);
+        clearTextures(bitmapTextures);
+        clearTextures(assTextures);
         if (videoRenderer) SDL_DestroyRenderer(videoRenderer);
         if (window) SDL_DestroyWindow(window); // SDL_CreateWindowFrom does not own Qt's native window.
         if (softwareSurface) SDL_FreeSurface(softwareSurface);
@@ -129,8 +141,8 @@ struct VideoWidget::Impl {
                 const int height = i ? (f.height+1)/2 : f.height;
                 if (!f.planes[i].data || f.planes[i].stride < width || f.planes[i].height < height) return false;
             }
-        } else if (f.bytesPerLine < static_cast<int64_t>(f.width)*4 ||
-            f.bgra.size() < static_cast<size_t>(f.bytesPerLine)*f.height) return false;
+        } else if (!f.bgra || f.bytesPerLine < static_cast<int64_t>(f.width)*4 ||
+            f.bgra->size() < static_cast<size_t>(f.bytesPerLine)*f.height) return false;
         // SDL2 has no BT.2020 conversion mode. Keep a targeted CPU fallback for
         // that color space; ordinary YUV420P is uploaded directly as IYUV.
         const bool convert = yuv && f.colorSpace == play_core::ColorSpace::Bt2020;
@@ -160,18 +172,21 @@ struct VideoWidget::Impl {
             uint8_t* dst[4]{converted.data(),nullptr,nullptr,nullptr}; int ds[4]{f.width*4,0,0,0};
             if (sws_scale(scaler,src,strides,0,f.height,dst,ds) != f.height) return false;
             result = SDL_UpdateTexture(texture,nullptr,converted.data(),f.width*4);
-        } else result = SDL_UpdateTexture(texture,nullptr,f.bgra.data(),f.bytesPerLine);
+        } else result = SDL_UpdateTexture(texture,nullptr,f.bgra->data(),f.bytesPerLine);
         if (result == 0) needsUpload = false;
         return result == 0;
     }
-    bool drawBitmap(const uint8_t* data,int width,int height,int stride,const SDL_Rect& target,double rotation = 0) {
-        if (!data || width<=0 || height<=0 || stride < static_cast<int64_t>(width)*4) return false;
+    SDL_Texture* cachedBitmap(std::vector<SDL_Texture*>& cache,size_t index,
+        const uint8_t* data,int width,int height,int stride) {
+        if (!data || width<=0 || height<=0 || stride < static_cast<int64_t>(width)*4) return nullptr;
+        if (cache.size() <= index) cache.resize(index+1,nullptr);
+        if (cache[index]) return cache[index];
         auto* bitmap = SDL_CreateTexture(videoRenderer,SDL_PIXELFORMAT_BGRA32,SDL_TEXTUREACCESS_STATIC,width,height);
-        if (!bitmap) return false;
+        if (!bitmap) return nullptr;
         SDL_SetTextureBlendMode(bitmap,SDL_BLENDMODE_BLEND);
-        const bool ok = SDL_UpdateTexture(bitmap,nullptr,data,stride) == 0 &&
-            SDL_RenderCopyEx(videoRenderer,bitmap,nullptr,&target,rotation,nullptr,SDL_FLIP_NONE) == 0;
-        SDL_DestroyTexture(bitmap); return ok;
+        if (SDL_UpdateTexture(bitmap,nullptr,data,stride) != 0) { SDL_DestroyTexture(bitmap); return nullptr; }
+        cache[index] = bitmap;
+        return bitmap;
     }
     bool render(QSize size,bool capture = false) {
         if (!frame || size.isEmpty() || !ensureVideo(size) || !upload()) return false;
@@ -198,27 +213,40 @@ struct VideoWidget::Impl {
         SDL_SetYUVConversionMode(oldMode);
         if (copied != 0) return false;
         if (!external && subtitle && position >= subtitle->startMs && position <= subtitle->endMs) {
-            for (const auto& b : subtitle->bitmaps) {
+            for (size_t i=0;i<subtitle->bitmaps.size();++i) {
+                const auto& b = subtitle->bitmaps[i];
                 if (b.width<=0 || b.height<=0 || b.stride<=0 || b.bgra.size()<static_cast<size_t>(b.stride)*b.height) continue;
                 const double dx=(b.x+b.width/2.)*sar-cw/2., dy=b.y+b.height/2.-ch/2.;
                 const int bw=static_cast<int>(std::lround(b.width*sar*scale)), bh=static_cast<int>(std::lround(b.height*scale));
                 SDL_Rect dest{static_cast<int>(std::lround(width/2.+scale*(dx*std::cos(radians)-dy*std::sin(radians))-bw/2.)),
                     static_cast<int>(std::lround(height/2.+scale*(dx*std::sin(radians)+dy*std::cos(radians))-bh/2.)),bw,bh};
-                drawBitmap(b.bgra.data(),b.width,b.height,b.stride,dest,angle);
+                if (auto* bitmap=cachedBitmap(bitmapTextures,i,b.bgra.data(),b.width,b.height,b.stride))
+                    SDL_RenderCopyEx(videoRenderer,bitmap,nullptr,&dest,angle,nullptr,SDL_FLIP_NONE);
             }
         }
         auto* track = external ? external : embedded;
         if (track && renderer) {
+            if (assSize != QSize(width,height)) { clearTextures(assTextures); assSize = QSize(width,height); }
             ass_set_frame_size(renderer,width,height); int changed=0;
-            for (auto* img=ass_render_frame(renderer,track,position,&changed);img;img=img->next) {
+            auto* images=ass_render_frame(renderer,track,position,&changed);
+            if (changed == 2) clearTextures(assTextures);
+            size_t index=0;
+            for (auto* img=images;img;img=img->next) {
                 if (img->w<=0 || img->h<=0) continue;
-                std::vector<uint8_t> pixels(static_cast<size_t>(img->w)*img->h*4);
-                for (int y=0;y<img->h;++y) for(int x=0;x<img->w;++x) {
-                    auto* pixel=&pixels[(static_cast<size_t>(y)*img->w+x)*4];
-                    pixel[0]=(img->color>>8)&255; pixel[1]=(img->color>>16)&255; pixel[2]=(img->color>>24)&255;
-                    pixel[3]=static_cast<uint8_t>(img->bitmap[y*img->stride+x]*(255-(img->color&255))/255);
+                if (assTextures.size()<=index || !assTextures[index]) {
+                    std::vector<uint8_t> pixels(static_cast<size_t>(img->w)*img->h*4);
+                    for (int y=0;y<img->h;++y) for(int x=0;x<img->w;++x) {
+                        auto* pixel=&pixels[(static_cast<size_t>(y)*img->w+x)*4];
+                        pixel[0]=(img->color>>8)&255; pixel[1]=(img->color>>16)&255; pixel[2]=(img->color>>24)&255;
+                        pixel[3]=static_cast<uint8_t>(img->bitmap[y*img->stride+x]*(255-(img->color&255))/255);
+                    }
+                    cachedBitmap(assTextures,index,pixels.data(),img->w,img->h,img->w*4);
                 }
-                drawBitmap(pixels.data(),img->w,img->h,img->w*4,{img->dst_x,img->dst_y,img->w,img->h});
+                if (assTextures.size()>index && assTextures[index]) {
+                    SDL_Rect dest{img->dst_x,img->dst_y,img->w,img->h};
+                    SDL_RenderCopyEx(videoRenderer,assTextures[index],nullptr,&dest,0,nullptr,SDL_FLIP_NONE);
+                }
+                ++index;
             }
         }
         if (capture) {
@@ -286,10 +314,11 @@ bool VideoWidget::loadExternalSubtitle(const QString& filename) {
     auto* track = ass_read_memory(impl_->library, data.data(), data.size(), nullptr);
     if (!track) return false;
     if (impl_->external) ass_free_track(impl_->external);
-    impl_->external = track; update(); present(); return true;
+    impl_->external = track; impl_->clearTextures(impl_->assTextures); update(); present(); return true;
 }
 void VideoWidget::clearExternalSubtitle() {
-    if (impl_->external) { ass_free_track(impl_->external); impl_->external = nullptr; } update(); present();
+    if (impl_->external) { ass_free_track(impl_->external); impl_->external = nullptr; }
+    impl_->clearTextures(impl_->assTextures); update(); present();
 }
 void VideoWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this); painter.fillRect(rect(),Qt::black); // Empty/background only; video is SDL.

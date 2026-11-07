@@ -77,23 +77,22 @@ std::shared_ptr<const MediaInfo> publicInfo(const ::MediaInfo& n) {
         t.language, t.title, t.codec, t.isDefault, t.isForced});
     return s;
 }
-std::shared_ptr<const VideoFrame> publicFrame(const ::VideoFrame& n) {
+std::shared_ptr<const VideoFrame> publicFrame(std::shared_ptr<const ::VideoFrame> n) {
     auto f = std::make_shared<VideoFrame>();
-    f->format = n.format == ::VideoFrameFormat::Bgra32 ? VideoFrameFormat::Bgra32 : VideoFrameFormat::Yuv420P;
-    f->width = n.width; f->height = n.height; f->bytesPerLine = n.bytesPerLine;
-    f->sampleAspectRatio = {n.sampleAspectRatio.num, n.sampleAspectRatio.den}; f->rotationDegrees = n.rotationDegrees;
-    f->unsupportedHdrTransfer = n.unsupportedHdrTransfer;
-    f->colorRange = n.colorRange == AVCOL_RANGE_JPEG ? ColorRange::Full : n.colorRange == AVCOL_RANGE_MPEG ? ColorRange::Limited : ColorRange::Unknown;
-    f->colorSpace = n.colorSpace == AVCOL_SPC_BT709 ? ColorSpace::Bt709 : n.colorSpace == AVCOL_SPC_BT2020_NCL ? ColorSpace::Bt2020 :
-        n.colorSpace == AVCOL_SPC_SMPTE170M || n.colorSpace == AVCOL_SPC_BT470BG ? ColorSpace::Bt601 : ColorSpace::Unknown;
-    f->bgra = n.bgra; f->timestampMs = n.timestampMs;
-    // Copy the planes: published storage must never alias reusable decoder buffers.
-    for (std::size_t i = 0; i < n.planes.size(); ++i) {
-        const auto& p = n.planes[i];
-        if (!p.data || p.stride <= 0 || p.height <= 0) continue;
-        auto bytes = std::shared_ptr<std::uint8_t>(new std::uint8_t[static_cast<std::size_t>(p.stride) * p.height], std::default_delete<std::uint8_t[]>());
-        std::copy_n(p.data.get(), static_cast<std::size_t>(p.stride) * p.height, bytes.get());
-        f->planes[i] = {bytes, p.stride, p.height};
+    f->format = n->format == ::VideoFrameFormat::Bgra32 ? VideoFrameFormat::Bgra32 : VideoFrameFormat::Yuv420P;
+    f->width = n->width; f->height = n->height; f->bytesPerLine = n->bytesPerLine;
+    f->sampleAspectRatio = {n->sampleAspectRatio.num, n->sampleAspectRatio.den}; f->rotationDegrees = n->rotationDegrees;
+    f->unsupportedHdrTransfer = n->unsupportedHdrTransfer;
+    f->colorRange = n->colorRange == AVCOL_RANGE_JPEG ? ColorRange::Full : n->colorRange == AVCOL_RANGE_MPEG ? ColorRange::Limited : ColorRange::Unknown;
+    f->colorSpace = n->colorSpace == AVCOL_SPC_BT709 ? ColorSpace::Bt709 : n->colorSpace == AVCOL_SPC_BT2020_NCL ? ColorSpace::Bt2020 :
+        n->colorSpace == AVCOL_SPC_SMPTE170M || n->colorSpace == AVCOL_SPC_BT470BG ? ColorSpace::Bt601 : ColorSpace::Unknown;
+    if (f->format == VideoFrameFormat::Bgra32)
+        f->bgra = std::shared_ptr<const std::vector<std::uint8_t>>(n, &n->bgra);
+    f->timestampMs = n->timestampMs;
+    // The plane pointers own FFmpeg references. Retain the same backing rather than copying pixels.
+    for (std::size_t i = 0; i < n->planes.size(); ++i) {
+        const auto& p = n->planes[i];
+        f->planes[i] = {p.data, p.stride, p.height};
     }
     return f;
 }
@@ -225,7 +224,7 @@ struct Player::Impl {
         }));
         connections.emplace_back(ctl->SigVideoFrame.connect([this, sid](std::shared_ptr<::VideoFrame> f) {
             if (!f || sid != visibleSession.load()) return;
-            PlayerEvent e; e.type = PlayerEvent::Type::Video; e.session = sid; e.video = publicFrame(*f); emit(std::move(e));
+            PlayerEvent e; e.type = PlayerEvent::Type::Video; e.session = sid; e.video = publicFrame(std::move(f)); emit(std::move(e));
         }));
         connections.emplace_back(ctl->SigSubtitleFrame.connect([this, sid](std::shared_ptr<const ::SubtitleFrame> f) {
             PlayerEvent e; e.type = PlayerEvent::Type::Subtitle; e.session = sid;

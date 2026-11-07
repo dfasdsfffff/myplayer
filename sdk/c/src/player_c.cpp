@@ -210,7 +210,7 @@ int32_t PS_CALL ps_event_get_video_v1(const ps_event* e, ps_video_frame_v1* out)
     out->aspect_num = v.sampleAspectRatio.num; out->aspect_den = v.sampleAspectRatio.den; out->rotation_degrees = v.rotationDegrees;
     out->color_space = static_cast<int32_t>(v.colorSpace); out->color_range = static_cast<int32_t>(v.colorRange);
     out->unsupported_hdr_transfer = v.unsupportedHdrTransfer; out->has_timestamp = v.timestampMs.has_value(); out->timestamp_ms = v.timestampMs.value_or(0);
-    out->bgra = v.bgra.data(); out->bgra_size = v.bgra.size();
+    out->bgra = v.bgra ? v.bgra->data() : nullptr; out->bgra_size = v.bgra ? v.bgra->size() : 0;
     for (unsigned i = 0; i < 3; ++i) {
         const auto& p = v.planes[i];
         out->planes[i] = {p.data.get(), p.data && p.stride > 0 && p.height > 0 ? static_cast<uint64_t>(p.stride) * p.height : 0, p.stride, p.height};

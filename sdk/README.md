@@ -41,6 +41,8 @@ if (opened) player.play(); // 允许在 open 完成前排队 play
 
 正常退出先 `close()` 并监听 `Operation`/`Closed`，然后在非回调线程注销、析构。完整帧消费和错误处理示例见 `examples/core/main.cpp`。
 
+`VideoFrame::bgra` 是 `shared_ptr<const vector<uint8_t>>`（YUV 帧为空），YUV 平面由 `VideoPlane::data` 保持引用。像素在帧存活期间保持有效；手动构造 BGRA 帧时先填充独立的 vector，再以共享指针提交，提交后不要修改其内容。C 接口仍提供事件存活期间有效的只读像素指针。
+
 ### Qt Widgets 宿主
 
 ```cmake

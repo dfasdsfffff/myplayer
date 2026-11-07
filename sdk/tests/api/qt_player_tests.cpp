@@ -61,8 +61,9 @@ int main(int argc,char** argv) {
         VideoWidget manual(&host); manual.resize(320,240); manual.show();
         auto bgra = std::make_shared<play_core::VideoFrame>();
         bgra->width=64; bgra->height=32; bgra->bytesPerLine=64*4;
-        bgra->bgra.resize(64*32*4);
-        for (size_t i=0;i<bgra->bgra.size();i+=4) { bgra->bgra[i+1]=255; bgra->bgra[i+3]=255; }
+        auto pixelsBgra = std::make_shared<std::vector<std::uint8_t>>(64*32*4);
+        for (size_t i=0;i<pixelsBgra->size();i+=4) { (*pixelsBgra)[i+1]=255; (*pixelsBgra)[i+3]=255; }
+        bgra->bgra = pixelsBgra;
         bgra->sampleAspectRatio={2,1}; bgra->rotationDegrees=90;
         manual.setVideoFrame(bgra);
         require(wait([&] { return manual.presentedFrames()>0; }),"SDL BGRA frame not presented");
@@ -86,6 +87,23 @@ int main(int argc,char** argv) {
         }
         manual.setVideoFrame(yuv); pixels=manual.grabVideoFrame();
         require(!pixels.isNull() && qRed(pixels.pixel(200,150))>240 && qGreen(pixels.pixel(200,150))>240,"SDL IYUV limited-range upload incorrect");
+        auto subtitle=std::make_shared<play_core::SubtitleFrame>();
+        subtitle->startMs=0; subtitle->endMs=1000;
+        play_core::SubtitleBitmap bitmap;
+        bitmap.x=30; bitmap.y=14; bitmap.width=8; bitmap.height=8; bitmap.stride=32;
+        bitmap.bgra.resize(8*8*4);
+        for(size_t i=0;i<bitmap.bgra.size();i+=4) { bitmap.bgra[i+2]=255; bitmap.bgra[i+3]=255; }
+        subtitle->bitmaps.push_back(std::move(bitmap));
+        manual.setSubtitleFrame(subtitle);
+        pixels=manual.grabVideoFrame();
+        require(!pixels.isNull() && qRed(pixels.pixel(200,160))>200 && qGreen(pixels.pixel(200,160))<100,
+            "SDL bitmap subtitle not drawn");
+        pixels=manual.grabVideoFrame();
+        require(qRed(pixels.pixel(200,160))>200 && qGreen(pixels.pixel(200,160))<100,
+            "Cached subtitle lost on redraw");
+        manual.setSubtitleFrame({});
+        pixels=manual.grabVideoFrame();
+        require(qGreen(pixels.pixel(200,160))>200,"Cleared subtitle texture still drawn");
         yuv->colorSpace=play_core::ColorSpace::Bt2020; manual.setVideoFrame(yuv);
         pixels=manual.grabVideoFrame(); require(!pixels.isNull() && qGreen(pixels.pixel(200,150))>240,"SDL BT2020 fallback failed");
         manual.setVideoFrame({}); require(manual.grabVideoFrame().isNull(),"SDL clear retained stale output");

@@ -47,6 +47,7 @@ int main() {
         const play_core::MediaSource source{std::string(utf8.begin(),utf8.end())};
         Observer o;
         std::shared_ptr<const play_core::VideoFrame> retained;
+        std::uint8_t retainedPixel = 0;
         {
             play_core::Player player({play_core::HardwareDecode::Disabled});
             auto sub = player.subscribe([&](const auto& e) { o.event(e); });
@@ -58,6 +59,12 @@ int main() {
             { std::lock_guard lock(o.mutex); require(o.position <= 0,"Open advanced without play"); }
             o.wait(player.play());
             { std::unique_lock lock(o.mutex); require(o.cv.wait_for(lock,5s,[&] { return o.frame && o.position > 0; }),"No video/position"); }
+            { std::lock_guard lock(o.mutex);
+              retained = o.frame;
+              require(retained->format == play_core::VideoFrameFormat::Yuv420P && retained->planes[0].data,
+                  "Expected shared YUV frame");
+              retainedPixel = retained->planes[0].data.get()[0];
+            }
             o.wait(player.setPaused(true));
             auto seek = o.wait(player.seek(1234));
             require(seek.requestedPositionMs == 1234 && seek.actualPositionMs == 1234,"Seek lost milliseconds");
@@ -71,7 +78,7 @@ int main() {
             o.wait(player.close());
             { std::unique_lock lock(other.mutex); require(other.cv.wait_for(lock,5s,[&] { return other.frame != nullptr; }),"Closing one instance broke another"); }
             other.wait(second.close());
-            { std::lock_guard lock(o.mutex); retained = o.frame; require(o.duplicates == 0,"Duplicate terminal results"); }
+            { std::lock_guard lock(o.mutex); require(o.duplicates == 0,"Duplicate terminal results"); }
             o.wait(player.close());
             o.wait(player.open(source)); o.wait(player.close());
             sub.reset();
@@ -112,7 +119,8 @@ int main() {
             subscription.reset(); throwing.reset();
         }
         require(retained && retained->width == 64,"Retained frame invalid after destruction");
-        require(!retained->bgra.empty() || retained->planes[0].data,"Retained storage missing");
+        require((retained->bgra && !retained->bgra->empty()) || retained->planes[0].data,"Retained storage missing");
+        require(retained->planes[0].data.get()[0] == retainedPixel,"Retained pixel changed after decoder reuse and close");
         std::filesystem::remove_all(dir);
         std::cout << "SDK lifecycle, precision, session replacement, multi-instance and retained frames passed\n";
         return 0;
