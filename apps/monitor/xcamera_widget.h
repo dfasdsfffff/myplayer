@@ -17,8 +17,12 @@ public:
   // driven by CoreVideoWidget itself.
   void Draw();
 
+public slots:
+  void stop() override;
+
 signals:
   void cameraAssigned(const QString& name);
+  void previewClosed();
 
 protected:
   void paintEvent(QPaintEvent *event) override;

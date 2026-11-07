@@ -87,6 +87,7 @@ void XViewer::view(int count) {
   for (; i < count; ++i) {
     if (!cam_wids[i]) {
       cam_wids[i] = new XCameraWidget(this);
+      cam_wids[i]->setObjectName(QStringLiteral("preview%1").arg(i + 1));
       cam_wids[i]->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
       auto *card = new QWidget(ui->cams);
       card->setObjectName(QStringLiteral("channelCard"));
@@ -97,14 +98,26 @@ void XViewer::view(int count) {
       cardLayout->setSpacing(0);
       auto *title = new QLabel(QStringLiteral("%1    未分配通道").arg(i + 1, 2, 10, QLatin1Char('0')), card);
       title->setObjectName(QStringLiteral("channelTitle"));
-      title->setMinimumHeight(38);
-      title->setContentsMargins(12, 0, 12, 0);
-      cardLayout->addWidget(title);
+      title->setFixedHeight(24);
+      title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+      title->setContentsMargins(6, 0, 6, 0);
+      auto *header = new QHBoxLayout;
+      header->setContentsMargins(0, 0, 2, 0);
+      header->setSpacing(4);
+      header->addWidget(title, 1);
+      auto *closePreview = new QPushButton(QStringLiteral("×"), card);
+      closePreview->setObjectName(QStringLiteral("closePreview%1").arg(i + 1));
+      closePreview->setProperty("previewClose", true);
+      closePreview->setFixedSize(22, 22);
+      closePreview->setAccessibleName(QStringLiteral("关闭预览"));
+      closePreview->setToolTip(QStringLiteral("仅关闭此路预览，不影响设备配置和录制"));
+      header->addWidget(closePreview);
+      cardLayout->addLayout(header);
       cardLayout->addWidget(cam_wids[i], 1);
       auto *state = new QLabel(QStringLiteral("等待设备接入"), card);
       state->setObjectName(QStringLiteral("channelState"));
-      state->setMinimumHeight(30);
-      state->setContentsMargins(12, 0, 12, 0);
+      state->setFixedHeight(18);
+      state->setContentsMargins(6, 0, 6, 0);
       cardLayout->addWidget(state);
       connect(cam_wids[i], &XCameraWidget::cameraAssigned, title, [title, i](const QString &name) {
         title->setText(QStringLiteral("%1    %2").arg(i + 1, 2, 10, QLatin1Char('0')).arg(name));
@@ -116,6 +129,12 @@ void XViewer::view(int count) {
       connect(cam_wids[i], &XCameraWidget::cameraAssigned, state, [state] {
         state->setProperty("failed", false);
         state->setText(QStringLiteral("正在连接…"));
+      });
+      connect(closePreview, &QPushButton::clicked, cam_wids[i], &XCameraWidget::stop);
+      connect(cam_wids[i], &XCameraWidget::previewClosed, card, [title, state, i] {
+        title->setText(QStringLiteral("%1    未分配通道").arg(i + 1, 2, 10, QLatin1Char('0')));
+        state->setProperty("failed", false);
+        state->setText(QStringLiteral("等待设备接入"));
       });
     }
     lay->addWidget(channel_cards_[i], i / rows, i % cols);
@@ -132,24 +151,58 @@ void XViewer::view(int count) {
 
 void XViewer::RefreshCams() {
   auto c = XCameraConfig::Instance();
-  ui->cam_list->clear();
-  int count = c->GetCamCount();
-  for (int i = 0; i < count; ++i) {
-    auto cam = c->GetCam(i);
-    auto item =
-        new QListWidgetItem(QIcon(":/img/cam.png"), C(cam.name), ui->cam_list);
-    const QString host = QUrl(C(cam.url)).host();
-    item->setText(QStringLiteral("%1%4CAM-%2%3").arg(C(cam.name)).arg(i + 1, 2, 10, QLatin1Char('0'))
-        .arg(host.isEmpty() ? QString() : QStringLiteral(" · %1").arg(host)).arg(QChar(10)));
-    item->setToolTip(C(cam.name));
-    item->setSizeHint(QSize(180, 62));
-    item->setData(Qt::UserRole, i);
-    ui->cam_list->addItem(item);
+  std::map<int, Qt::CheckState> checked;
+  const int current = ui->cam_list->currentRow();
+  for (int row = 0; row < ui->cam_list->count(); ++row) {
+    const auto *item = ui->cam_list->item(row);
+    checked[item->data(Qt::UserRole).toInt()] = item->checkState();
   }
-  if (device_summary_) device_summary_->setText(QStringLiteral("全部设备    /    %1 台已配置").arg(count));
+  {
+    const QSignalBlocker blocker(ui->cam_list);
+    ui->cam_list->clear();
+    const int count = c->GetCamCount();
+    for (int i = 0; i < count; ++i) {
+      const auto cam = c->GetCam(i);
+      auto *item = new QListWidgetItem(QIcon(":/img/cam.png"), C(cam.name), ui->cam_list);
+      item->setSizeHint(QSize(180, 78));
+      item->setData(Qt::UserRole, i);
+      item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+      const auto found = checked.find(i);
+      item->setCheckState(found == checked.end() ? Qt::Unchecked : found->second);
+    }
+    if (current >= 0 && count > 0)
+      ui->cam_list->setCurrentRow(qMin(current, count - 1));
+    if (device_summary_)
+      device_summary_->setText(QStringLiteral("全部设备    /    %1 台已配置").arg(count));
+    RefreshRecordingState();
+  }
+  if (recording_summary_ && ui->playback_wid->isVisible())
+    RefreshRecordings();
+}
+
+void XViewer::RefreshRecordingState() {
+  for (int row = 0; row < ui->cam_list->count(); ++row) {
+    auto *item = ui->cam_list->item(row);
+    const int index = item->data(Qt::UserRole).toInt();
+    const auto cam = XCameraConfig::Instance()->GetCam(index);
+    const QString host = QUrl(C(cam.url)).host();
+    const bool active = records.contains(index);
+    item->setText(QStringLiteral("%1\nCAM-%2%3\n%4")
+        .arg(C(cam.name)).arg(index + 1, 2, 10, QLatin1Char('0'))
+        .arg(host.isEmpty() ? QString() : QStringLiteral(" · %1").arg(host))
+        .arg(active ? QStringLiteral("录制任务运行中 · 连接/重试")
+                    : QStringLiteral("未启动录制")));
+    item->setToolTip(active
+        ? QStringLiteral("%1\n录制任务已启动；连接、写入或重试由后台处理，尚未确认文件写入。").arg(C(cam.name))
+        : QStringLiteral("%1\n勾选仅指定录制操作目标，不会自动启停。").arg(C(cam.name)));
+  }
 }
 
 void XViewer::SetCam(int index) {
+  if (records.contains(index)) {
+    ui->status->setText(QStringLiteral("请先停止该设备的录制任务，再编辑配置。"));
+    return;
+  }
   auto c = XCameraConfig::Instance();
   QDialog dlg(this);
   dlg.resize(800, 200);
@@ -264,6 +317,7 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
     QMenu::item:selected { background: #233c31; }
     QWidget#channelCard { background: #181e25; border: 1px solid #303b48; border-radius: 6px; }
     QLabel#channelTitle { color: #e5edf3; background: #222d39; font-weight: bold; }
+    QPushButton[previewClose="true"] { padding: 0; border: none; border-radius: 3px; font-size: 16px; }
     QLabel#channelState { color: #8395a7; background: #181e25; font-size: 11px; }
     QScrollArea { border: none; }
     QCalendarWidget QWidget { background: #1b2530; color: #cad5df; }
@@ -342,6 +396,7 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   }
   ui->horizontalLayout->setSpacing(4);
   auto *refreshDevices = new QPushButton(QStringLiteral("↻  刷新设备"), ui->left);
+  refreshDevices->setObjectName(QStringLiteral("refreshDevices"));
   sideLayout->addWidget(refreshDevices);
   connect(refreshDevices, &QPushButton::clicked, this, [this, search] {
     RefreshCams();
@@ -392,12 +447,18 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
     connect(button, &QPushButton::clicked, this, [this, count] { view(count); });
   }
   toolbar->addStretch();
-  auto *recordButton = new QPushButton(QStringLiteral("● 录像"), live_workspace_);
+  auto *recordButton = new QPushButton(QStringLiteral("● 录制勾选"), live_workspace_);
+  recordButton->setObjectName(QStringLiteral("startSelectedRecording"));
   toolbar->addWidget(recordButton);
   connect(recordButton, &QPushButton::clicked, this, &XViewer::StartRecord);
-  auto *stopButton = new QPushButton(QStringLiteral("停止"), live_workspace_);
+  auto *stopButton = new QPushButton(QStringLiteral("停止勾选"), live_workspace_);
+  stopButton->setObjectName(QStringLiteral("stopSelectedRecording"));
   toolbar->addWidget(stopButton);
-  connect(stopButton, &QPushButton::clicked, this, &XViewer::StopRecord);
+  connect(stopButton, &QPushButton::clicked, this, &XViewer::StopSelectedRecord);
+  auto *stopAllButton = new QPushButton(QStringLiteral("全部停止"), live_workspace_);
+  stopAllButton->setObjectName(QStringLiteral("stopAllRecording"));
+  toolbar->addWidget(stopAllButton);
+  connect(stopAllButton, &QPushButton::clicked, this, &XViewer::StopRecord);
   auto *fullscreen = new QPushButton(QStringLiteral("⛶ 全屏"), live_workspace_);
   toolbar->addWidget(fullscreen);
   connect(fullscreen, &QPushButton::clicked, this, [this] {
@@ -512,8 +573,10 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   connect(a, &QAction::triggered, this, &XViewer::view9);
   a = contextViewMenu->addAction("16窗口");
   connect(a, &QAction::triggered, this, &XViewer::view16);
-  a = left_menu_->addAction("全部开始录制");
+  a = left_menu_->addAction("录制勾选设备");
   connect(a, &QAction::triggered, this, &XViewer::StartRecord);
+  a = left_menu_->addAction("停止勾选设备");
+  connect(a, &QAction::triggered, this, &XViewer::StopSelectedRecord);
   a = left_menu_->addAction("全部停止录制");
   connect(a, &QAction::triggered, this, &XViewer::StopRecord);
   const int savedLayout = QSettings(QStringLiteral("MyPlayer"), QStringLiteral("Monitor")).value(QStringLiteral("live/layout"), 4).toInt();
@@ -585,6 +648,10 @@ void XViewer::SetCam() {
 }
 
 void XViewer::DelCam() {
+  if (!records.empty()) {
+    ui->status->setText(QStringLiteral("请先停止全部录制任务，再删除设备，以免设备索引变化。"));
+    return;
+  }
   int row = ui->cam_list->currentRow();
   if (row < 0) {
     QMessageBox::information(this, "提示", "前选择摄像机");
@@ -598,6 +665,9 @@ void XViewer::DelCam() {
   if (button == QMessageBox::Yes) {
     auto c = XCameraConfig::Instance();
     c->DelCam(row);
+    delete ui->cam_list->takeItem(row);
+    for (int i = row; i < ui->cam_list->count(); ++i)
+      ui->cam_list->item(i)->setData(Qt::UserRole, i);
     if (!c->Save())
       QMessageBox::warning(this, QStringLiteral("配置保存失败"),
           QStringLiteral("无法保存设备配置，请检查目录写入权限：\n%1\n本次修改仅在当前进程中生效。")
@@ -607,35 +677,66 @@ void XViewer::DelCam() {
 }
 
 void XViewer::StartRecord() {
-  StopRecord();
-  ui->status->setText("正在录制...");
-  // 获取录制列表
-  auto conf = XCameraConfig::Instance();
-  int count = conf->GetCamCount();
-  QDir dir;
-  for (int i = 0; i < count; i++) {
-    auto cam = conf->GetCam(i);
-    stringstream ss;
-    ss << cam.save_path << "/" << i << "/";
-    dir.mkpath(QString::fromStdString(ss.str()));
-    XCameraRecord *record = new XCameraRecord();
+  auto *conf = XCameraConfig::Instance();
+  int selected = 0;
+  int started = 0;
+  QStringList failures;
+  for (int row = 0; row < ui->cam_list->count(); ++row) {
+    const auto *item = ui->cam_list->item(row);
+    if (item->checkState() != Qt::Checked) continue;
+    ++selected;
+    const int index = item->data(Qt::UserRole).toInt();
+    if (records.contains(index)) continue;
+    const auto cam = conf->GetCam(index);
+    const QString path = QDir(C(cam.save_path)).filePath(QString::number(index));
+    if (!QDir().mkpath(path)) {
+      failures.push_back(QStringLiteral("%1：无法创建目录 %2").arg(C(cam.name), QDir::toNativeSeparators(path)));
+      continue;
+    }
+    auto *record = new XCameraRecord();
     record->set_rtsp_url(cam.url);
-    record->set_save_path(ss.str());
+    record->set_save_path(path.toLocal8Bit().toStdString());
     record->set_file_sec(120);
     record->Start();
-    records.push_back(record);
+    records.emplace(index, record);
+    ++started;
   }
-  // 创建录制目录
-  // 分别开始录制线程
+  RefreshRecordingState();
+  if (selected == 0)
+    ui->status->setText(QStringLiteral("请先勾选要录制的设备。"));
+  else if (!failures.isEmpty())
+    ui->status->setText(QStringLiteral("已新增 %1 个录制任务；%2").arg(started).arg(failures.join(QStringLiteral("；"))));
+  else
+    ui->status->setText(QStringLiteral("新增 %1 个任务，共 %2 个任务运行中（连接/重试，未确认写入）；已有任务未重启。")
+        .arg(started).arg(records.size()));
+}
+
+void XViewer::StopSelectedRecord() {
+  int selected = 0;
+  int stopped = 0;
+  for (int row = 0; row < ui->cam_list->count(); ++row) {
+    const auto *item = ui->cam_list->item(row);
+    if (item->checkState() != Qt::Checked) continue;
+    ++selected;
+    const auto found = records.find(item->data(Qt::UserRole).toInt());
+    if (found == records.end()) continue;
+    delete found->second; // Destructor interrupts I/O and joins the worker.
+    records.erase(found);
+    ++stopped;
+  }
+  RefreshRecordingState();
+  ui->status->setText(selected == 0 ? QStringLiteral("请先勾选要停止录制的设备。")
+      : QStringLiteral("已停止 %1 个勾选任务，剩余 %2 个录制任务。").arg(stopped).arg(records.size()));
+  if (recording_summary_ && ui->playback_wid->isVisible())
+    RefreshRecordings();
 }
 
 void XViewer::StopRecord() {
-  ui->status->setText("已停止录制");
-  for (auto record : records) {
-    record->Stop();
+  for (const auto &[index, record] : records)
     delete record;
-  }
   records.clear();
+  RefreshRecordingState();
+  ui->status->setText(QStringLiteral("全部录制任务已停止"));
   if (recording_summary_ && ui->playback_wid->isVisible())
     RefreshRecordings();
 }

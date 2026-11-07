@@ -37,7 +37,22 @@ void CoreVideoWidget::paintEvent(QPaintEvent* event) {
     painter.drawText(QRect(8,0,width()-16,20),Qt::AlignVCenter,tr("预览窗口"));
     painter.setPen(QColor("#8996a3")); painter.drawText(rect(),Qt::AlignCenter,tr("拖入摄像机开始预览"));
 }
-void CoreVideoWidget::stop() { if (player_) player_->close(); setVideoFrame({}); hasFrame_ = false; paused_ = false; duration_ = position_ = 0; }
+void CoreVideoWidget::stop() {
+    // QtPlayer::close() is asynchronous: detach before destroying the session so
+    // pending GUI deliveries cannot restore a frame or error after the reset.
+    setPlayer(nullptr);
+    auto* previous = player_;
+    player_ = nullptr;
+    delete previous;
+    setVideoFrame({});
+    setSubtitleFrame({});
+    hasFrame_ = false;
+    paused_ = false;
+    duration_ = position_ = 0;
+    emit durationChanged(duration_);
+    emit positionChanged(position_);
+    emit pausedChanged(paused_);
+}
 void CoreVideoWidget::togglePause() { if (player_) player_->setPaused(!paused_); }
 void CoreVideoWidget::seek(double fraction) {
     if (player_ && std::isfinite(fraction)) {

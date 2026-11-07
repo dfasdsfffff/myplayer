@@ -19,6 +19,11 @@ XCameraWidget::XCameraWidget(QWidget *parent) : CoreVideoWidget(parent) {
   setAcceptDrops(true);
 }
 
+void XCameraWidget::stop() {
+  CoreVideoWidget::stop();
+  emit previewClosed();
+}
+
 void XCameraWidget::dragEnterEvent(QDragEnterEvent *event) {
   auto *cameraList = event
                             ? qobject_cast<QListWidget *>(event->source())

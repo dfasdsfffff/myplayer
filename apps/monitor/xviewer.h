@@ -52,8 +52,10 @@ private slots:
 	void SetCam();
 	// 删除
 	void DelCam();
-	// 开始全部摄像头录制
+	// 开始勾选摄像头录制（已有任务保持运行）
 	void StartRecord();
+	// 停止勾选摄像头录制
+	void StopSelectedRecord();
 	// 停止全部摄像头录制
 	void StopRecord();
 	// 处理tab的预览按钮的点击事件
@@ -74,6 +76,7 @@ private:
     QLabel* device_summary_ = nullptr;
     std::array<QWidget*, 16> channel_cards_{};
     int current_layout_ = 4;
+	void RefreshRecordingState();
 	void RefreshRecordings();
     void SetupPlaybackUi();
     void ResetPlayback();
@@ -94,7 +97,7 @@ private:
 	QLabel* recording_empty_ = nullptr;
 	Ui::XViewer* ui;
 	std::array<XCameraWidget*, 16> cam_wids{};
-	std::vector<XCameraRecord*> records;
+	std::map<int, XCameraRecord*> records;
 	struct XCamVideo { QString filepath; QDateTime datetime; };
 	std::map<QDate, std::vector<XCamVideo>> cam_videos;
 	QMenu* left_menu_ = nullptr;

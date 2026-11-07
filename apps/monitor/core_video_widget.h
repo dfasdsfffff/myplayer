@@ -7,7 +7,7 @@ public:
     explicit CoreVideoWidget(QWidget* parent = nullptr);
     ~CoreVideoWidget() override;
     bool open(const QString& location, bool muted = true);
-    void stop();
+    virtual void stop();
     void togglePause();
     void seek(double fraction);
     void setSpeed(double speed);
