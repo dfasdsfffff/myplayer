@@ -740,6 +740,7 @@ void MainWid::OnPlayFile(QString strFileName)
 {
 	++m_playbackGeneration;
 	FlushPlaybackPosition();
+	ui->ShowWid->UnloadExternalSubtitleFile();
 
 	if (IsNetworkMediaLocation(strFileName))
 	{

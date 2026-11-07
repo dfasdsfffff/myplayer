@@ -87,6 +87,19 @@ int main(int argc,char** argv) {
         }
         manual.setVideoFrame(yuv); pixels=manual.grabVideoFrame();
         require(!pixels.isNull() && qRed(pixels.pixel(200,150))>240 && qGreen(pixels.pixel(200,150))>240,"SDL IYUV limited-range upload incorrect");
+        auto fullRangeY = std::shared_ptr<uint8_t>(new uint8_t[64*32],std::default_delete<uint8_t[]>());
+        std::fill_n(fullRangeY.get(),64*32,32);
+        yuv->planes[0]={fullRangeY,64,32};
+        yuv->colorRange=play_core::ColorRange::Full;
+        SDL_SetYUVConversionMode(SDL_YUV_CONVERSION_BT601);
+        manual.setVideoFrame(yuv); pixels=manual.grabVideoFrame();
+        require(!pixels.isNull() && std::abs(qRed(pixels.pixel(200,150))-32)<5,
+            "SDL IYUV full-range upload used the wrong conversion mode");
+        require(SDL_GetYUVConversionMode()==SDL_YUV_CONVERSION_BT601,
+            "Video widget did not restore SDL YUV conversion mode");
+        yuv->colorRange=play_core::ColorRange::Limited;
+        std::fill_n(fullRangeY.get(),64*32,235);
+        manual.setVideoFrame(yuv);
         auto subtitle=std::make_shared<play_core::SubtitleFrame>();
         subtitle->startMs=0; subtitle->endMs=1000;
         play_core::SubtitleBitmap bitmap;

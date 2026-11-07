@@ -80,6 +80,13 @@ endif()
 option(MONITOR_BUILD_TESTS "Build multi-channel playback and recording integration tests" OFF)
 if(MONITOR_BUILD_TESTS)
     enable_testing()
+    qt_add_executable(monitor_startup_tests monitor_startup_tests.cpp core_video_widget.cpp core_video_widget.h)
+    target_link_libraries(monitor_startup_tests PRIVATE PlayerSDK::QtWidgets)
+    if(MSVC)
+        target_compile_options(monitor_startup_tests PRIVATE /utf-8)
+    endif()
+    add_test(NAME monitor_startup_tests COMMAND monitor_startup_tests)
+    set_tests_properties(monitor_startup_tests PROPERTIES TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_AUDIODRIVER=codex-invalid-audio-driver")
     qt_add_executable(monitor_integration_tests
         monitor_integration_tests.cpp
         core_video_widget.cpp core_video_widget.h

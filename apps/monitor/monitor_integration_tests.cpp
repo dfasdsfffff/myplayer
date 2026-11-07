@@ -3,8 +3,10 @@
 #include "xcamera_record.h"
 #include "media_fixture_builder.h"
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QGridLayout>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QTimer>
 #include <filesystem>
 #include <iostream>
@@ -54,18 +56,24 @@ int main(int argc, char** argv) {
     recorder.set_file_sec(2);
     recorder.Start();
     QTimer::singleShot(1500, &app, [&] {
-        for (const auto* pane : panes)
-            if (!pane->hasFrame() || pane->presentedFrames() == 0) ++errors;
+        for (size_t i = 0; i < panes.size(); ++i)
+            if (!panes[i]->hasFrame() || panes[i]->presentedFrames() == 0) { std::cerr << "No initial frame in pane " << i << '\n'; ++errors; }
         for (int i = 8; i < 16; ++i) delete panes[i];
         panes.resize(8);
-        if (!panes[0]->open(source, true)) ++errors;
+        if (!panes[0]->open(source, true)) { std::cerr << "Source replacement rejected\n"; ++errors; }
         recorder.Stop();
     });
     QTimer::singleShot(3000, &app, [&] {
-        if (!audioDisabledRejected.load(std::memory_order_acquire)) ++errors;
+        if (!audioDisabledRejected.load(std::memory_order_acquire)) { std::cerr << "Audio-disabled source did not report error\n"; ++errors; }
         audioDisabledRuntime.close();
-        for (const auto* pane : panes)
-            if (!pane->hasFrame() || pane->presentedFrames() == 0) ++errors;
+        QElapsedTimer replacementWait;
+        replacementWait.start();
+        while (!panes[0]->hasFrame() && replacementWait.elapsed() < 2000) {
+            app.processEvents();
+            QThread::msleep(2);
+        }
+        for (size_t i = 0; i < panes.size(); ++i)
+            if (!panes[i]->hasFrame() || panes[i]->presentedFrames() == 0) { std::cerr << "No final frame in pane " << i << '\n'; ++errors; }
         for (auto* pane : panes) pane->stop();
         int clips = 0;
         for (const auto& entry : std::filesystem::directory_iterator(root / "recordings")) {

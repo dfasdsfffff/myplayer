@@ -2,6 +2,7 @@
 
 #include "mainwid.h"
 #include "ctrlbar.h"
+#include "show.h"
 
 #include <QAction>
 #include <QApplication>
@@ -14,6 +15,7 @@
 #include <QPushButton>
 #include <QSlider>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QTimer>
 
 #include <iostream>
@@ -152,6 +154,18 @@ int main(int argc, char* argv[])
     if (!Expect(hideTimer && fullScreenAction && ctrlBar && show,
             "full-screen controls and cancellable hide timer are discoverable"))
         return 1;
+
+    QTemporaryDir subtitleDir;
+    const QString subtitlePath = subtitleDir.filePath(QStringLiteral("old.srt"));
+    QFile subtitleFile(subtitlePath);
+    if (!Expect(subtitleDir.isValid() && subtitleFile.open(QIODevice::WriteOnly),
+            "subtitle fixture can be created")) return 1;
+    subtitleFile.write("1\n00:00:00,000 --> 00:00:05,000\nOld subtitle\n");
+    subtitleFile.close();
+    Show isolatedShow(nullptr);
+    if (!Expect(isolatedShow.LoadExternalSubtitleFile(subtitlePath), "external subtitle loads")) return 1;
+    isolatedShow.OnPlay(QStringLiteral("next.mp4"));
+    if (!Expect(!isolatedShow.HasExternalSubtitle(), "new media clears the previous external subtitle")) return 1;
 
     fullScreenAction->trigger();
     QEvent leaveEvent(QEvent::Leave);

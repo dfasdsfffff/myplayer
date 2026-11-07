@@ -24,7 +24,7 @@ signals:
 protected:
     void paintEvent(QPaintEvent* event) override;
 private:
-    player_sdk_qt::QtPlayer* player_;
+    player_sdk_qt::QtPlayer* player_{nullptr};
     bool paused_{false}, hasFrame_{false};
     qint64 duration_{0}, position_{0};
 };

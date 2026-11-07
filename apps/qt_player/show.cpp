@@ -48,7 +48,7 @@ void Show::keyReleaseEvent(QKeyEvent* event) {
     }
 }
 void Show::mousePressEvent(QMouseEvent* event) { if (event->buttons() & Qt::RightButton) emit SigShowMenu(); QWidget::mousePressEvent(event); }
-void Show::OnPlay(QString file) { if (m_playbackController && !file.isEmpty()) m_playbackController->play(file.toUtf8().toStdString()); }
+void Show::OnPlay(QString file) { if (!file.isEmpty()) view_->clearExternalSubtitle(); if (m_playbackController && !file.isEmpty()) m_playbackController->play(file.toUtf8().toStdString()); }
 void Show::OnStopFinished() { view_->setVideoFrame({}); view_->setSubtitleFrame({}); view_->clearExternalSubtitle(); ClearAudioOnlyIndicator(); }
 void Show::ShowAudioOnly(const QString& location) {
     view_->setVideoFrame({}); view_->hide(); m_audioOnlyActive = true;

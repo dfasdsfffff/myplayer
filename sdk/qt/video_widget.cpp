@@ -189,9 +189,17 @@ struct VideoWidget::Impl {
         return bitmap;
     }
     bool render(QSize size,bool capture = false) {
-        if (!frame || size.isEmpty() || !ensureVideo(size) || !upload()) return false;
-        int width=size.width(),height=size.height(); SDL_GetRendererOutputSize(videoRenderer,&width,&height);
+        if (!frame || size.isEmpty() || !ensureVideo(size)) return false;
         const auto& f = *frame;
+        // SDL's software renderer converts YUV while uploading the texture.
+        struct ConversionModeGuard {
+            SDL_YUV_CONVERSION_MODE previous{SDL_GetYUVConversionMode()};
+            ~ConversionModeGuard() { SDL_SetYUVConversionMode(previous); }
+        } modeGuard;
+        SDL_SetYUVConversionMode(f.colorRange == play_core::ColorRange::Full ? SDL_YUV_CONVERSION_JPEG :
+            f.colorSpace == play_core::ColorSpace::Bt709 ? SDL_YUV_CONVERSION_BT709 : SDL_YUV_CONVERSION_BT601);
+        if (!upload()) return false;
+        int width=size.width(),height=size.height(); SDL_GetRendererOutputSize(videoRenderer,&width,&height);
         const double sar = f.sampleAspectRatio.num>0 && f.sampleAspectRatio.den>0 ? double(f.sampleAspectRatio.num)/f.sampleAspectRatio.den : 1.;
         const double angle = std::isfinite(f.rotationDegrees) ? f.rotationDegrees : 0;
         const double radians = angle * 3.14159265358979323846 / 180.;
@@ -203,14 +211,9 @@ struct VideoWidget::Impl {
             std::max(1,static_cast<int>(std::lround(cw*scale))),std::max(1,static_cast<int>(std::lround(ch*scale)))};
         SDL_SetRenderDrawColor(videoRenderer,0,0,0,255);
         if (SDL_RenderClear(videoRenderer) != 0) return false;
-        // SDL2 conversion mode is global: set/restore around each synchronous
-        // draw on the QObject GUI thread so mixed-color multi-view playback works.
-        const auto oldMode = SDL_GetYUVConversionMode();
-        SDL_SetYUVConversionMode(f.colorRange == play_core::ColorRange::Full ? SDL_YUV_CONVERSION_JPEG :
-            f.colorSpace == play_core::ColorSpace::Bt709 ? SDL_YUV_CONVERSION_BT709 : SDL_YUV_CONVERSION_BT601);
+        // SDL2 conversion mode is global; this draw stays on the QObject GUI thread.
         const int copied = SDL_RenderCopyEx(videoRenderer,texture,nullptr,&target,angle,nullptr,SDL_FLIP_NONE);
         SDL_RenderFlush(videoRenderer);
-        SDL_SetYUVConversionMode(oldMode);
         if (copied != 0) return false;
         if (!external && subtitle && position >= subtitle->startMs && position <= subtitle->endMs) {
             for (size_t i=0;i<subtitle->bitmaps.size();++i) {
