@@ -123,7 +123,6 @@ signals:
     void SigSeekBack();
     void SigAddVolume();
     void SigSubVolume();
-    void SigPlayOrPause();
     void SigOpenFile(QString strFilename);
 private:
     friend int RunPlaybackBenchmark(QApplication& application, const PlaybackBenchmarkOptions& options);

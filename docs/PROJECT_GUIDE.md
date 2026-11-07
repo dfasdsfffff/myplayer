@@ -120,7 +120,7 @@ SDK 自身公开错误不返回原始带凭据 URL；`RedactMediaLocation` 保�
 - 公开 SDK：`sdk/tests/api`，测试受理/终结、生命周期、毫秒、UTF-8、慢回调/队列预算、异常、保留帧、SDL 共存；Qt 测真实画面、字幕、UI 卡顿、双向销毁。
 - 外部宿主：`sdk/tests/consumer` 可复制出仓库测试 Core/Qt targets 和宿主构建隔离；`scripts/package-sdk.cmake` 验证最小源码发行。
 - 私有管线：队列/时钟、decoder/reader、audio、hardware、seek/track、media compatibility、network integration；历史 Runtime 仅供这些白盒测试。
-- 应用：设置/列表/隐私/主窗口、`show_widget_tests`（源码契约，不等于真实 UI）、监控 16 路预览/切换/销毁/分段录制、无效音频驱动启动回退和 smoke。
+- 应用：设置/列表/隐私/主窗口；`main_window_behavior_tests` 验证关闭菜单时 Ctrl+O、Enter 单次切换全屏及视频/音频占位层互斥。监控覆盖 16 路预览/切换/销毁/分段录制、无效音频驱动启动回退和 smoke。不再用源码字符串断言替代 UI 行为测试。
 - 旧 SDL subtitle renderer 和邮箱仅保留为 `tests/support` 回归夹具，不参与应用或 SDK 显示。
 - 修改打开/派发/状态从 `sdk/core/src/player.cpp` 和 `sdk/qt/qt_player.cpp` 入手；具体 I/O/取消见 `stream_reader`、`network_input`、`reconnect_controller`、`VideoCtl::LoopThread`。
 - 修改色彩/显示/字幕从共享 `qt/video_widget.cpp` 入手，不再分别修改两套应用 renderer。字幕解码另查 `decoder_workers` 与 `subtitle_dispatcher`。

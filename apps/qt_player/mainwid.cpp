@@ -222,8 +222,6 @@ bool MainWid::ConnectSignalSlots()
 	connect(&m_stPlaylist, &Playlist::SigPlay, this, &MainWid::OnPlayFile, Qt::QueuedConnection);
 
 	connect(ui->ShowWid, &Show::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
-	connect(ui->ShowWid, &Show::SigFullScreen, this, &MainWid::OnFullScreenPlay);
-	connect(ui->ShowWid, &Show::SigPlayOrPause, this, [this]() { m_playbackController->pause(); });
 	connect(ui->ShowWid, &Show::SigStop, this, [this]() { m_playbackController->stop(); });
 	connect(ui->ShowWid, &Show::SigShowMenu, this, &MainWid::OnShowMenu);
 	connect(ui->ShowWid, &Show::SigSeekForward, this, [this]() { m_playbackController->seekForward(); });
@@ -306,9 +304,6 @@ void MainWid::keyReleaseEvent(QKeyEvent* event)
 {
 	switch (event->key())
 	{
-	case Qt::Key_Return://全屏
-		OnFullScreenPlay();
-		break;
 	case Qt::Key_Left://后退5s
 		emit SigSeekBack();
 		break;
@@ -320,9 +315,6 @@ void MainWid::keyReleaseEvent(QKeyEvent* event)
 		break;
 	case Qt::Key_Down://减少10音量
 		emit SigSubVolume();
-		break;
-	case Qt::Key_Space://减少10音量
-		emit SigPlayOrPause();
 		break;
 
 	default:
@@ -992,7 +984,15 @@ void MainWid::ConnectMenuAction(QAction* action, const QString& actionText, cons
 		return;
 
 	if (!hotKey.isEmpty())
-		action->setShortcut(QKeySequence(hotKey));
+	{
+		if (functionName == "ToggleFullscreen")
+			action->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
+		else
+			action->setShortcut(QKeySequence(hotKey));
+		addAction(action);
+		ui->ShowWid->addAction(action);
+		ui->CtrlBarWid->addAction(action);
+	}
 
 	if (functionName == "OpenFile")
 		connect(action, &QAction::triggered, this, &MainWid::OpenFile);

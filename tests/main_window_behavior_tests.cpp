@@ -8,6 +8,9 @@
 #include <QApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileDialog>
+#include <QKeyEvent>
+#include <QLabel>
 #include <QGuiApplication>
 #include <QMenu>
 #include <QMouseEvent>
@@ -67,6 +70,7 @@ int main(int argc, char* argv[])
 #ifdef Q_OS_WIN
     SetErrorMode(SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS);
 #endif
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
     QStandardPaths::setTestModeEnabled(true);
     const QString configFile = QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation))
@@ -78,6 +82,45 @@ int main(int argc, char* argv[])
         return 1;
     window.show();
     app.processEvents();
+    window.activateWindow();
+    window.setFocus();
+    app.processEvents();
+
+    bool openDialogShown = false;
+    QTimer::singleShot(0, &window, [&]() {
+        for (QWidget* widget : QApplication::topLevelWidgets()) {
+            if (auto* dialog = qobject_cast<QFileDialog*>(widget); dialog && dialog->isVisible()) {
+                openDialogShown = true;
+                dialog->reject();
+            }
+        }
+    });
+    QKeyEvent openKey(QEvent::KeyPress, Qt::Key_O, Qt::ControlModifier);
+    QApplication::sendEvent(&window, &openKey);
+    QKeyEvent openKeyRelease(QEvent::KeyRelease, Qt::Key_O, Qt::ControlModifier);
+    QApplication::sendEvent(&window, &openKeyRelease);
+    app.processEvents();
+    if (!Expect(openDialogShown, "Ctrl+O opens a file dialog while the popup menu is closed"))
+        return 1;
+
+    window.activateWindow();
+    window.setFocus();
+    app.processEvents();
+    auto* fullscreenSurface = window.findChild<Show*>(QStringLiteral("ShowWid"));
+    if (!Expect(fullscreenSurface, "fullscreen playback surface is available"))
+        return 1;
+    QKeyEvent fullscreenPress(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QKeyEvent fullscreenRelease(QEvent::KeyRelease, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(&window, &fullscreenPress);
+    QApplication::sendEvent(&window, &fullscreenRelease);
+    if (!Expect(fullscreenSurface->isFullScreen(), "one Enter key cycle enters fullscreen exactly once"))
+        return 1;
+    fullscreenSurface->activateWindow();
+    app.processEvents();
+    QApplication::sendEvent(fullscreenSurface, &fullscreenPress);
+    QApplication::sendEvent(fullscreenSurface, &fullscreenRelease);
+    if (!Expect(!fullscreenSurface->isFullScreen(), "a second Enter key cycle leaves fullscreen"))
+        return 1;
 
     QMenu* menu = RootMenu(window);
     if (!Expect(menu, "main window exposes its context menu"))
@@ -166,6 +209,33 @@ int main(int argc, char* argv[])
     if (!Expect(isolatedShow.LoadExternalSubtitleFile(subtitlePath), "external subtitle loads")) return 1;
     isolatedShow.OnPlay(QStringLiteral("next.mp4"));
     if (!Expect(!isolatedShow.HasExternalSubtitle(), "new media clears the previous external subtitle")) return 1;
+
+    isolatedShow.show();
+    app.processEvents();
+    auto* audioLabel = isolatedShow.findChild<QLabel*>(QStringLiteral("label"));
+    auto* videoView = isolatedShow.findChild<player_sdk_qt::VideoWidget*>();
+    if (!Expect(audioLabel && videoView, "media display surfaces are available"))
+        return 1;
+    if (!Expect(!audioLabel->isVisible() && videoView->isVisible(),
+            "video surface is not covered by the opaque audio placeholder"))
+        return 1;
+    isolatedShow.ShowAudioOnly(QStringLiteral("track.wav"));
+    if (!Expect(audioLabel->isVisible() && !videoView->isVisible() &&
+                    audioLabel->text().contains(QStringLiteral("track.wav")),
+            "audio-only media shows its filename instead of the video surface"))
+        return 1;
+    isolatedShow.ClearAudioOnlyIndicator();
+    if (!Expect(!audioLabel->isVisible() && videoView->isVisible(),
+            "switching back to video removes the opaque audio placeholder"))
+        return 1;
+    isolatedShow.ShowAudioOnly(QStringLiteral("next.wav"));
+    if (!Expect(audioLabel->isVisible() && !videoView->isVisible(),
+            "audio placeholder can be shown again after video playback"))
+        return 1;
+    isolatedShow.OnStopFinished();
+    if (!Expect(!audioLabel->isVisible() && videoView->isVisible(),
+            "stopping audio restores the unobstructed video surface"))
+        return 1;
 
     fullScreenAction->trigger();
     QEvent leaveEvent(QEvent::Leave);

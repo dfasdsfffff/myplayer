@@ -8,6 +8,7 @@ Show::Show(QWidget* parent) : QWidget(parent), ui(new Ui::Show), view_(new playe
     ui->setupUi(this);
     ui->label->setAutoFillBackground(true);
     auto palette = ui->label->palette(); palette.setColor(QPalette::Window, Qt::black); ui->label->setPalette(palette);
+    ui->label->hide();
     setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/show.css"));
     setAcceptDrops(true); setMouseTracking(true);
     view_->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -38,12 +39,10 @@ void Show::dropEvent(QDropEvent* event) {
 }
 void Show::keyReleaseEvent(QKeyEvent* event) {
     switch(event->key()) {
-    case Qt::Key_Return: emit SigFullScreen(); break;
     case Qt::Key_Left: emit SigSeekBack(); break;
     case Qt::Key_Right: emit SigSeekForward(); break;
     case Qt::Key_Up: emit SigAddVolume(); break;
     case Qt::Key_Down: emit SigSubVolume(); break;
-    case Qt::Key_Space: emit SigPlayOrPause(); break;
     default: QWidget::keyReleaseEvent(event); break;
     }
 }
@@ -53,5 +52,6 @@ void Show::OnStopFinished() { view_->setVideoFrame({}); view_->setSubtitleFrame(
 void Show::ShowAudioOnly(const QString& location) {
     view_->setVideoFrame({}); view_->hide(); m_audioOnlyActive = true;
     ui->label->setGeometry(rect()); ui->label->setText(QString("%1\n正在播放音频").arg(QFileInfo(location).fileName()));
+    ui->label->show();
 }
-void Show::ClearAudioOnlyIndicator() { m_audioOnlyActive = false; ui->label->clear(); view_->show(); }
+void Show::ClearAudioOnlyIndicator() { m_audioOnlyActive = false; ui->label->clear(); ui->label->hide(); view_->show(); }

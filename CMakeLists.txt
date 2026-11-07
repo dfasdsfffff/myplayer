@@ -667,15 +667,6 @@ target_link_libraries(soundtouch_wrap_tests PRIVATE
 
 add_test(NAME soundtouch_wrap_tests COMMAND soundtouch_wrap_tests)
 
-add_executable(show_widget_tests
-    tests/show_widget_tests.cpp
-)
-
-add_test(NAME show_widget_tests COMMAND show_widget_tests)
-set_tests_properties(show_widget_tests PROPERTIES
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-)
-
 if(MYPLAYER_BUILD_QT_APP)
 set(MAIN_WINDOW_TEST_SOURCES ${SOURCE_FILES})
 list(REMOVE_ITEM MAIN_WINDOW_TEST_SOURCES ${PLAYERDEMO_QT_APP_DIR}/main.cpp)

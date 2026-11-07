@@ -31,8 +31,6 @@ public:
 signals:
     void SigOpenFile(QString filename);
     void SigPlay(QString file);
-    void SigFullScreen();
-    void SigPlayOrPause();
     void SigStop();
     void SigShowMenu();
     void SigSeekForward();
