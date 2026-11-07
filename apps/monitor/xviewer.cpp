@@ -151,6 +151,13 @@ void XViewer::view(int count) {
       cam_wids[i] = nullptr;
     }
   }
+  QSettings settings(QStringLiteral("MyPlayer"), QStringLiteral("Monitor"));
+  if (settings.value(QStringLiteral("live/layout"), 0).toInt() != count) {
+    settings.setValue(QStringLiteral("live/layout"), count);
+    settings.sync();
+    if (settings.status() != QSettings::NoError)
+      ui->status->setText(QStringLiteral("分屏布局自动保存失败，请检查设置写入权限"));
+  }
 }
 
 void XViewer::RefreshCams() {
@@ -412,26 +419,6 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   auto *workspace = new QVBoxLayout(live_workspace_);
   workspace->setContentsMargins(20, 20, 20, 20);
   workspace->setSpacing(16);
-  auto *workHeader = new QHBoxLayout;
-  auto *heading = new QVBoxLayout;
-  auto *title = new QLabel(QStringLiteral("实时监控"), live_workspace_);
-  title->setStyleSheet(QStringLiteral("font-size:22px;font-weight:bold;color:#edf2f7;"));
-  heading->addWidget(title);
-  workHeader->addLayout(heading);
-  workHeader->addStretch();
-  auto *saveView = new QPushButton(QStringLiteral("保存视图"), live_workspace_);
-  workHeader->addWidget(saveView);
-  connect(saveView, &QPushButton::clicked, this, [this, saveView] {
-    QSettings settings(QStringLiteral("MyPlayer"), QStringLiteral("Monitor"));
-    settings.setValue(QStringLiteral("live/layout"), current_layout_);
-    settings.sync();
-    saveView->setText(settings.status() == QSettings::NoError ? QStringLiteral("布局已保存") : QStringLiteral("保存失败"));
-  });
-  saveView->setToolTip(QStringLiteral("保存分屏布局，下次启动时恢复；不保存临时视频源"));
-  auto *addChannel = new QPushButton(QStringLiteral("＋ 添加通道"), live_workspace_);
-  workHeader->addWidget(addChannel);
-  connect(addChannel, &QPushButton::clicked, this, &XViewer::AddCam);
-  workspace->addLayout(workHeader);
   workspace->addWidget(ui->cams, 1);
 
   auto *toolbar = new QHBoxLayout;

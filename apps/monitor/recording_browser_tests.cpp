@@ -15,6 +15,7 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QThread>
+#include <QSettings>
 #include <player_sdk_qt/qt_player.h>
 #include <play_core/network_runtime.h>
 #include <cstring>
@@ -237,6 +238,8 @@ int main(int argc, char **argv) {
     }
   } restoreDirectory{originalDirectory};
   if (!temporary.isValid() || !QDir::setCurrent(temporary.path())) return 1;
+  QSettings::setDefaultFormat(QSettings::IniFormat);
+  QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, temporary.path());
   int errors = 0;
   auto check = [&](bool ok, const char *message) {
     if (!ok) { std::cerr << message << '\n'; ++errors; }
@@ -251,6 +254,23 @@ int main(int argc, char **argv) {
     auto *button = viewer.findChild<QPushButton *>(QStringLiteral("layout%1").arg(count));
     check(button && button->isChecked(), "layout toolbar selection follows layout");
   }
+  auto *nineWay = viewer.findChild<QPushButton *>(QStringLiteral("layout9"));
+  if (!nineWay) return 1;
+  nineWay->click();
+  {
+    XViewer restored(nullptr, false);
+    check(restored.findChildren<XCameraWidget *>().size() == 9,
+          "new viewer restores automatically saved nine-way layout");
+    auto *oneWay = restored.findChild<QPushButton *>(QStringLiteral("layout1"));
+    if (!oneWay) return 1;
+    oneWay->click();
+  }
+  {
+    XViewer restored(nullptr, false);
+    check(restored.findChildren<XCameraWidget *>().size() == 1,
+          "subsequent layout change replaces saved layout without manual save");
+  }
+  check(viewer.OpenPreview({}, 4), "restore four-way test workspace");
   check(!viewer.OpenPreview({}, 3), "reject unsupported layout");
   auto *config = XCameraConfig::Instance();
   const QString fixedPath = XCameraConfig::DefaultPath();
