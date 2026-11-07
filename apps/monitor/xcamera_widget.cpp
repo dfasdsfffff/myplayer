@@ -86,4 +86,11 @@ void XCameraWidget::paintEvent(QPaintEvent *event) {
   if (hasFrame()) { CoreVideoWidget::paintEvent(event); return; }
   QPainter painter(this);
   painter.fillRect(rect(), QColor("#0c1219"));
+  if (!player()) {
+    painter.setPen(QColor("#718497"));
+    auto font = painter.font();
+    font.setPixelSize(12);
+    painter.setFont(font);
+    painter.drawText(rect(), Qt::AlignCenter, QStringLiteral("拖入设备预览"));
+  }
 }
