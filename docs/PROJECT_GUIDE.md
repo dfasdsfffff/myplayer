@@ -121,6 +121,7 @@ SDK 自身公开错误不返回原始带凭据 URL；`RedactMediaLocation` 保�
 - 外部宿主：`sdk/tests/consumer` 可复制出仓库测试 Core/Qt targets 和宿主构建隔离；`scripts/package-sdk.cmake` 验证最小源码发行。
 - 私有管线：队列/时钟、decoder/reader、audio、hardware、seek/track、media compatibility、network integration；历史 Runtime 仅供这些白盒测试。
 - 应用：设置/列表/隐私/主窗口；`main_window_behavior_tests` 验证关闭菜单时 Ctrl+O、Enter 单次切换全屏及视频/音频占位层互斥。监控覆盖 16 路预览/切换/销毁/分段录制、无效音频驱动启动回退和 smoke。不再用源码字符串断言替代 UI 行为测试。
+- Windows 边缘缩放回归需要原生平台：`cmake -E env QT_QPA_PLATFORM=windows SDL_AUDIODRIVER=dummy build/tests/Release/main_window_behavior_tests/main_window_behavior_tests.exe`。该模式对真实 HWND 的四边、四角和客户区发送物理像素命中查询；默认 offscreen 测试不执行此检查。200% 缩放下另需在实际播放/暂停时拖拽视频侧边和窗口角点，检查画面比例及最大化/还原。
 - 旧 SDL subtitle renderer 和邮箱仅保留为 `tests/support` 回归夹具，不参与应用或 SDK 显示。
 - 修改打开/派发/状态从 `sdk/core/src/player.cpp` 和 `sdk/qt/qt_player.cpp` 入手；具体 I/O/取消见 `stream_reader`、`network_input`、`reconnect_controller`、`VideoCtl::LoopThread`。
 - 修改色彩/显示/字幕从共享 `qt/video_widget.cpp` 入手，不再分别修改两套应用 renderer。字幕解码另查 `decoder_workers` 与 `subtitle_dispatcher`。

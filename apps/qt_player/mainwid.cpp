@@ -380,11 +380,15 @@ bool MainWid::nativeEvent(const QByteArray& eventType, void* message, qintptr* r
 
 	const LONG x = GET_X_LPARAM(msg->lParam);
 	const LONG y = GET_Y_LPARAM(msg->lParam);
-	const QRect frame = frameGeometry();
-	const bool left = x >= frame.left() && x < frame.left() + RESIZE_BORDER_WIDTH;
-	const bool right = x <= frame.right() && x > frame.right() - RESIZE_BORDER_WIDTH;
-	const bool top = y >= frame.top() && y < frame.top() + RESIZE_BORDER_WIDTH;
-	const bool bottom = y <= frame.bottom() && y > frame.bottom() - RESIZE_BORDER_WIDTH;
+	// WM_NCHITTEST uses physical screen pixels, unlike Qt's logical geometry.
+	RECT frame;
+	if (!GetWindowRect(msg->hwnd, &frame))
+		return QMainWindow::nativeEvent(eventType, message, result);
+	const int border = qRound(RESIZE_BORDER_WIDTH * devicePixelRatioF());
+	const bool left = x >= frame.left && x < frame.left + border;
+	const bool right = x < frame.right && x >= frame.right - border;
+	const bool top = y >= frame.top && y < frame.top + border;
+	const bool bottom = y < frame.bottom && y >= frame.bottom - border;
 
 	if (top && left)
 		*result = HTTOPLEFT;

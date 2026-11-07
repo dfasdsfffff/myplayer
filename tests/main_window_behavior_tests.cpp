@@ -63,6 +63,44 @@ QMenu* FindSubMenu(QMenu* menu, const QString& text)
     return action ? action->menu() : nullptr;
 }
 
+#ifdef Q_OS_WIN
+bool CheckNativeResizeBorders(MainWid& window)
+{
+    if (QGuiApplication::platformName() != QStringLiteral("windows"))
+        return true;
+    window.showNormal();
+    window.setGeometry(137, 91, 900, 650);
+    QApplication::processEvents();
+    const HWND handle = reinterpret_cast<HWND>(window.winId());
+    RECT frame;
+    if (!Expect(GetWindowRect(handle, &frame), "native window geometry is available"))
+        return false;
+    const LONG centerX = (frame.left + frame.right) / 2;
+    const LONG centerY = (frame.top + frame.bottom) / 2;
+    const struct {
+        LONG x;
+        LONG y;
+        LRESULT expected;
+    } probes[] = {
+        {frame.left + 1, centerY, HTLEFT},
+        {frame.right - 2, centerY, HTRIGHT},
+        {centerX, frame.top + 1, HTTOP},
+        {centerX, frame.bottom - 2, HTBOTTOM},
+        {frame.left + 1, frame.top + 1, HTTOPLEFT},
+        {frame.right - 2, frame.top + 1, HTTOPRIGHT},
+        {frame.left + 1, frame.bottom - 2, HTBOTTOMLEFT},
+        {frame.right - 2, frame.bottom - 2, HTBOTTOMRIGHT},
+        {centerX, centerY, HTCLIENT},
+    };
+    for (const auto& probe : probes) {
+        const LRESULT hit = SendMessageW(handle, WM_NCHITTEST, 0, MAKELPARAM(probe.x, probe.y));
+        if (!Expect(hit == probe.expected, "native physical-pixel hit testing identifies every resize edge"))
+            return false;
+    }
+    return true;
+}
+#endif
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -85,6 +123,10 @@ int main(int argc, char* argv[])
     window.activateWindow();
     window.setFocus();
     app.processEvents();
+#ifdef Q_OS_WIN
+    if (!CheckNativeResizeBorders(window))
+        return 1;
+#endif
 
     bool openDialogShown = false;
     QTimer::singleShot(0, &window, [&]() {
