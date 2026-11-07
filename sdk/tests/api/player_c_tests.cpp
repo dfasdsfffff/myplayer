@@ -18,23 +18,26 @@ struct Observer {
     ps_player_handle player{};
     ps_event* frame{};
     ps_event* media{};
-    bool failed{}, destroyRejected{};
+    const std::thread::id hostThread = std::this_thread::get_id();
+    bool failed{}, destroyRejected{true}, closed{};
     unsigned duplicates{};
     ~Observer() { ps_event_release(frame); ps_event_release(media); }
     static void PS_CALL callback(void* user, const ps_event* e) {
         auto& o = *static_cast<Observer*>(user);
         std::lock_guard lock(o.mutex);
+        o.failed |= std::this_thread::get_id() == o.hostThread;
         ps_event_info_v1 info{};
         if (ps_event_get_info_v1(e, &info) != PS_OK) o.failed = true;
         if (info.type == PS_EVENT_OPERATION) {
             if (o.results.contains(info.operation)) ++o.duplicates;
             o.results[info.operation] = info;
-            o.destroyRejected = ps_player_destroy(o.player) == PS_ERROR_INVALID_STATE;
+            o.destroyRejected &= ps_player_destroy(o.player) == PS_ERROR_INVALID_STATE;
         }
         if (info.type == PS_EVENT_VIDEO && !o.frame)
             o.failed |= ps_event_retain(e, &o.frame) != PS_OK;
         if (info.type == PS_EVENT_MEDIA_INFO && !o.media)
             o.failed |= ps_event_retain(e, &o.media) != PS_OK;
+        o.closed |= info.type == PS_EVENT_CLOSED;
         o.cv.notify_all();
     }
     ps_event_info_v1 wait(int32_t code, const ps_request_v1& r, bool success = true) {
@@ -61,7 +64,7 @@ int main() {
         const auto path = dir / std::filesystem::path(u8"中文视频.y4m");
         std::filesystem::rename(fixtures.video, path);
         const auto utf8 = path.u8string();
-        const std::string location(utf8.begin(), utf8.end());
+        std::string location(utf8.begin(), utf8.end());
         Observer o; // must outlive guard
         PlayerGuard guard;
         ps_player_options_v1 options{}; ps_player_options_init_v1(&options);
@@ -72,7 +75,10 @@ int main() {
         ps_source_v1 source{}; ps_source_init_v1(&source);
         source.location = location.c_str(); source.enable_audio = 0;
         ps_request_v1 r{};
-        auto code = ps_player_open_v1(guard.p, &source, &r); o.wait(code, r);
+        auto code = ps_player_open_v1(guard.p, &source, &r);
+        location.assign(location.size(), '?');
+        source.location = nullptr;
+        o.wait(code, r);
         code = ps_player_play_v1(guard.p, &r); o.wait(code, r);
         {
             std::unique_lock lock(o.mutex);
@@ -88,6 +94,10 @@ int main() {
         code = ps_player_select_subtitle_track_v1(guard.p, 0, 0, &r); o.wait(code, r);
         code = ps_player_stop_v1(guard.p, &r); o.wait(code, r);
         code = ps_player_close_v1(guard.p, &r); o.wait(code, r);
+        {
+            std::unique_lock lock(o.mutex);
+            check(o.cv.wait_for(lock, 5s, [&] { return o.closed; }), "Missing closed event");
+        }
         check(ps_player_destroy(guard.p) == PS_OK, "Destroy failed"); guard.p = nullptr;
         check(!o.failed && o.destroyRejected && !o.duplicates, "Callback contract failed");
         ps_video_frame_v1 video{};

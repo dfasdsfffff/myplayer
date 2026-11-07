@@ -30,6 +30,24 @@ jobs:
         run: cmake --build build --config Release
       - name: Test Release
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Verify binary C SDK
+        shell: pwsh
+        run: |
+          cmake --install build --config Release --component PlayerSDK --prefix build/PlayerSDK
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake -S build/PlayerSDK/examples -B build/sdk-installed-smoke -G "Visual Studio 18 2026" -A x64 "-DCMAKE_PREFIX_PATH=$PWD/build/PlayerSDK"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build build/sdk-installed-smoke --config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $env:SDL_AUDIODRIVER = "dummy"
+          & ./build/sdk-installed-smoke/Release/player_sdk_smoke.exe
+          exit $LASTEXITCODE
+      - name: Upload binary C SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayerSDK-windows-x64
+          path: build/PlayerSDK/
       - name: Package portable release
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File scripts/package-portable.ps1 -BuildDir build -Configuration Release -Version 1.0.0

@@ -20,7 +20,19 @@ target_link_libraries(c_host PRIVATE PlayerSDK::C)
 
 仅使用已编译的 Windows SDK 时，调用方只需 C 编译器、该头文件和导入库，不需要构建内部 C++。
 部署需携带 `player_sdk_c.dll` 及其匹配的 FFmpeg、SDL2、SoundTouch 等运行时依赖；不能只复制主 DLL。
-当前提供构建目标和源码包接入，不自动生成二进制安装包。
+Windows x64/MSVC Release 可安装独立二进制 SDK。在已配置的构建目录执行：
+
+```sh
+cmake --build build --config Release --target player_sdk_c
+cmake --install build --config Release --component PlayerSDK --prefix dist/PlayerSDK
+```
+
+安装目录包含 `bin/` 下的 DLL 和可解析的非系统依赖、`lib/` 下的导入库、
+`include/` 下的公开头文件，以及 `examples/` 下的纯 C 冒烟示例。
+CMake 宿主可通过 `-DCMAKE_PREFIX_PATH=<安装目录>` 使用
+`find_package(PlayerSDK CONFIG REQUIRED)` 和 `target_link_libraries(app PRIVATE PlayerSDK::C)`。
+部署时将 `bin/` 的 DLL 放在应用程序旁，并安装与 SDK 构建工具链兼容的 x64 MSVC Redistributable。
+依赖版本发生变化时，请一起替换运行库。关闭程序后再更新 DLL，然后重新启动。
 独立构建可在 `sdk/` 作为根目录时启用 `PLAYER_SDK_BUILD_TESTS=ON`，执行
 `ctest --test-dir <build-dir> -C Debug -R player_sdk_c --output-on-failure`。
 `tests/api/player_c_smoke.c` 由真正的 C 编译器编译，不是以 C++ 模式模拟 C 消费者。
@@ -115,6 +127,13 @@ int main(void)
 Qt 用户继续使用 `PlayerSDK::QtWidgets`。字幕 getter 提供原始字幕数据，不承诺已经合成到视频像素。
 
 ## ABI 兼容约定
+
+- `ps_version()` 是产品版本，`ps_abi_version()` 是 ABI 主版本。兼容更新保留
+  `player_sdk_c.dll` 文件名、ABI 主版本和原有导出。首发时冻结 v1 基线。
+- Windows MSVC x64 构建会将实际导出表与 `exports-v1.txt` 对照。新增导出时同步更新清单，
+  并保留已发布的符号和签名。
+- 客户端应忽略未知事件，对未知状态和错误码使用通用处理。兼容更新也需要保留现有
+  请求完成、回调线程和对象生命周期的约定。
 
 - ABI 主版本 `PS_ABI_VERSION=1`，使用 `extern "C"` 导出；Windows 明确 `__cdecl`。
 - 仅固定宽度整数、double、指针、不透明句柄、C 函数指针，无 STL、Qt 类型、异常、C++ 类或虚表。
