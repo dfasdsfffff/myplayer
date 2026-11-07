@@ -114,27 +114,31 @@ void XViewer::view(int count) {
       header->addWidget(closePreview);
       cardLayout->addLayout(header);
       cardLayout->addWidget(cam_wids[i], 1);
-      auto *state = new QLabel(QStringLiteral("等待设备接入"), card);
+      auto *state = new QLabel(card);
       state->setObjectName(QStringLiteral("channelState"));
       state->setFixedHeight(18);
       state->setContentsMargins(6, 0, 6, 0);
       cardLayout->addWidget(state);
+      state->hide();
       connect(cam_wids[i], &XCameraWidget::cameraAssigned, title, [title, i](const QString &name) {
         title->setText(QStringLiteral("%1    %2").arg(i + 1, 2, 10, QLatin1Char('0')).arg(name));
       });
       connect(cam_wids[i], &CoreVideoWidget::playbackError, state, [state](const QString &) {
         state->setProperty("failed", true);
         state->setText(QStringLiteral("连接失败 · 请检查设备地址或网络"));
+        state->show();
       });
       connect(cam_wids[i], &XCameraWidget::cameraAssigned, state, [state] {
         state->setProperty("failed", false);
         state->setText(QStringLiteral("正在连接…"));
+        state->show();
       });
       connect(closePreview, &QPushButton::clicked, cam_wids[i], &XCameraWidget::stop);
       connect(cam_wids[i], &XCameraWidget::previewClosed, card, [title, state, i] {
         title->setText(QStringLiteral("%1    未分配通道").arg(i + 1, 2, 10, QLatin1Char('0')));
         state->setProperty("failed", false);
-        state->setText(QStringLiteral("等待设备接入"));
+        state->clear();
+        state->hide();
       });
     }
     lay->addWidget(channel_cards_[i], i / rows, i % cols);
@@ -413,9 +417,6 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   auto *title = new QLabel(QStringLiteral("实时监控"), live_workspace_);
   title->setStyleSheet(QStringLiteral("font-size:22px;font-weight:bold;color:#edf2f7;"));
   heading->addWidget(title);
-  auto *subtitle = new QLabel(QStringLiteral("设备预览 / 拖入设备以连接通道"), live_workspace_);
-  subtitle->setObjectName(QStringLiteral("muted"));
-  heading->addWidget(subtitle);
   workHeader->addLayout(heading);
   workHeader->addStretch();
   auto *saveView = new QPushButton(QStringLiteral("保存视图"), live_workspace_);
@@ -467,9 +468,6 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
   auto *escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
   connect(escape, &QShortcut::activated, this, [this] { if (isFullScreen()) showNormal(); });
   workspace->addLayout(toolbar);
-  auto *liveHint = new QLabel(QStringLiteral("拖动设备切换通道 · 右键切换布局 · Esc 退出全屏"), live_workspace_);
-  liveHint->setObjectName(QStringLiteral("muted"));
-  workspace->addWidget(liveHint);
 
   auto *tools = new QScrollArea(ui->body);
   live_tools_ = tools;
@@ -550,7 +548,7 @@ XViewer::XViewer(QWidget *parent, bool loadConfiguration) : QWidget{parent} {
       auto *state = channel_cards_[i]->findChild<QLabel *>(QStringLiteral("channelState"));
       if (cam_wids[i]->hasFrame()) {
         ++withFrames;
-        if (!state->property("failed").toBool()) state->setText(QStringLiteral("● 已收到视频帧 · 静音预览"));
+        if (!state->property("failed").toBool()) state->hide();
       }
     }
     connection->setText(QStringLiteral("已收到画面 %1 / %2 路").arg(withFrames).arg(current_layout_));
