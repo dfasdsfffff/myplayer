@@ -15,11 +15,15 @@ bool Expect(bool condition, const char* message)
 
 int main()
 {
+    QTemporaryDir temporaryDirectory;
+    if (!Expect(temporaryDirectory.isValid(), "temporary directory"))
+        return 1;
+
     const QStringList supportedLocations{
         "movie.MKV", "movie.rmvb", "movie.mp4", "movie.avi", "movie.flv", "movie.wmv", "movie.3gp",
         "movie.mov", "movie.m4v", "movie.webm", "movie.mpeg", "movie.mpg", "movie.ts", "movie.m2ts",
         "song.mp3", "song.aac", "song.m4a", "song.flac", "song.wav", "song.ogg", "song.opus",
-        "C:/media/song.MP3",
+        temporaryDirectory.filePath("song.MP3"),
         "https://example.test/live", "http://example.test/live", "rtsp://example.test/live",
         "rtp://example.test:5004", "udp://example.test:5004"
     };
@@ -29,9 +33,6 @@ int main()
             return 1;
     }
 
-    QTemporaryDir temporaryDirectory;
-    if (!Expect(temporaryDirectory.isValid(), "temporary directory"))
-        return 1;
     if (!Expect(!IsSupportedMediaLocation(temporaryDirectory.path()), "directories are rejected") ||
         !Expect(!IsSupportedMediaLocation("movie.unknown"), "unknown extensions are rejected") ||
         !Expect(!IsSupportedMediaLocation("ftp://example.test/movie.mp4"), "unsupported network schemes are rejected") ||

@@ -101,15 +101,20 @@ function(myplayer_set_test_runtime_dir target)
 endfunction()
 
     if(MYPLAYER_BUILD_QT_APP)
-        add_test(NAME release_metadata_tests
-            COMMAND ${CMAKE_COMMAND}
-                -DBINARY_DIR=${CMAKE_BINARY_DIR}
-                -P ${PROJECT_SOURCE_DIR}/tests/release_metadata_tests.cmake
-        )
+        if(WIN32)
+            add_test(NAME release_metadata_tests
+                COMMAND ${CMAKE_COMMAND}
+                    -DBINARY_DIR=${CMAKE_BINARY_DIR}
+                    -P ${PROJECT_SOURCE_DIR}/tests/release_metadata_tests.cmake
+            )
+            set(myplayer_smoke_platform windows)
+        else()
+            set(myplayer_smoke_platform offscreen)
+        endif()
         add_test(NAME myplayer_smoke_test COMMAND $<TARGET_FILE:${PROJECT_NAME}> --smoke-test)
         set_tests_properties(myplayer_smoke_test PROPERTIES
             TIMEOUT 5
-            ENVIRONMENT "QT_QPA_PLATFORM=windows;SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
+            ENVIRONMENT "QT_QPA_PLATFORM=${myplayer_smoke_platform};SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
         )
     endif()
 
@@ -118,10 +123,13 @@ endfunction()
             -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
             -DBINARY_DIR=${CMAKE_BINARY_DIR}/cmake-configuration-contract
             -DTOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+            "-DVCPKG_INSTALLED_DIR=${VCPKG_INSTALLED_DIR}"
+            "-DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}"
+            "-DVCPKG_OVERLAY_TRIPLETS=${VCPKG_OVERLAY_TRIPLETS}"
             -P ${PROJECT_SOURCE_DIR}/tests/cmake_configuration_tests.cmake
     )
 
-    if(MYPLAYER_BUILD_QT_APP)
+    if(MYPLAYER_BUILD_QT_APP AND WIN32)
         add_test(NAME install_layout_tests
             COMMAND ${CMAKE_COMMAND}
                 -DBINARY_DIR=${CMAKE_BINARY_DIR}
@@ -480,7 +488,10 @@ target_link_libraries(playback_lifecycle_stress_tests PRIVATE
 )
 
 add_test(NAME playback_lifecycle_stress_tests COMMAND playback_lifecycle_stress_tests)
-set_tests_properties(playback_lifecycle_stress_tests PROPERTIES LABELS STRESS_TESTS)
+set_tests_properties(playback_lifecycle_stress_tests PROPERTIES
+    LABELS STRESS_TESTS
+    ENVIRONMENT "SDL_AUDIODRIVER=dummy"
+)
 
 add_executable(network_playback_tests
     tests/network_playback_tests.cpp
@@ -648,7 +659,7 @@ target_include_directories(network_integration_tests PRIVATE
 )
 target_link_libraries(network_integration_tests PRIVATE
     play_core
-    ws2_32
+    $<$<PLATFORM_ID:Windows>:ws2_32>
 )
 add_test(NAME network_integration_tests COMMAND network_integration_tests)
 set_tests_properties(network_integration_tests PROPERTIES

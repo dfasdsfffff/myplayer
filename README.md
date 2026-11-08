@@ -1,6 +1,6 @@
 # MyPlayer 与 MyPlayer Monitor
 
-本仓库包含两个 Windows 桌面软件，共用 C++20 播放核心 `play_core`：
+本仓库包含两个 Qt 桌面软件，共用 C++20 播放核心 `play_core`：
 
 | 软件 | 用途 | 源码入口 | CMake 子目录 | CMake 目标 |
 | --- | --- | --- | --- | --- |
@@ -55,7 +55,31 @@ GitHub 发行页提供 `2.0.1` 修复版及附件；Gitee 同步源码与标签�
 
 顶层构建默认从配置好的依赖安装前缀查找 FFmpeg/SDL2/SoundTouch，**不会自动用 `lib/` 中的二进制替代缺失的 vcpkg 包**。仅监控独立构建有 `MONITOR_USE_BUNDLED_DEPS` 开关。
 
-### 构建两个软件
+### Linux / macOS 源码构建
+
+准备 CMake 3.25+、Ninja、支持 C++20 的 GCC 或 Clang、Qt 6.8+、pkg-config 和已初始化的 vcpkg。使用与 Qt 相同的 CPU 架构。WSL 下可将构建目录放在 Linux 文件系统中。
+
+```bash
+export VCPKG_ROOT="$HOME/tools/vcpkg"
+export QT_ROOT="/path/to/Qt"
+build_dir="$HOME/myplayer-build"
+
+cmake -S . -B "$build_dir" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+  -DPLAYERDEMO_QT_ROOT="$QT_ROOT" \
+  -DPLAYERDEMO_OUTPUT_DIR="$build_dir/bin" \
+  -DMYPLAYER_BUILD_QT_APP=ON \
+  -DMYPLAYER_BUILD_MONITOR=ON \
+  -DBUILD_TESTING=ON \
+  -DMONITOR_BUILD_TESTS=ON
+cmake --build "$build_dir" --parallel 4
+QT_QPA_PLATFORM=offscreen SDL_AUDIODRIVER=dummy ctest --test-dir "$build_dir" --output-on-failure
+```
+
+使用 Homebrew 安装 `qtbase` 时，Qt 路径可设为 `export QT_ROOT="$(brew --prefix qtbase)"`。构建后的播放器与监控程序位于构建目录的 `bin/`。现有免安装发行包流程面向 Windows。
+
+### Windows 构建两个软件
 
 将以下两个路径替换为本机实际安装目录；首次配置会由 vcpkg 安装 manifest 依赖，可能需要下载和编译：
 
@@ -146,7 +170,7 @@ ctest --test-dir build -C Release --output-on-failure
 - `myplayer --smoke-test` 只创建 QApplication 和播放运行时后退出，**不会打开完整播放器主窗口，也不会播放媒体**。
 - 监控 `--smoke-test` 会显示窗口并在约一秒后退出；未传入视频源时不能证明实际解码、联网或录像可用。
 
-CI 定义见 [.github/workflows/windows-build.yml](.github/workflows/windows-build.yml) 和 [Clang sanitizers workflow](.github/workflows/clang-sanitizers.yml)。当前 Windows workflow 尚未启用监控，却调用要求双应用的打包脚本，并仍传入包版本 `1.0.0`；不能把该 workflow 视为已经同步或通过验证的双软件发行流程。本文档不修改 CI 实现。
+CI 配置覆盖 Windows 双应用、Linux 核心 sanitizer 测试和 macOS 双应用构建。参见 [Windows build](.github/workflows/windows-build.yml)、[Clang sanitizers](.github/workflows/clang-sanitizers.yml) 和 [macOS build](.github/workflows/macos-build.yml)。
 
 ### 媒体兼容性与硬解回退
 

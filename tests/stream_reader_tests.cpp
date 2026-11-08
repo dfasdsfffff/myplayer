@@ -28,8 +28,10 @@ struct AvFormatContextDeleter {
         auto* inputFormat = const_cast<AVInputFormat*>(context->iformat);
         if (inputFormat)
             av_freep(&inputFormat);
-        if (context->pb)
+        if (context->pb) {
+            av_freep(&context->pb->buffer);
             avio_context_free(&context->pb);
+        }
         av_freep(&context->url);
         avformat_free_context(context);
     }

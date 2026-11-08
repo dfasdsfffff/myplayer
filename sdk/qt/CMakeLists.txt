@@ -18,6 +18,15 @@ target_link_libraries(player_sdk_qt
     PUBLIC PlayerSDK::Core Qt6::Core Qt6::Gui Qt6::Widgets
     PRIVATE SDL2::SDL2 ${FFMPEG_LIBRARIES} PkgConfig::LIBASS
 )
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND VCPKG_INSTALLED_DIR AND VCPKG_TARGET_TRIPLET
+    AND EXISTS "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib/libfontconfig.so")
+    # Load vcpkg's Fontconfig directly before Qt resolves its transitive copy.
+    target_link_libraries(player_sdk_qt INTERFACE
+        "-Wl,--push-state,--no-as-needed"
+        "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib/libfontconfig.so"
+        "-Wl,--pop-state"
+    )
+endif()
 if(MSVC)
     target_compile_options(player_sdk_qt PRIVATE /utf-8 /Zc:__cplusplus)
 endif()

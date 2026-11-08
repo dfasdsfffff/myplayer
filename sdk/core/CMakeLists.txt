@@ -46,8 +46,15 @@ target_include_directories(play_core
 target_link_libraries(play_core PRIVATE
     SDL2::SDL2
     ${FFMPEG_LIBRARIES}
-    ${PLAYERDEMO_SOUNDTOUCH_TARGET}
 )
+if(TARGET SoundTouch::SoundTouchDLL)
+    target_link_libraries(play_core PRIVATE SoundTouch::SoundTouchDLL)
+    target_compile_definitions(play_core PRIVATE MYPLAYER_USE_SOUNDTOUCH_DLL)
+elseif(TARGET SoundTouch::SoundTouch)
+    target_link_libraries(play_core PRIVATE SoundTouch::SoundTouch)
+else()
+    message(FATAL_ERROR "SoundTouch package did not provide a supported CMake target")
+endif()
 
 target_compile_definitions(play_core PRIVATE
     UNICODE

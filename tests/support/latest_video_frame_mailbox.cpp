@@ -2,18 +2,18 @@
 
 void LatestVideoFrameMailbox::publish(std::shared_ptr<VideoFrame> frame)
 {
-    if (m_latestFrame.exchange(std::move(frame), std::memory_order_acq_rel))
+    if (std::atomic_exchange_explicit(&m_latestFrame, std::move(frame), std::memory_order_acq_rel))
         m_coalescedFrames.fetch_add(1, std::memory_order_relaxed);
 }
 
 std::shared_ptr<VideoFrame> LatestVideoFrameMailbox::takeLatest()
 {
-    return m_latestFrame.exchange({}, std::memory_order_acq_rel);
+    return std::atomic_exchange_explicit(&m_latestFrame, {}, std::memory_order_acq_rel);
 }
 
 bool LatestVideoFrameMailbox::hasPending() const
 {
-    return static_cast<bool>(m_latestFrame.load(std::memory_order_acquire));
+    return static_cast<bool>(std::atomic_load_explicit(&m_latestFrame, std::memory_order_acquire));
 }
 
 bool LatestVideoFrameMailbox::markDeliveryScheduled()
@@ -29,7 +29,7 @@ void LatestVideoFrameMailbox::deliveryCompleted()
 
 void LatestVideoFrameMailbox::clear()
 {
-    m_latestFrame.store({}, std::memory_order_release);
+    std::atomic_store_explicit(&m_latestFrame, {}, std::memory_order_release);
     m_deliveryScheduled.store(false, std::memory_order_release);
 }
 

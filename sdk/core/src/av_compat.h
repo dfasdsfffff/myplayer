@@ -39,5 +39,3 @@ extern "C" {
 
 #include <SDL2/SDL.h>
 }
-
-#include <soundtouch/SoundTouchDLL.h>

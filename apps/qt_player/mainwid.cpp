@@ -169,8 +169,8 @@ bool MainWid::Init()
 	ApplyPreferences(m_preferences);
 
 
-	m_stCtrlbarAnimationShow = new QPropertyAnimation(ui->CtrlBarWid, "geometry");
-	m_stCtrlbarAnimationHide = new QPropertyAnimation(ui->CtrlBarWid, "geometry");
+	m_stCtrlbarAnimationShow = new QPropertyAnimation(ui->CtrlBarWid, "geometry", this);
+	m_stCtrlbarAnimationHide = new QPropertyAnimation(ui->CtrlBarWid, "geometry", this);
 
 	if (m_stAboutWidget.Init() == false)
 	{

@@ -434,9 +434,9 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 	if (hardwareDecode) {
 		const HardwareDecodeResult& result = hardwareDecode->result();
 		if (result.active)
-			SigPlayMsg(std::format("Hardware decode: {} active", result.backend));
+			SigPlayMsg("Hardware decode: " + result.backend + " active");
 		else
-			SigPlayMsg(std::format("Hardware decode: software fallback ({})", result.fallbackReason));
+			SigPlayMsg("Hardware decode: software fallback (" + result.fallbackReason + ")");
 	}
 	if ((t = av_dict_get(opts, "", NULL, AV_DICT_IGNORE_SUFFIX))) {
 		av_log(NULL, AV_LOG_ERROR, "Option %s not found.\n", t->key);
@@ -462,7 +462,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 			std::shared_lock<std::shared_mutex> lock(m_speedMutex);
 			currentSpeed = m_fPlaybackSpeed;
 		}
-		auto afilters = std::format("atempo={:.2f}", currentSpeed);
+		auto afilters = "atempo=" + std::to_string(currentSpeed);
 		if ((ret = ConfigureAudioFilters(is, afilters.c_str(), false)) < 0)
 		{
 			print_error("configure_audio_filters", ret);

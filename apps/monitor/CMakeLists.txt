@@ -50,7 +50,6 @@ set(PLAYERDEMO_OUTPUT_DIR "${MYPLAYER_ROOT}/bin" CACHE PATH "Runtime output dire
 
 qt_add_executable(myplayer_monitor
     main.cpp
-    myplayer_monitor.rc
     xviewer.cpp xviewer.h xviewer.ui
     onvif_camera.cpp onvif_camera.h
     xcamera_config.cpp xcamera_config.h
@@ -60,6 +59,9 @@ qt_add_executable(myplayer_monitor
     xplayvideo.cpp xplayvideo.h xplayvideo.ui
     core_video_widget.cpp core_video_widget.h
 )
+if(WIN32)
+    target_sources(myplayer_monitor PRIVATE myplayer_monitor.rc)
+endif()
 qt_add_resources(myplayer_monitor monitor_icons
     PREFIX "/"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}"

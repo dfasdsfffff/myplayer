@@ -12,12 +12,17 @@ set(configure_command
     "${CMAKE_COMMAND}" -S "${SOURCE_DIR}" -B "${BINARY_DIR}"
     -DMYPLAYER_BUILD_QT_APP=OFF
     -DBUILD_TESTING=OFF
-    -DVCPKG_MANIFEST_MODE=OFF
-    "-DVCPKG_INSTALLED_DIR=${BINARY_DIR}/../vcpkg_installed")
+    -DVCPKG_MANIFEST_MODE=OFF)
 
-if(DEFINED TOOLCHAIN_FILE)
+if(TOOLCHAIN_FILE)
     list(APPEND configure_command "-DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE}")
 endif()
+foreach(option IN ITEMS VCPKG_INSTALLED_DIR VCPKG_TARGET_TRIPLET VCPKG_OVERLAY_TRIPLETS)
+    if(NOT "${${option}}" STREQUAL "")
+        string(REPLACE ";" "\\;" option_value "${${option}}")
+        list(APPEND configure_command "-D${option}=${option_value}")
+    endif()
+endforeach()
 
 execute_process(
     COMMAND ${configure_command}

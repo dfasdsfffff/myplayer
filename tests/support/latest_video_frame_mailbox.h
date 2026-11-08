@@ -18,7 +18,7 @@ public:
     uint64_t coalescedFrames() const noexcept;
 
 private:
-    std::atomic<std::shared_ptr<VideoFrame>> m_latestFrame;
+    std::shared_ptr<VideoFrame> m_latestFrame;
     std::atomic<bool> m_deliveryScheduled{false};
     std::atomic<uint64_t> m_coalescedFrames{0};
 };

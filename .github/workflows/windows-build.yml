@@ -22,6 +22,9 @@ jobs:
           cmake -S . -B build -G "Visual Studio 18 2026" -A x64
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DPLAYERDEMO_QT_ROOT="${{ steps.qt.outputs.dir }}"
+          -DMYPLAYER_BUILD_QT_APP=ON
+          -DMYPLAYER_BUILD_MONITOR=ON
+          -DBUILD_TESTING=ON
       - name: Build Debug
         run: cmake --build build --config Debug
       - name: Test Debug

@@ -6,7 +6,6 @@
 #include "media_sync.h"
 
 #include <cmath>
-#include <format>
 #include <string>
 
 namespace {
@@ -147,7 +146,7 @@ int DecoderWorkers::Audio(void* opaque)
                 state->audio.audio_filter_src.freq = frame->sample_rate;
                 last_serial = state->audio.aud_decoder.pkt_serial;
                 const auto currentSpeed = state->audio.play_rate.load(std::memory_order_acquire);
-                auto afilters = std::format("atempo={:.2f}", currentSpeed);
+                auto afilters = "atempo=" + std::to_string(currentSpeed);
                 if ((ret = ConfigureAudioFilters(state, afilters.c_str(), true)) < 0)
                 {
                     goto the_end;
@@ -247,7 +246,7 @@ int DecoderWorkers::Video(void* opaque)
             }
             graph->nb_threads = 0;
             const auto currentSpeed = state->audio.play_rate.load(std::memory_order_acquire);
-            std::string mvfilters = std::format("setpts={:.2f}*PTS", 1 / currentSpeed);
+            std::string mvfilters = "setpts=" + std::to_string(1 / currentSpeed) + "*PTS";
             if ((ret = ConfigureVideoFilters(graph, state, mvfilters.c_str(), frame, true)) < 0)
             {
                 goto the_end;

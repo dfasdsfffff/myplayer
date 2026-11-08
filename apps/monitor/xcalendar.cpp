@@ -1,5 +1,5 @@
 #include "xcalendar.h"
-#include <Qpainter>
+#include <QPainter>
 
 XCalendar::XCalendar(QWidget *parent) : QCalendarWidget(parent) {}
 

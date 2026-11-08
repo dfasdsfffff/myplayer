@@ -5,8 +5,16 @@
 #include <play_core/player.h>
 #include <map>
 
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#else
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
+#endif
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -27,6 +35,26 @@ extern "C" {
 namespace {
 using namespace std::chrono_literals;
 using Clock = std::chrono::steady_clock;
+
+#ifdef _WIN32
+using Socket = SOCKET;
+using SocketLength = int;
+constexpr Socket invalidSocket = INVALID_SOCKET;
+constexpr int shutdownBoth = SD_BOTH;
+constexpr int sendFlags = 0;
+void CloseSocket(Socket socket) { closesocket(socket); }
+#else
+using Socket = int;
+using SocketLength = socklen_t;
+constexpr Socket invalidSocket = -1;
+constexpr int shutdownBoth = SHUT_RDWR;
+#ifdef MSG_NOSIGNAL
+constexpr int sendFlags = MSG_NOSIGNAL;
+#else
+constexpr int sendFlags = 0;
+#endif
+void CloseSocket(Socket socket) { close(socket); }
+#endif
 
 bool Expect(bool condition, const char* message)
 {
@@ -105,35 +133,39 @@ std::vector<char> StreamingMedia(const std::filesystem::path& inputPath, const s
 
 enum class Response { Complete, NotFound, Authentication, StallHeaders, StallBody };
 
-// Only loopback sockets are used. Shutdown wakes both accept/recv and the
-// condition-variable gate, so a failed assertion cannot strand the server.
+// Only loopback sockets are used. Shutdown and the bounded listener poll
+// prevent a failed assertion from stranding the server.
 class LoopbackHttpServer final {
 public:
     LoopbackHttpServer(const std::vector<char>& media, Response response)
         : m_media(media), m_response(response)
     {
+#ifdef _WIN32
         WSADATA data{};
         if (WSAStartup(MAKEWORD(2, 2), &data) != 0)
             throw std::runtime_error("WSAStartup failed");
+#endif
         try {
             m_listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-            if (m_listener == INVALID_SOCKET)
+            if (m_listener == invalidSocket)
                 throw std::runtime_error("socket failed");
             sockaddr_in address{};
             address.sin_family = AF_INET;
             address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-            if (bind(m_listener, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == SOCKET_ERROR ||
-                listen(m_listener, SOMAXCONN) == SOCKET_ERROR)
+            if (bind(m_listener, reinterpret_cast<sockaddr*>(&address), sizeof(address)) < 0 ||
+                listen(m_listener, SOMAXCONN) < 0)
                 throw std::runtime_error("loopback bind/listen failed");
-            int length = sizeof(address);
-            if (getsockname(m_listener, reinterpret_cast<sockaddr*>(&address), &length) == SOCKET_ERROR)
+            SocketLength length = sizeof(address);
+            if (getsockname(m_listener, reinterpret_cast<sockaddr*>(&address), &length) < 0)
                 throw std::runtime_error("getsockname failed");
             m_port = ntohs(address.sin_port);
             m_thread = std::thread([this] { serve(); });
         } catch (...) {
-            if (m_listener != INVALID_SOCKET)
-                closesocket(m_listener);
+            if (m_listener != invalidSocket)
+                CloseSocket(m_listener);
+#ifdef _WIN32
             WSACleanup();
+#endif
             throw;
         }
     }
@@ -143,14 +175,20 @@ public:
         {
             std::lock_guard lock(m_mutex);
             m_stopping = true;
-            if (m_client != INVALID_SOCKET)
-                shutdown(m_client, SD_BOTH);
+            if (m_client != invalidSocket)
+                shutdown(m_client, shutdownBoth);
         }
         m_changed.notify_all();
-        shutdown(m_listener, SD_BOTH);
-        closesocket(m_listener);
+        shutdown(m_listener, shutdownBoth);
+#ifdef _WIN32
+        CloseSocket(m_listener);
+#endif
         m_thread.join();
+#ifdef _WIN32
         WSACleanup();
+#else
+        CloseSocket(m_listener);
+#endif
     }
 
     std::string url() const { return "http://127.0.0.1:" + std::to_string(m_port) + "/video"; }
@@ -170,10 +208,10 @@ public:
     }
 
 private:
-    static bool sendAll(SOCKET client, const char* data, std::size_t size)
+    static bool sendAll(Socket client, const char* data, std::size_t size)
     {
         while (size > 0) {
-            const int bytes = send(client, data, static_cast<int>((std::min)(size, std::size_t{16384})), 0);
+            const auto bytes = send(client, data, static_cast<int>((std::min)(size, std::size_t{16384})), sendFlags);
             if (bytes <= 0)
                 return false;
             data += bytes;
@@ -182,7 +220,7 @@ private:
         return true;
     }
 
-    static bool sendText(SOCKET client, const std::string& value)
+    static bool sendText(Socket client, const std::string& value)
     {
         return sendAll(client, value.data(), value.size());
     }
@@ -190,24 +228,45 @@ private:
     void serve()
     {
         for (;;) {
-            SOCKET client = accept(m_listener, nullptr, nullptr);
-            if (client == INVALID_SOCKET)
+#ifndef _WIN32
+            {
+                std::lock_guard lock(m_mutex);
+                if (m_stopping)
+                    return;
+            }
+            pollfd listener{m_listener, POLLIN, 0};
+            const int ready = poll(&listener, 1, 100);
+            if (ready == 0)
+                continue;
+            if (ready < 0 || !(listener.revents & POLLIN))
+                return;
+#endif
+            Socket client = accept(m_listener, nullptr, nullptr);
+            if (client == invalidSocket)
                 return;
             {
                 std::lock_guard lock(m_mutex);
                 if (m_stopping) {
-                    closesocket(client);
+                    CloseSocket(client);
                     return;
                 }
                 m_client = client;
             }
+#ifdef _WIN32
             const DWORD timeout = 1000;
+#else
+            const timeval timeout{1, 0};
+#endif
+#ifdef SO_NOSIGPIPE
+            const int suppressSigpipe = 1;
+            setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &suppressSigpipe, sizeof(suppressSigpipe));
+#endif
             setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
             setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
             std::string request;
             char buffer[1024];
             while (request.size() < 16384 && request.find("\r\n\r\n") == std::string::npos) {
-                const int bytes = recv(client, buffer, sizeof(buffer), 0);
+                const auto bytes = recv(client, buffer, sizeof(buffer), 0);
                 if (bytes <= 0)
                     break;
                 request.append(buffer, bytes);
@@ -235,8 +294,8 @@ private:
                     const linger reset{1, 0};
                     setsockopt(client, SOL_SOCKET, SO_LINGER, reinterpret_cast<const char*>(&reset), sizeof(reset));
                 }
-                closesocket(client);
-                m_client = INVALID_SOCKET;
+                CloseSocket(client);
+                m_client = invalidSocket;
                 if (m_stopping)
                     return;
             }
@@ -245,8 +304,8 @@ private:
 
     const std::vector<char>& m_media;
     Response m_response;
-    SOCKET m_listener{INVALID_SOCKET};
-    SOCKET m_client{INVALID_SOCKET};
+    Socket m_listener{invalidSocket};
+    Socket m_client{invalidSocket};
     unsigned short m_port{};
     std::thread m_thread;
     std::mutex m_mutex;

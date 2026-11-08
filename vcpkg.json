@@ -22,11 +22,11 @@
       "features": [
         "soundtouchdll"
       ],
-      "platform": "windows"
+      "platform": "windows & !static"
     },
     {
       "name": "soundtouch",
-      "platform": "!windows"
+      "platform": "!windows | static"
     }
   ]
 }

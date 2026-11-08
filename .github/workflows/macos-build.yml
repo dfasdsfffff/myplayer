@@ -1,0 +1,31 @@
+name: macOS build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      SDL_AUDIODRIVER: dummy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/run-vcpkg@v11
+      - name: Install build tools and Qt
+        run: brew install qtbase pkgconf ninja autoconf automake libtool nasm
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DPLAYERDEMO_QT_ROOT="$(brew --prefix qtbase)"
+          -DMYPLAYER_BUILD_QT_APP=ON
+          -DMYPLAYER_BUILD_MONITOR=ON
+          -DBUILD_TESTING=ON
+          -DMONITOR_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build --parallel 3
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
