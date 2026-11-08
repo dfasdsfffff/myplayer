@@ -31,13 +31,13 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         find_package(SDL2 CONFIG REQUIRED)
         find_package(SoundTouch CONFIG REQUIRED)
     endif()
-    find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network Xml)
     qt_standard_project_setup()
     set(PLAYERDEMO_SIGSLOT_ROOT "${MYPLAYER_ROOT}/sdk/third_party/sigslot")
     include("${MYPLAYER_ROOT}/sdk/cmake/MyPlayerWarnings.cmake")
     add_subdirectory("${MYPLAYER_ROOT}/sdk/core" "${CMAKE_CURRENT_BINARY_DIR}/play_core")
 else()
-    find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network Xml)
     qt_standard_project_setup()
     set(MYPLAYER_ROOT "${PROJECT_SOURCE_DIR}")
 endif()
@@ -51,6 +51,7 @@ set(PLAYERDEMO_OUTPUT_DIR "${MYPLAYER_ROOT}/bin" CACHE PATH "Runtime output dire
 qt_add_executable(myplayer_monitor
     main.cpp
     xviewer.cpp xviewer.h xviewer.ui
+    onvif_camera.cpp onvif_camera.h
     xcamera_config.cpp xcamera_config.h
     xcamera_widget.cpp xcamera_widget.h
     xcamera_record.cpp xcamera_record.h
@@ -66,7 +67,7 @@ qt_add_resources(myplayer_monitor monitor_icons
         img/logo.png img/logo_150_40.png img/max.png img/min.png
         img/normal.png img/xv.ico
 )
-target_link_libraries(myplayer_monitor PRIVATE PlayerSDK::QtWidgets)
+target_link_libraries(myplayer_monitor PRIVATE PlayerSDK::QtWidgets Qt6::Network Qt6::Xml)
 target_include_directories(myplayer_monitor PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${FFMPEG_INCLUDE_DIRS})
 target_link_libraries(myplayer_monitor PRIVATE ${FFMPEG_LIBRARIES})
 set_target_properties(myplayer_monitor PROPERTIES
@@ -102,6 +103,7 @@ if(MONITOR_BUILD_TESTS)
     qt_add_executable(monitor_recording_browser_tests
         recording_browser_tests.cpp
         xviewer.cpp xviewer.h xviewer.ui
+        onvif_camera.cpp onvif_camera.h
         xcamera_config.cpp xcamera_config.h
         xcamera_widget.cpp xcamera_widget.h
         xcamera_record.cpp xcamera_record.h
@@ -109,7 +111,7 @@ if(MONITOR_BUILD_TESTS)
         xplayvideo.cpp xplayvideo.h xplayvideo.ui
         core_video_widget.cpp core_video_widget.h
     )
-    target_link_libraries(monitor_recording_browser_tests PRIVATE PlayerSDK::QtWidgets ${FFMPEG_LIBRARIES})
+    target_link_libraries(monitor_recording_browser_tests PRIVATE PlayerSDK::QtWidgets Qt6::Network Qt6::Xml ${FFMPEG_LIBRARIES})
     target_include_directories(monitor_recording_browser_tests PRIVATE ${FFMPEG_INCLUDE_DIRS})
     if(MSVC)
         target_compile_options(monitor_recording_browser_tests PRIVATE /utf-8)

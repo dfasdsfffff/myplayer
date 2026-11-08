@@ -3,6 +3,7 @@
 #include "xcamera_config.h"
 #include "xcamera_record.h"
 #include "xcamera_widget.h"
+#include "onvif_camera.h"
 #include <player_sdk_qt/qt_player.h>
 #include <player_sdk_qt/video_widget.h>
 #include <QComboBox>
@@ -236,6 +237,17 @@ void XViewer::SetCam(int index) {
     suburl_edit->setText(C(cam.sub_url));
     save_path_edit->setText(C(cam.save_path));
   } else if (index == -1) { // 添加
+    auto *discover = new QPushButton(QStringLiteral("发现摄像头"), &dlg);
+    discover->setAutoDefault(false);
+    lay->insertRow(0, QString(), discover);
+    connect(discover, &QPushButton::clicked, &dlg, [&] {
+      if (const auto camera = discoverOnvifCamera(&dlg)) {
+        name_edit->setText(camera->name);
+        url_edit->setText(camera->mainStream);
+        suburl_edit->setText(camera->subStream);
+        save_path_edit->setFocus();
+      }
+    });
   }
   auto f = [this, lay](QWidget *field) {
     QWidget *labelWidget = lay->labelForField(field);
