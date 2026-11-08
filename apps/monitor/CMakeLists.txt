@@ -50,6 +50,7 @@ set(PLAYERDEMO_OUTPUT_DIR "${MYPLAYER_ROOT}/bin" CACHE PATH "Runtime output dire
 
 qt_add_executable(myplayer_monitor
     main.cpp
+    myplayer_monitor.rc
     xviewer.cpp xviewer.h xviewer.ui
     onvif_camera.cpp onvif_camera.h
     xcamera_config.cpp xcamera_config.h
