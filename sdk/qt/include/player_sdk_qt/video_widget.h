@@ -26,7 +26,7 @@ public:
     // Explicit SDL renderer readback including subtitles; not used in playback.
     QImage grabVideoFrame();
 signals:
-    // Emitted for a fresh frame after SDL_RenderPresent returns; not a monitor/compositor fence.
+    // Emitted when a fresh frame is ready for the widget; not a monitor/compositor fence.
     void framePresented();
 protected:
     void paintEvent(QPaintEvent*) override;

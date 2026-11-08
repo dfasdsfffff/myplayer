@@ -31,8 +31,19 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_sdlCount == 0) {
             if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
+#if defined(__linux__)
+                if (!SDL_getenv("SDL_AUDIODRIVER")) {
+                    const char* unavailableDriver = SDL_GetError();
+                    av_log(nullptr, AV_LOG_WARNING,
+                        "SDL audio unavailable (%s); using silent audio output\n", unavailableDriver);
+                    SDL_SetHint(SDL_HINT_AUDIODRIVER, "dummy");
+                    if (SDL_InitSubSystem(SDL_INIT_AUDIO) == 0) {
+                        ++m_sdlCount;
+                        return true;
+                    }
+                }
+#endif
                 av_log(nullptr, AV_LOG_FATAL, "Could not initialize SDL audio subsystem - %s\n", SDL_GetError());
-                av_log(nullptr, AV_LOG_FATAL, "(Did you set the DISPLAY variable?)\n");
                 return false;
             }
         }

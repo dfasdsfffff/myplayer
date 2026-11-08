@@ -28,7 +28,11 @@ struct VideoWidget::Impl {
     Uint32 textureFormat{0};
     bool videoReference{false};
     bool needsUpload{false};
+#ifdef Q_OS_WIN
     bool headless{QGuiApplication::platformName() == "offscreen" || QGuiApplication::platformName() == "minimal"};
+#else
+    bool headless{true};
+#endif
     QImage readback;
     std::vector<uint8_t> converted;
     std::shared_ptr<const play_core::VideoFrame> frame;
@@ -263,11 +267,13 @@ struct VideoWidget::Impl {
 };
 VideoWidget::VideoWidget(QWidget* parent) : QWidget(parent), impl_(std::make_unique<Impl>()) {
     setAttribute(Qt::WA_OpaquePaintEvent); setMinimumSize(16,16);
-    impl_->surface = new SdlVideoSurface(this);
-    impl_->surface->hide();
-    impl_->surface->repaint = [this] { present(); };
-    impl_->surface->setGeometry(rect());
-    impl_->surface->releasing = [this] { impl_->destroyVideo(); };
+    if (!impl_->headless) {
+        impl_->surface = new SdlVideoSurface(this);
+        impl_->surface->hide();
+        impl_->surface->repaint = [this] { present(); };
+        impl_->surface->setGeometry(rect());
+        impl_->surface->releasing = [this] { impl_->destroyVideo(); };
+    }
 }
 VideoWidget::~VideoWidget() = default;
 QtPlayer* VideoWidget::player() const { return impl_->player; }
@@ -324,19 +330,23 @@ void VideoWidget::clearExternalSubtitle() {
     impl_->clearTextures(impl_->assTextures); update(); present();
 }
 void VideoWidget::paintEvent(QPaintEvent*) {
-    QPainter painter(this); painter.fillRect(rect(),Qt::black); // Empty/background only; video is SDL.
+    QPainter painter(this); painter.fillRect(rect(),Qt::black);
+    if (impl_->headless && !impl_->readback.isNull())
+        painter.drawImage(rect(), impl_->readback);
     painter.end();
-    present();
+    if (!impl_->headless) present();
 }
 void VideoWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
-    impl_->surface->setGeometry(rect()); present();
+    if (impl_->surface) impl_->surface->setGeometry(rect());
+    present();
 }
 void VideoWidget::present() {
     if (!isVisible()) return;
-    if (impl_->render(size()) && impl_->fresh) {
+    if (impl_->render(size(), impl_->headless) && impl_->fresh) {
         impl_->fresh=false; ++impl_->presented; emit framePresented();
     }
+    if (impl_->headless) update();
 }
 QImage VideoWidget::grabVideoFrame() {
     if (!impl_->render(size(),true)) return {};
