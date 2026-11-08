@@ -21,7 +21,12 @@
       "name": "soundtouch",
       "features": [
         "soundtouchdll"
-      ]
+      ],
+      "platform": "windows"
+    },
+    {
+      "name": "soundtouch",
+      "platform": "!windows"
     }
   ]
 }

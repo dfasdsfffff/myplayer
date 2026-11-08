@@ -46,7 +46,7 @@ target_include_directories(play_core
 target_link_libraries(play_core PRIVATE
     SDL2::SDL2
     ${FFMPEG_LIBRARIES}
-    SoundTouch::SoundTouchDLL
+    ${PLAYERDEMO_SOUNDTOUCH_TARGET}
 )
 
 target_compile_definitions(play_core PRIVATE

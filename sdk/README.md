@@ -14,8 +14,8 @@
 
 - 随包提供：SDK 源码、CMake、sigslot 1.2.3 源码及 LICENSE、示例和公开 API 测试。
 - 宿主提供：FFmpeg、SDL2、SoundTouch 二进制/开发文件；启用 Qt 时另提供 Qt 和 libass，以及其字体/文字处理传递依赖。
-- 不包含依赖 DLL，不自动下载、安装依赖或修改工具链。可以复用兼容的 `SDL2::SDL2`、`SoundTouch::SoundTouchDLL` targets；FFmpeg 使用 `FFMPEG_INCLUDE_DIRS`、`FFMPEG_LIBRARIES`（如未预先查找则调用 `find_package(FFMPEG)`）。libass 通过 pkg-config 查找。
-- 仓库根目录的 `vcpkg.json` 记录应用开发依赖。外部宿主可在自己的 vcpkg manifest 声明 `ffmpeg`（含 avdevice、avfilter、swscale、swresample）、`sdl2`、`soundtouch[soundtouchdll]`；Qt 组件再增加 `libass`。用宿主工具链在首次 CMake configure 时选定依赖；不要在已配置的构建目录中更换 triplet/CRT。
+- 不包含依赖 DLL，不自动下载、安装依赖或修改工具链。可以复用兼容的 `SDL2::SDL2` 和 SoundTouch target；Windows 使用 `SoundTouch::SoundTouchDLL`，其他平台使用 `SoundTouch::SoundTouch`。FFmpeg 使用 `FFMPEG_INCLUDE_DIRS`、`FFMPEG_LIBRARIES`（如未预先查找则调用 `find_package(FFMPEG)`）。libass 通过 pkg-config 查找。
+- 仓库根目录的 `vcpkg.json` 记录应用开发依赖。外部宿主可在自己的 vcpkg manifest 声明 `ffmpeg`（含 avdevice、avfilter、swscale、swresample）、`sdl2`、Windows 下的 `soundtouch[soundtouchdll]` 或其他平台的 `soundtouch`；Qt 组件再增加 `libass`。用宿主工具链在首次 CMake configure 时选定依赖；不要在已配置的构建目录中更换 triplet/CRT。
 - sigslot 可通过 `PLAYERDEMO_SIGSLOT_ROOT` 指定兼容的自备副本。
 
 ### 无 Qt 宿主
