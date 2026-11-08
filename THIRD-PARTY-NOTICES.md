@@ -3,8 +3,9 @@
 MyPlayer and MyPlayer Monitor include or link to third-party components.
 Keep this file with binary distributions and each component's complete
 license text. The portable license paths below describe the dual-application
-archives produced by `scripts/package-portable.ps1`, not a bare build tree.
-That script copies the configured dependency installation's copyright files;
+archives produced by `scripts/package-portable.ps1` or
+`scripts/package-portable-linux.sh`, not a bare build tree.
+These scripts copy the configured dependency installation's copyright files;
 actual linked/deployed versions depend on the build. The monitor's optional
 standalone bundled-dependency build has a separate deployment path and is not
 automatically a complete licensed portable package.
@@ -70,9 +71,10 @@ Apache-2.0. The complete license is preserved in the source repository at
 `apps/monitor/REFERENCE-LICENSE.txt`. Preserve applicable attribution and
 license notices when distributing these components.
 
-The current install/portable scripts do not automatically copy that reference
-license into the monitor archive. Carry it with monitor binary distributions;
-the packaging smoke check is not a license-compliance check.
+The Linux portable script copies this text to
+`licenses/monitor-REFERENCE-LICENSE.txt`. The Windows portable and generic
+install scripts do not automatically copy it. Carry it with monitor binary
+distributions; the packaging smoke check is not a license-compliance check.
 
 ## Source Distribution
 

@@ -208,6 +208,42 @@ bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
 
 ## 双软件免安装打包
 
+### Linux x86_64
+
+先按上面的 Linux 构建说明配置两个应用，使用 `Release` 并设置
+`-DMYPLAYER_ENABLE_SANITIZERS=OFF`。构建目录、Qt SDK、vcpkg 动态库和
+`patchelf` 必须位于 Linux 环境中。Qt 许可证目录应与所用 SDK 版本匹配。
+
+```bash
+QT_LICENSE_DIR=/mnt/d/Qt/Qt6/6.9.3/Src/LICENSES \
+PATCHELF=/home/huxiaoyun/tools/vcpkg/downloads/tools/patchelf/0.19.0-x86_64-linux/bin/patchelf \
+EXTRA_LIBRARY_DIR=/home/huxiaoyun/myplayer-linux/extra-debs/libxcb-cursor0/root/usr/lib/x86_64-linux-gnu \
+EXTRA_LIBRARY_LICENSE=/home/huxiaoyun/myplayer-linux/extra-debs/libxcb-cursor0/root/usr/share/doc/libxcb-cursor0/copyright \
+bash scripts/package-portable-linux.sh \
+  /home/huxiaoyun/myplayer-linux/build-release 1.1.1
+```
+
+上例的额外动态库来自 Ubuntu 的 `libxcb-cursor0` 包。准备示例路径：
+
+```bash
+mkdir -p /home/huxiaoyun/myplayer-linux/extra-debs
+cd /home/huxiaoyun/myplayer-linux/extra-debs
+apt download libxcb-cursor0
+mkdir -p libxcb-cursor0/root
+dpkg-deb -x libxcb-cursor0_*.deb libxcb-cursor0/root
+```
+
+若构建机已经安装该库，额外目录参数可省略；此时目标系统仍须自行提供该库。
+
+脚本生成 `dist/MyPlayer-1.1.1-linux-x86_64.tar.gz` 和对应 `.sha256`，内含两个
+程序、Qt 插件、所需 Qt/vcpkg 动态库及许可证文本。解压后运行
+`MyPlayer-1.1.1-linux-x86_64/bin/myplayer` 或同目录的 `myplayer_monitor`。
+脚本会检查相对库路径并在离屏模式启动两个程序；正常播放、摄像头连接和不同
+Linux 发行版上的兼容性仍需在目标系统验证。系统的 glibc、图形栈和音频服务
+仍由目标系统提供。
+
+### Windows x64
+
 使用上文的 **Windows x64 / Visual Studio 多配置生成器** 同时启用两个应用；需要完整依赖安装目录、Qt 的 `windeployqt.exe`、Qt 许可证文本和可再分发的 MSVC CRT DLL。监控 EXE 从 `PLAYERDEMO_OUTPUT_DIR`（默认仓库 `bin/`）读取；脚本不承诺支持 Ninja 或仅监控 standalone 构建。
 
 ```powershell
