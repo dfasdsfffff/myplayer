@@ -77,6 +77,12 @@ sudo apt-get install -y nasm
 
 Linux sanitizer CI 同样在 vcpkg 配置前安装该工具；缺少 NASM 会使 FFmpeg 依赖构建失败，而非 sanitizer 检查失败。
 
+macOS 在首次配置前安装 Qt、Ninja 与 vcpkg 依赖构建工具（`autoconf-archive` 为 gperf 等依赖的 Autotools 检查所需）：
+
+```bash
+brew install qtbase pkgconf ninja autoconf autoconf-archive automake libtool nasm
+```
+
 ```bash
 export VCPKG_ROOT="$HOME/tools/vcpkg"
 export QT_ROOT="/path/to/Qt"
