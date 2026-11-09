@@ -12,7 +12,7 @@ jobs:
       - name: Install dependency build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y nasm autoconf autoconf-archive automake libtool
+          sudo apt-get install -y nasm autoconf autoconf-archive automake libtool libltdl-dev
       - uses: lukka/run-vcpkg@v11
       - name: Configure core tests with ASan and UBSan
         run: >-

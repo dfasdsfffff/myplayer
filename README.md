@@ -72,10 +72,10 @@ Linux x86/x64 构建 FFmpeg 需要系统提供 NASM；gperf 等依赖还需要�
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y nasm autoconf autoconf-archive automake libtool
+sudo apt-get install -y nasm autoconf autoconf-archive automake libtool libltdl-dev
 ```
 
-Linux sanitizer CI 同样在 vcpkg 配置前安装这些工具；缺少 NASM 会使 FFmpeg 构建失败，缺少 Autotools/宏集合会使 gperf 等依赖配置失败，两者均发生在 sanitizer 测试之前。
+Linux sanitizer CI 同样在 vcpkg 配置前安装这些工具；缺少 NASM 会使 FFmpeg 构建失败，缺少 Autotools/宏集合会使 gperf 等依赖配置失败。`libxcrypt` 还需要 `libltdl-dev` 提供的 ltdl 开发文件，仅安装 `libtool` 不够。这些依赖错误均发生在 sanitizer 测试之前。
 
 macOS 在首次配置前安装 Qt、Ninja 与 vcpkg 依赖构建工具（`autoconf-archive` 为 gperf 等依赖的 Autotools 检查所需）：
 
