@@ -68,6 +68,15 @@ v2.1.0 计划按以下名称打包。实际可下载的平台与附件以 [GitHu
 
 准备 CMake 3.25+、Ninja、支持 C++20 的 GCC 或 Clang、Qt 6.8+、pkg-config 和已初始化的 vcpkg。使用与 Qt 相同的 CPU 架构。WSL 下可将构建目录放在 Linux 文件系统中。
 
+Linux x86/x64 构建 FFmpeg 还需要系统提供 NASM。Ubuntu/Debian 在首次 CMake 配置前执行（已有其他构建依赖时）：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y nasm
+```
+
+Linux sanitizer CI 同样在 vcpkg 配置前安装该工具；缺少 NASM 会使 FFmpeg 依赖构建失败，而非 sanitizer 检查失败。
+
 ```bash
 export VCPKG_ROOT="$HOME/tools/vcpkg"
 export QT_ROOT="/path/to/Qt"
