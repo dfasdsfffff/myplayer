@@ -77,6 +77,8 @@ sudo apt-get install -y nasm autoconf autoconf-archive automake libtool libltdl-
 
 Linux sanitizer CI 同样在 vcpkg 配置前安装这些工具；缺少 NASM 会使 FFmpeg 构建失败，缺少 Autotools/宏集合会使 gperf 等依赖配置失败。`libxcrypt` 还需要 `libltdl-dev` 提供的 ltdl 开发文件，仅安装 `libtool` 不够。这些依赖错误均发生在 sanitizer 测试之前。
 
+Linux sanitizer CI 使用仓库 `cmake/triplets` 中的 `x64-linux-dynamic` triplet。默认 `x64-linux` 的静态 FFmpeg 含有不能链接进共享库的汇编对象，会在生成 `libplayer_sdk_c.so` 时触发 `R_X86_64_PC32` / `recompile with -fPIC` 错误；仅为项目目标启用 PIC 不能修复已经编译好的第三方静态库。
+
 macOS 在首次配置前安装 Qt、Ninja 与 vcpkg 依赖构建工具（`autoconf-archive` 为 gperf 等依赖的 Autotools 检查所需）：
 
 ```bash
@@ -294,16 +296,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1
 
 相关缓存项与可选参数：
 
-- `PLAYERDEMO_QT_ROOT`、`VCPKG_INSTALLED_DIR`、`VCPKG_TARGET_TRIPLET` 必须对应本次构建的有效路径；后两项通常由 vcpkg toolchain 设置。
-- `-QtLicenseDir` 默认使用 Qt SDK 前缀的同级 `Src/LICENSES`；只安装运行 SDK、未安装 Qt 源码时，这个目录可能不存在，需要显式提供完整许可文本。
+- `PLAYERDEMO_QT_ROOT` 指向本次构建的 Qt SDK；留空时脚本从 `Qt6_DIR` 推导前缀。`VCPKG_INSTALLED_DIR`、`VCPKG_TARGET_TRIPLET` 必须对应有效依赖路径，通常由 vcpkg toolchain 设置。
+- `-QtLicenseDir` 默认使用 Qt SDK 前缀的同级 `Src/qtbase/LICENSES`；只安装二进制 SDK 时需额外安装同版本的 qtbase 源码，或显式提供完整许可文本。Windows CI 使用 `install-qt-action` 的 `qt-root-dir` 输出定位 SDK，并安装 qtbase 源码供打包收集许可证。
 - `-CrtDir` 可指定 `Microsoft.VC*.CRT` 的 x64 目录；未指定时，脚本从 `CMAKE_GENERATOR_INSTANCE` 指向的 VS 安装下选取可用的最新版本。
 - `-Configuration` 只接受 `Release`；`-Version` 默认 `1.1.0`，只控制包名。
 
-许可部署还有一处已知缺口：监控参考代码的 Apache-2.0 完整文本保存在
-`apps/monitor/REFERENCE-LICENSE.txt`，Linux 打包脚本会复制为
-`licenses/monitor-REFERENCE-LICENSE.txt`，Windows 安装/打包脚本尚未自动复制。
-分发 Windows 监控软件前须将该文本放入暂存包的 `licenses/` 并重新归档及生成校验文件；
-不能把脚本 smoke 成功当成全部许可合规检查，见[第三方说明](THIRD-PARTY-NOTICES.md)。
+监控参考代码的 Apache-2.0 完整文本保存在
+`apps/monitor/REFERENCE-LICENSE.txt`，Linux 与 Windows 打包脚本均复制为
+`licenses/monitor-REFERENCE-LICENSE.txt`。脚本 smoke 仅验证启动，不能代替全部许可合规检查，见[第三方说明](THIRD-PARTY-NOTICES.md)。
 
 `dist/` 为本地生成目录，不保证含有指定版本；v2.1.0 发布前须按本节重新生成并验收附件。CI 的 Windows 打包步骤目前显式使用 `1.0.0`，不会根据 Git 标签自动生成 `2.1.0` 包。
 

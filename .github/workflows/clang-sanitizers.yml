@@ -19,6 +19,8 @@ jobs:
           cmake -S . -B build -G "Unix Makefiles"
           -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_OVERLAY_TRIPLETS="${GITHUB_WORKSPACE}/cmake/triplets"
+          -DVCPKG_TARGET_TRIPLET=x64-linux-dynamic
           -DMYPLAYER_BUILD_QT_APP=OFF
           -DBUILD_TESTING=ON
           -DMYPLAYER_ENABLE_SANITIZERS=ON

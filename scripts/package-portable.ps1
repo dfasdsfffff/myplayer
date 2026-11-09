@@ -23,14 +23,18 @@ function Assert-RequiredPath([string]$Path) {
 }
 
 $qtRoot = Get-CacheValue "PLAYERDEMO_QT_ROOT"
+if (-not $qtRoot) {
+    # Match the effective Qt prefix used by the CMake install rules.
+    $qtRoot = (Resolve-Path -LiteralPath (Join-Path (Get-CacheValue "Qt6_DIR") "../../..")).Path
+}
 $dependencyRoot = Join-Path (Get-CacheValue "VCPKG_INSTALLED_DIR") (Get-CacheValue "VCPKG_TARGET_TRIPLET")
-if (-not $QtLicenseDir) { $QtLicenseDir = Join-Path (Split-Path $qtRoot) "Src\LICENSES" }
+if (-not $QtLicenseDir) { $QtLicenseDir = Join-Path (Split-Path $qtRoot) "Src\qtbase\LICENSES" }
 if (-not $CrtDir) {
     $vsRoot = Get-CacheValue "CMAKE_GENERATOR_INSTANCE"
     $CrtDir = Get-ChildItem "$vsRoot/VC/Redist/MSVC/*/x64/Microsoft.VC*.CRT" -Directory |
         Sort-Object { [version]$_.Parent.Parent.Name } -Descending | Select-Object -First 1 -ExpandProperty FullName
 }
-foreach ($required in @($QtLicenseDir, $CrtDir, "$qtRoot/bin/windeployqt.exe", "$dependencyRoot/share")) { Assert-RequiredPath $required }
+foreach ($required in @($QtLicenseDir, "$QtLicenseDir/LGPL-3.0-only.txt", $CrtDir, "$qtRoot/bin/windeployqt.exe", "$dependencyRoot/share")) { Assert-RequiredPath $required }
 if ((Get-CacheValue "MYPLAYER_BUILD_MONITOR") -ne "ON") { throw "Configure with -DMYPLAYER_BUILD_MONITOR=ON before packaging." }
 
 cmake --build $buildPath --config $Configuration --target myplayer myplayer_monitor
@@ -65,6 +69,11 @@ foreach ($app in @(
         Copy-Item -LiteralPath $copyright.FullName -Destination (Join-Path $licenses "$($copyright.Directory.Name)-copyright")
     }
     Copy-Item -LiteralPath $QtLicenseDir -Destination (Join-Path $licenses "Qt") -Recurse
+    if ($app.Name -eq "MyPlayerMonitor") {
+        $monitorLicense = Join-Path $licenses "monitor-REFERENCE-LICENSE.txt"
+        Copy-Item -LiteralPath (Join-Path $root "apps/monitor/REFERENCE-LICENSE.txt") -Destination $monitorLicense
+        Assert-RequiredPath $monitorLicense
+    }
     foreach ($required in @($exePath, "$binPath/platforms/qwindows.dll", "$binPath/vcruntime140.dll", "$binPath/msvcp140.dll", "$stagePath/LICENSE", "$licenses/ffmpeg-copyright", "$licenses/libass-copyright", "$licenses/Qt/LGPL-3.0-only.txt")) { Assert-RequiredPath $required }
     $debugDlls = Get-ChildItem -LiteralPath $binPath -Recurse -File -Filter "*.dll" | Where-Object { $_.Name -match '^(Qt6.+d|msvcp\d+d|vcruntime\d+(?:_\d+)?d|ucrtbased|SDL2d|freetyped|libpng16d|bz2d|zd)\.dll$' }
     if ($debugDlls) { throw "Release contains Debug DLLs: $($debugDlls.Name -join ', ')" }

@@ -72,10 +72,10 @@ Apache-2.0. The complete license is preserved in the source repository at
 `apps/monitor/REFERENCE-LICENSE.txt`. Preserve applicable attribution and
 license notices when distributing these components.
 
-The Linux portable script copies this text to
-`licenses/monitor-REFERENCE-LICENSE.txt`. The Windows portable and generic
-install scripts do not automatically copy it. Carry it with monitor binary
-distributions; the packaging smoke check is not a license-compliance check.
+The Linux and Windows portable scripts copy this text to
+`licenses/monitor-REFERENCE-LICENSE.txt`. Generic installs do not automatically
+copy it. Carry it with monitor binary distributions; the packaging smoke check
+is not a license-compliance check.
 
 ## Source Distribution
 

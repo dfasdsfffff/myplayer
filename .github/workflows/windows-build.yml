@@ -16,12 +16,14 @@ jobs:
         with:
           version: 6.9.3
           arch: win64_msvc2022_64
+          source: true
+          src-archives: qtbase
       - name: Configure
         shell: pwsh
         run: >-
           cmake -S . -B build -G "Visual Studio 18 2026" -A x64
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
-          -DPLAYERDEMO_QT_ROOT="${{ steps.qt.outputs.dir }}"
+          -DPLAYERDEMO_QT_ROOT="${{ steps.qt.outputs.qt-root-dir }}"
           -DMYPLAYER_BUILD_QT_APP=ON
           -DMYPLAYER_BUILD_MONITOR=ON
           -DBUILD_TESTING=ON
