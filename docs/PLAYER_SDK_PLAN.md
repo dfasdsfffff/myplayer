@@ -1,10 +1,22 @@
-# 可嵌入播放器源码 SDK 方案
+# 可嵌入播放器源码 SDK 方案与实施记录
 
 ## 1. 方案状态与目标
 
-本文原为 SDK 设计方案。2026-11-06 已按该方案实现首版源码 API、构建隔离、Qt 组件和两个应用迁移；原设计章节保留作为需求依据，实际 API/状态表/限制以 [SDK 接入指南](../sdk/README.md)、公开头文件和文末“实施与验证记录”为准。没有创建发行标签，不将本机自动化验证当作干净机器、真实摄像机、长时性能或许可审计结论。
+本文原为 SDK 设计方案，现作为历史需求与实施记录保存。2026-11-06 已实现首版源码 API、构建隔离、Qt 组件和两个应用迁移；第 2～10 节保留当时设计，第 11～12 节保留当时实施与本机验证记录，不作为 v2.1.0 重新验收结论。实际 API/状态表/限制以 [SDK 接入指南](../sdk/README.md)、公开头文件及下文当前边界为准。“未创建标签/未推送”、旧包名、测试数量和 QPainter 说明仅指相应历史快照，不能用于判断当前标签或发布状态。
 
-后续实现已加入默认构建的版本化 C ABI，见 [C ABI 指南](../sdk/c/README.md)；下文“首版不提供 C ABI”及对应范围描述仅记录原始设计，不再代表当前功能。监控启动异常、软件 YUV 色彩转换及切换媒体时外挂字幕清理也已在后续提交修正，当前验证范围以测试代码和 CMake 注册项为准。
+### v2.1.0 当前边界（源码核对）
+
+- 当前默认构建 `PlayerSDK::Core` 与 `PlayerSDK::C`，Qt、示例与公开测试默认关闭。Core/Qt 为 C++20 源码 API，C ABI 主版本为 1；C ABI 指南见 [SDK C 接入](../sdk/c/README.md)。历史“首版不提供 C ABI”“默认 Core-only”“安装留待以后”不再描述当前完整功能。
+- 项目发行目标标签为 `v2.1.0`，但 SDK 自报版本及 CMake project/库 `VERSION` 仍为 `1.0.0`。`scripts/package-sdk.cmake` 也仍固定生成 `PlayerSDK-1.0.0-source.zip`，不能将它误写成已发布的 v2.1.0 附件。
+- C ABI 安装、运行依赖收集与 `find_package(PlayerSDK CONFIG REQUIRED)` 导出规则限 Windows x64/MSVC Release；C++ Core/Qt 未提供对应安装导出契约，继续源码接入。
+- Linux/macOS 已有源码适配：支持 `SoundTouch::SoundTouch`，Qt 使用 SDL software surface 合成并读回 QImage 交给 QPainter，不创建 Windows 式原生 SDL 子窗口；Windows 正常窗口仍使用 SDL 原生子窗口。当前不能再统一声称“QPainter 仅画空背景、播放不读回”。
+- Linux 在未指定 `SDL_AUDIODRIVER` 且音频初始化失败时可尝试 dummy 静音输出；Linux Qt 会在配置的 vcpkg 树存在 `lib/libfontconfig.so` 时优先链接该库。它们不是有声设备、全部平台或任意依赖组合已通过验收的证明。
+- 当前公开 BGRA 缓冲为 `shared_ptr<const vector<uint8_t>>`，YUV plane 共享 FFmpeg 引用，避免在公开事件发布时深拷贝像素；不代表硬解零拷贝或所有格式都无转换/分配。手工提交帧的迁移要求见 SDK 指南。
+- 监控延迟创建播放器、YUV 软件色彩转换及外挂字幕清理已在 `2.0.1` 源码基线存在，不列作 v2.1.0 新增。当前新增范围按 [SDK 变更记录](../sdk/CHANGELOG.md) 区分。
+
+本次以源码与文档核对为主，仅运行现有 Windows 应用的启动 smoke 与构建/测试清单查询；未重新构建、执行 SDK/应用测试套件、完整 GUI 验证或性能基准。第 9 节勾选及第 11～12 节结果保持历史含义。干净机器、真实摄像机、长时性能、跨平台支持矩阵和最终许可审计仍须独立验收。
+
+### 原始目标（历史）
 
 首版直接将现有 `play_core` 改造为源码 SDK，采用“源码交付 + C++ API + 可选 Qt Widgets 组件”，不在其上新增独立的 `player_sdk` 包装库。使用方将 SDK 作为 CMake 子项目加入自己的工程，用自己的工具链一起构建，无需理解 FFmpeg、SDL 和内部线程即可集成播放。现有 `apps/qt_player` 与 `apps/monitor` 保留，逐步迁移为 SDK 的真实使用方，不再新增第三个独立播放器。
 
@@ -16,7 +28,7 @@ Core 提供播放控制、内置音频输出和 CPU 视频帧交付，不负责�
 
 当前架构说明见[开发指南](PROJECT_GUIDE.md)，现有构建、测试及成品打包步骤见[根 README](../README.md)。源码 SDK 接入、构建与部署的当前说明见 [SDK 接入指南](../sdk/README.md)；本文保留最初建设目标，并在文末记录具体实现/验证边界。
 
-## 2. 现有基础与缺口
+## 2. 原设计时的基础与缺口（历史）
 
 | 已有基础 | SDK 化需要补齐 |
 | --- | --- |
@@ -27,13 +39,13 @@ Core 提供播放控制、内置音频输出和 CPU 视频帧交付，不负责�
 | 两个应用分别接入核心 | 抽取重复的 Qt 桥接和显示逻辑，避免 SDK 依赖应用 |
 | 已有核心集成测试和成品部署脚本 | 增加仓库外源码 consumer、宿主构建隔离和共存测试 |
 
-主要代码依据：
+原设计证据入口（链接已随目录迁移；下列说明区分当时基础与当前代码）：
 
-- [核心 CMake](../sdk/core/CMakeLists.txt)：当前公开整个核心源码目录及 FFmpeg、sigslot 包含路径，链接依赖公开传递。
-- [PlaybackRuntime](../sdk/core/src/playback_runtime.h)：实例入口、控制接口与事件。
-- [媒体源及状态定义](../sdk/core/src/media_source.h)：网络配置、错误、轨道和媒体信息；公开类型仍包含 FFmpeg 类型。
-- [Qt 播放器桥接](../apps/qt_player/playback_runtime_bridge.h)：Qt 事件投递、会话隔离和最新帧邮箱的已有基础。
-- [监控显示组件](../apps/monitor/core_video_widget.cpp)：另一套核心接入和 SDL 显示实现。
+- [核心 CMake](../sdk/core/CMakeLists.txt)：当时需收紧公开目录；当前只向 consumer 公开 `include/`，FFmpeg/sigslot/`src/` 为私有，静态链接依赖仍传递。
+- [PlaybackRuntime](../sdk/core/src/playback_runtime.h)：历史实例入口；当前只为仓库内部回归保留，公开入口为 `play_core::Player`。
+- [私有媒体源及状态定义](../sdk/core/src/media_source.h)：允许内部 FFmpeg 类型；当前公开定义位于 `sdk/core/include/play_core/`，不泄漏这些类型。
+- [Qt 播放器桥接](../apps/qt_player/playback_runtime_bridge.h)：历史桥接基础；当前应用桥接使用公开 Qt SDK。
+- [监控显示组件](../apps/monitor/core_video_widget.cpp)：历史独立接入点；当前使用共享 `VideoWidget`，不是另一套私有 SDL 播放实现。
 
 SDK 的重点是公开边界、生命周期和源码接入，不是重写解封装、解码或同步管线，也不是让使用方手动复制所有 `.cpp` 文件。
 
@@ -271,7 +283,7 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 - 使用旧版 consumer 源码重新构建验证源码兼容性，不再以“旧二进制替换新版 DLL”作为验收标准。
 - 暂不设计 C 导出、ABI 版本协商、`struct_size` 或导出符号基线。以后确有独立 DLL 升级或跨语言需求时，再增加单独的 C ABI 适配层。
 
-## 8. 实施顺序
+## 8. 原实施顺序（历史）
 
 | 阶段 | 工作 | 完成标准 |
 | --- | --- | --- |
@@ -284,7 +296,7 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 
 先固定公开契约，再做封装与目录调整。每阶段复用已有核心测试，避免先整体搬迁再集中排查回归。源码接入测试前移，不等两个仓库内应用迁移完才验证外部宿主。
 
-## 9. 验收清单
+## 9. 首版验收清单（历史，非 v2.1.0 签收）
 
 - [ ] 本地文件、网络源、暂停、倍速、定位、音轨和字幕保持现有能力。
 - [x] 快速连续打开媒体时，没有过期画面、状态或错误串入（自动生命周期/会话测试范围）。
@@ -329,7 +341,7 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 
 ## 11. 实施与验证记录（2026-11-06，首版提交快照）
 
-本节保留提交 `5efab6a` 的 QPainter 显示实现及当时验证结果。按后续要求，当前分支已恢复共享 SDL 显示，变更及验证见第 12 节；本节的 QPainter 描述和旧 ZIP 不代表当前后端。
+本节保留提交 `5efab6a` 的 QPainter 显示实现及当时验证结果。后续恢复共享 SDL 合成的历史见第 12 节；当前 Windows 原生显示与非 Windows 软件读回的区别见第 1 节。本节 QPainter 描述和旧 ZIP 不代表当前全部平台的后端与交付版本。
 
 ### 已完成的实现
 
@@ -399,5 +411,5 @@ SDK、宿主及第三方二进制仍需匹配架构、兼容工具链和运行�
 | 监控 | 全量套件中的 16 路本地预览/切源/销毁/分段录像和窗口 smoke 通过 |
 | 仓库外 SDK 源码包 | 新输出 `build/sdk-sdl-source-final/PlayerSDK-1.0.0-source.zip` 解压到临时目录，Release consumer 编译、三个 SDK 测试 **3/3 通过**，原生 Qt consumer 启动/退出通过；见 `build/sdk-sdl-consumer-*.log` |
 
-SDL 后续改动按用户要求作为独立提交保存在 `feature/player-sdk-sdl` 分支，未推送。仍不宣称完成长时间/GPU/4K 性能、真实摄像机及干净机器验证。
+当时 SDL 后续改动按用户要求作为独立提交保存在 `feature/player-sdk-sdl` 分支且尚未推送；此句仅记录当时状态，不描述当前远端或标签。该轮仍未宣称完成长时间/GPU/4K 性能、真实摄像机及干净机器验证。v2.1.0 文档核对没有重跑表内验证。
 

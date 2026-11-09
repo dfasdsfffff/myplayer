@@ -1,5 +1,7 @@
 # MyPlayer 与 MyPlayer Monitor
 
+本文档面向 **v2.1.0 发布准备**；目标 Git 标签为 `v2.1.0`，打包版本参数为 `2.1.0`。发行说明见 [v2.1.0](docs/releases/v2.1.0.md)。文档中的目标附件名不代表附件已经上传。
+
 本仓库包含两个 Qt 桌面软件，共用 C++20 播放核心 `play_core`：
 
 | 软件 | 用途 | 源码入口 | CMake 子目录 | CMake 目标 |
@@ -22,22 +24,29 @@
 
 ## 下载与运行
 
-[2.0.1 修复版](https://github.com/dfasdsfffff/myplayer/releases/tag/2.0.1) 提供两个独立的 Windows x64 Release 免安装包：
+v2.1.0 计划按以下名称打包。实际可下载的平台与附件以 [GitHub 发行页](https://github.com/dfasdsfffff/myplayer/releases) 为准：
 
 | 文件 | 完整解压后启动 |
 | --- | --- |
-| `MyPlayer-2.0.1-windows-x64.zip` | `bin/myplayer.exe` |
-| `MyPlayerMonitor-2.0.1-windows-x64.zip` | `bin/myplayer_monitor.exe` |
+| `MyPlayer-2.1.0-windows-x64.zip` | `bin/myplayer.exe` |
+| `MyPlayerMonitor-2.1.0-windows-x64.zip` | `bin/myplayer_monitor.exe` |
+| `MyPlayer-2.1.0-linux-x86_64.tar.gz` | 解压目录的 `bin/myplayer` 或 `bin/myplayer_monitor`（双应用合包） |
 
-每个 ZIP 均附有 `.sha256` 校验文件。下载后可用 `Get-FileHash <ZIP路径> -Algorithm SHA256` 比对。保留整个目录结构，不要只复制 EXE。包中包含 Qt 插件、媒体依赖、app-local MSVC 运行库和许可证，不需要另装 Qt 或 VC++ 运行库；录像等写入操作需要目录写权限。
+各归档均由脚本生成对应 `.sha256` 文件。Windows 可用 `Get-FileHash <归档路径> -Algorithm SHA256` 比对；Linux 可在归档目录运行 `sha256sum -c <归档文件名>.sha256`。完整解压并保留目录结构，不要只复制可执行文件。Windows 包包含 Qt 插件、媒体依赖、app-local MSVC 运行库和许可证，无需另装 Qt 或 VC++ 运行库；Linux 包仍依赖目标系统的 glibc、图形栈和音频服务。录像等写入操作需要目录写权限。
 
 “免安装”是部署方式，不代表所有设置都保存在程序旁边。播放器设置与监控配置的存储方式不同，见开发指南及监控 README。
 
-发行包版本与程序内版本目前尚未统一：本次发行标签和包名为 `2.0.1`，顶层/监控 CMake 项目及两个 `main.cpp` 中的应用版本仍为 `1.0.0`。包名参数不会自动更新这些代码元数据。
+发行包版本与程序内版本目前尚未统一：本次目标标签为 `v2.1.0`、包名版本为 `2.1.0`；顶层/监控 CMake 项目、`vcpkg.json` 及两个 `main.cpp` 中的应用版本仍为 `1.0.0`。显式传入打包参数不会更新这些元数据，本轮仅更新文档。
 
-GitHub 发行页提供 `2.0.1` 修复版及附件；Gitee 同步源码与标签，但尚未创建对应发行页。
+### v2.1.0 主要变化
 
-**2.0.1 播放器修复**：修复菜单关闭时 `Ctrl+O` 等快捷键无效、黑色音频占位标签覆盖视频，以及 Windows 高 DPI 下窗口边缘缩放坐标不一致的问题。视频与音频占位层互斥显示；Enter/空格统一由菜单动作处理，避免一次按键重复切换；原生边缘命中判断统一使用物理屏幕像素。原始 `2.0.0` 下载包不包含这些修复，请升级至 `2.0.1`，不要继续使用旧版播放器附件。
+- 监控软件新增 ONVIF 局域网摄像头发现，可读取设备名称与主/子 RTSP 码流地址，仍支持手动配置。
+- 扩展 Linux / macOS 源码构建支持，调整 SoundTouch 接入和平台相关测试，新增 macOS 双应用 CI 配置。
+- 新增 Linux 双应用免安装打包脚本，收集依赖、Qt 插件与许可证，生成 SHA-256 校验文件。
+- 非 Windows 视频控件改用 SDL 软件表面经 Qt 绘制，避免创建不兼容的原生子窗口；Linux 未指定音频驱动且音频初始化失败时可尝试静音输出。
+- 监控程序加入 Windows 应用图标；播放器控制栏动画由主窗口持有，随窗口释放。
+
+继续包含 2.0.1 的播放器修复：菜单关闭时 `Ctrl+O` 等快捷键可用、音频占位层不再覆盖视频、Windows 高 DPI 窗口边缘缩放坐标一致，Enter/空格避免重复切换。跨平台构建与 CI 配置不等于所有平台、摄像头和 GPU 已通过实际验收。
 
 发行验收不能只运行 `--smoke-test`：还需实际通过 `Ctrl+O` 选择文件，确认视频画面可见、暂停/恢复可用，验证视频→音频→视频切换，以及高 DPI 下拖拽窗口边缘、暂停画面缩放和最大化/还原。启动成功或 SDL present 计数不代表最终画面可见。
 
@@ -49,7 +58,7 @@ GitHub 发行页提供 `2.0.1` 修复版及附件；Gitee 同步源码与标签�
 
 - CMake 项目及 Preset schema 最低要求 **3.25**，但下文默认的 [Visual Studio 18 2026 生成器](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2018%202026.html) 从 **CMake 4.2** 才提供；照用该生成器时需 **4.2+**。
 - C++20 编译器。默认 Preset 使用 **Visual Studio 18 2026**、MSVC x64；需安装桌面 C++ 工作负载及 Windows SDK。
-- Qt 6 Core/Gui/Widgets；监控程序明确要求 **Qt 6.8+**。现有 Windows 发行使用 Qt **6.9.3 / msvc2022_64**，这是 Qt SDK 目录名，不是本仓库 Preset 的 VS 生成器名称。
+- Qt **6.8+**；播放器需 Core/Gui/Widgets，监控还需 Network/Xml。Windows 构建示例使用 Qt **6.9.3 / msvc2022_64**，这是 Qt SDK 目录名，不是本仓库 Preset 的 VS 生成器名称。
 - vcpkg，设置 `VCPKG_ROOT` 为其根目录。`vcpkg.json` 声明 FFmpeg、libass、SDL2、SoundTouch；sigslot 使用仓库内的头文件。
 - 播放器通过 `pkg_check_modules(LIBASS ... libass)` 查找 libass，需要可用的 pkg-config/pkgconf 及与当前 Release/Debug、x64 依赖相匹配的元数据。
 
@@ -77,7 +86,11 @@ cmake --build "$build_dir" --parallel 4
 QT_QPA_PLATFORM=offscreen SDL_AUDIODRIVER=dummy ctest --test-dir "$build_dir" --output-on-failure
 ```
 
-使用 Homebrew 安装 `qtbase` 时，Qt 路径可设为 `export QT_ROOT="$(brew --prefix qtbase)"`。构建后的播放器与监控程序位于构建目录的 `bin/`。现有免安装发行包流程面向 Windows。
+使用 Homebrew 安装 `qtbase` 时，Qt 路径可设为 `export QT_ROOT="$(brew --prefix qtbase)"`。构建后的播放器与监控程序位于构建目录的 `bin/`。macOS 当前提供源码构建与 CI 配置，没有专用 `.app` / DMG 打包脚本。
+
+Linux 免安装打包需要动态依赖；在上述配置命令中额外传入 `-DVCPKG_OVERLAY_TRIPLETS="$PWD/cmake/triplets" -DVCPKG_TARGET_TRIPLET=x64-linux-dynamic -DMYPLAYER_ENABLE_SANITIZERS=OFF`，并使用独立的构建目录。仓库提供的这个 triplet 仅用于 Linux x64，不应用于 macOS。
+
+Linux 未显式设置 `SDL_AUDIODRIVER` 且音频子系统初始化失败时会尝试 dummy 驱动，此时无声音；显式指定驱动失败不会触发该回退。非 Windows 视频路径使用 SDL 软件渲染与 Qt 绘制，不应套用 Windows 原生 SDL 呈现路径的性能结论。
 
 ### Windows 构建两个软件
 
@@ -204,7 +217,7 @@ bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
   --benchmark-run-ms 10000 --benchmark-timeout-ms 30000
 ```
 
-基准模式请求软件解码、1 倍速、关闭循环/断点恢复及 1280×720 窗口。SDK 共享控件恢复 SDL 后，播放器报告使用 schema 3 / `myplayer_qt_sdk_playback`，以 `video_frame_sdl_present_returns` 记录 SDL 呈现返回；schema 2 仅用于之前的 QPainter 实现。GUI 收到的帧数与共享 VideoWidget 的 SDL 呈现回调分别统计，不是解码帧/丢帧计数，也不证明屏幕实际可见。CPU 以一个逻辑核心为 100%；纯视频样本不测音画同步，短时结果不是长期稳定性结论。
+基准模式请求软件解码、1 倍速、关闭循环/断点恢复及 1280×720 窗口。播放器报告使用 schema 3 / `myplayer_qt_sdk_playback`，保留 `video_frame_sdl_present_returns` 字段名；schema 2 仅用于之前的 QPainter 实现。该字段统计共享控件的新帧通知：Windows 原生路径在 SDL 呈现返回后通知，非 Windows 软件路径在准备 Qt 绘制时通知，并非屏幕/合成器完成计数。GUI 收到的帧数不是解码帧/丢帧计数，也不证明画面实际可见。CPU 以一个逻辑核心为 100%；纯视频样本不测音画同步，短时结果不是长期稳定性结论。
 
 ## 双软件免安装打包
 
@@ -215,29 +228,34 @@ bin/myplayer.exe --benchmark --benchmark-media C:/media/video.mp4 `
 `patchelf` 必须位于 Linux 环境中。Qt 许可证目录应与所用 SDK 版本匹配。
 
 ```bash
-QT_LICENSE_DIR=/mnt/d/Qt/Qt6/6.9.3/Src/LICENSES \
-PATCHELF=/home/huxiaoyun/tools/vcpkg/downloads/tools/patchelf/0.19.0-x86_64-linux/bin/patchelf \
-EXTRA_LIBRARY_DIR=/home/huxiaoyun/myplayer-linux/extra-debs/libxcb-cursor0/root/usr/lib/x86_64-linux-gnu \
-EXTRA_LIBRARY_LICENSE=/home/huxiaoyun/myplayer-linux/extra-debs/libxcb-cursor0/root/usr/share/doc/libxcb-cursor0/copyright \
-bash scripts/package-portable-linux.sh \
-  /home/huxiaoyun/myplayer-linux/build-release 1.1.1
+export QT_LICENSE_DIR="/path/to/Qt/Src/LICENSES"
+export PATCHELF="/path/to/patchelf"
+bash scripts/package-portable-linux.sh "$build_dir" 2.1.0
 ```
 
-上例的额外动态库来自 Ubuntu 的 `libxcb-cursor0` 包。准备示例路径：
+`patchelf` 已在 `PATH` 中时可省略 `PATCHELF`。若构建环境缺少 Qt xcb 插件所需的 `libxcb-cursor.so.0`，可在一个临时目录下载并解出目标发行版匹配的 `libxcb-cursor0` 包：
 
 ```bash
-mkdir -p /home/huxiaoyun/myplayer-linux/extra-debs
-cd /home/huxiaoyun/myplayer-linux/extra-debs
+mkdir -p "$HOME/myplayer-extra"
+cd "$HOME/myplayer-extra"
 apt download libxcb-cursor0
 mkdir -p libxcb-cursor0/root
 dpkg-deb -x libxcb-cursor0_*.deb libxcb-cursor0/root
 ```
 
-若构建机已经安装该库，额外目录参数可省略；此时目标系统仍须自行提供该库。
+回到仓库根目录，传入额外动态库与许可文本后打包：
 
-脚本生成 `dist/MyPlayer-1.1.1-linux-x86_64.tar.gz` 和对应 `.sha256`，内含两个
+```bash
+EXTRA_LIBRARY_DIR="$HOME/myplayer-extra/libxcb-cursor0/root/usr/lib/x86_64-linux-gnu" \
+EXTRA_LIBRARY_LICENSE="$HOME/myplayer-extra/libxcb-cursor0/root/usr/share/doc/libxcb-cursor0/copyright" \
+bash scripts/package-portable-linux.sh "$build_dir" 2.1.0
+```
+
+两项额外参数须配套提供；脚本只收集配置的 Qt/vcpkg/额外目录中的依赖，不会打包所有系统库。目标系统仍需提供未收集的系统依赖。
+
+Linux x86_64 下脚本生成 `dist/MyPlayer-2.1.0-linux-x86_64.tar.gz` 和对应 `.sha256`，内含两个
 程序、Qt 插件、所需 Qt/vcpkg 动态库及许可证文本。解压后运行
-`MyPlayer-1.1.1-linux-x86_64/bin/myplayer` 或同目录的 `myplayer_monitor`。
+`MyPlayer-2.1.0-linux-x86_64/bin/myplayer` 或同目录的 `myplayer_monitor`。
 脚本会检查相对库路径并在离屏模式启动两个程序；正常播放、摄像头连接和不同
 Linux 发行版上的兼容性仍需在目标系统验证。系统的 glibc、图形栈和音频服务
 仍由目标系统提供。
@@ -248,10 +266,10 @@ Linux 发行版上的兼容性仍需在目标系统验证。系统的 glibc、�
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1 `
-  -BuildDir build -Configuration Release -Version 1.1.1
+  -BuildDir build -Configuration Release -Version 2.1.0
 ```
 
-`1.1.1` 仅是下一次打包的示例参数，不代表已经发布该版本。现有 `1.1.0` 包已存在时，脚本拒绝覆盖，需移动旧输出或使用未占用版本。
+显式指定 `-Version 2.1.0`，不要依赖脚本旧默认值。脚本拒绝覆盖同名归档或暂存目录；重打同一版本前先移走旧输出。
 
 脚本会：构建两个应用；安装基础运行目录；分别部署 Qt 插件与 app-local MSVC CRT；复制依赖许可证；在移除开发搜索路径后运行各自的 smoke 模式；生成两个 ZIP 和 SHA-256 文件。它**不会**自动提交源码、创建 Git 标签或发布 GitHub/Gitee 发行页，也不会实际验证媒体播放/录像或干净虚拟机兼容性。
 
@@ -263,11 +281,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1
 - `-Configuration` 只接受 `Release`；`-Version` 默认 `1.1.0`，只控制包名。
 
 许可部署还有一处已知缺口：监控参考代码的 Apache-2.0 完整文本保存在
-`apps/monitor/REFERENCE-LICENSE.txt`，但当前安装/打包脚本尚未自动复制该文件。
-分发监控软件时仍须携带这份文本及所需归属说明，不能把脚本 smoke 成功当成
-已经完成全部许可合规检查；见[第三方说明](THIRD-PARTY-NOTICES.md)。
+`apps/monitor/REFERENCE-LICENSE.txt`，Linux 打包脚本会复制为
+`licenses/monitor-REFERENCE-LICENSE.txt`，Windows 安装/打包脚本尚未自动复制。
+分发 Windows 监控软件前须将该文本放入暂存包的 `licenses/` 并重新归档及生成校验文件；
+不能把脚本 smoke 成功当成全部许可合规检查，见[第三方说明](THIRD-PARTY-NOTICES.md)。
 
-本地 `dist/` 当前保留已发布 1.1.0 的两个 ZIP 和校验文件；构建与缓存目录可以重建，不应作为文档的隐含前置条件。
+`dist/` 为本地生成目录，不保证含有指定版本；v2.1.0 发布前须按本节重新生成并验收附件。CI 的 Windows 打包步骤目前显式使用 `1.0.0`，不会根据 Git 标签自动生成 `2.1.0` 包。
 
 ## SDK 源码入口
 

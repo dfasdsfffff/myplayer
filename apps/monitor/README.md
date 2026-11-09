@@ -2,7 +2,7 @@
 
 `apps/monitor` 是复用 `play_core` 的独立 Qt Widgets 应用，目标名为 `myplayer_monitor`，与 `apps/qt_player` 中的单播放器分别运行。首次默认四宫格，可切换 **1 / 4 / 9 / 16 分屏**；切换后自动保存分屏数量，下次启动恢复。
 
-双软件发行包、下载和整仓部署说明见[根 README](../../README.md)。发行包版本为 **1.1.0**，但当前监控应用的 `--version` 和独立 CMake 项目版本仍为 **1.0.0**，两者尚未统一。下文的构建目录都是待新建的输出目录，不是仓库已提供的依赖或可直接运行的程序。
+本文按 **v2.1.0** 发布准备核对当前源码，打包版本参数使用 **2.1.0**、标签目标为 **v2.1.0**，不表示发行附件已经生成或上传。双软件构建、下载入口和整仓部署说明见[根 README](../../README.md)。当前监控应用的 `--version` 和独立 CMake 项目版本仍为 **1.0.0**，与本次发行版本尚未统一；本文不修改这些代码/构建元数据。下文的构建目录都是待新建的输出目录，不是仓库已提供的依赖或可直接运行的程序。
 
 ## 界面操作
 
@@ -19,7 +19,17 @@
 
 实时监控页仅在未打开播放器的空窗中央显示“拖入设备预览”，不再常驻显示标题副说明和快捷键说明；每路状态栏仅在连接中或失败时显示，空闲及正常播放时隐藏。录制状态、操作结果、错误及按钮悬停提示保留。
 
-界面按 `docs/design/monitor-live.jsx` 及完整的同名 SVG 采用深色布局，移除了传统菜单栏和预览工作区顶部的标题、保存视图、添加通道整行。右侧告警和云台控制尚未接入服务，明确显示未接入并禁用操作，不使用设计稿的示例设备、告警、在线数或性能数字。分屏自动保存仅记录数量，不保存临时视频源或摄像机绑定；“全屏”与 Esc 用于进入和退出全屏。
+界面参考 [monitor-live.svg](../../docs/design/monitor-live.svg) 采用深色布局，移除了传统菜单栏和预览工作区顶部的标题、保存视图、添加通道整行。右侧告警和云台控制尚未接入服务，明确显示未接入并禁用操作，不使用设计稿的示例设备、告警、在线数或性能数字。分屏自动保存仅记录数量，不保存临时视频源或摄像机绑定；“全屏”与 Esc 用于进入和退出全屏。
+
+### ONVIF 发现的范围
+
+“发现摄像头”仅在**新增设备**表单提供，不会后台持续扫描或自动添加设备。当前实现位于 `onvif_camera.cpp`：
+
+- 对已启用、支持多播且非回环网卡的 IPv4 地址发送 WS-Discovery Probe 到 `239.255.255.250:3702`，TTL 为 1，等待约 2.5 秒，最多收集 128 个端点。需允许本机 UDP 发现及后续设备 HTTP/HTTPS 通信；不提供 IPv6、跨网段发现或手填 ONVIF 服务地址入口。
+- 选中设备后，通过 ONVIF Device/Media v1 的 `GetCapabilities`、`GetProfiles`、`GetStreamUri` 请求 RTSP 单播地址。按视频配置的分辨率像素数降序选择主码流，最小者作为辅码流；不是按码率或厂商“主/子码流”名称选择。只有一个配置时共用地址，任一所选地址读取失败会提示重试账号或返回手动填写。
+- 认证同时提供 WS-Security UsernameToken PasswordDigest 和 Qt HTTP 认证回调；每个 SOAP 请求等待最多约 4 秒，响应缓冲上限约 1 MiB，不跟随 HTTP 重定向、不使用系统代理。设备服务和 RTSP 返回地址的主机统一替换为发现响应的来源 IPv4 地址，保留端口和路径；依赖其他主机服务的设备可能不兼容。
+- 填入的 ONVIF 用户名/密码会编码进 RTSP URL，并在保存设备后进入明文配置。PasswordDigest 不等于整个 HTTP 会话已加密；应仅在可信局域网使用。当前没有真实摄像头兼容性或 ONVIF 专门自动测试的验收结论，不宣称完整 ONVIF Profile 合规、Media2、PTZ 或设备参数配置支持。
+
 
 ### 录像
 
@@ -44,6 +54,7 @@
 - 设备配置固定在 **EXE 所在目录的 `config/monitor-cams.db`**，例如 `bin/config/monitor-cams.db`，与启动工作目录无关。程序自动创建配置子目录；安装位置需要可写，放在受保护的 `Program Files` 中可能导致保存失败，界面会显示错误，不会自动切换存储位置。新增/编辑时，相对录像保存地址会转换为当时工作目录下的绝对路径。
 - 文件保存 `XCameraData` 定长二进制记录，使用本地 8 位编码，不是 SQLite。名称最多 1023 字节，主码流、辅码流和保存地址各最多 4095 字节（不含结尾空字符）。加载会检查记录长度、最多 10000 条及各字段的字符串结尾，保存通过 `QSaveFile` 原子替换；加载、迁移和保存失败均有界面提示。
 - URL、用户名及密码均为**明文**；应限制配置文件访问权限。命令行含凭据 URL 还可能出现在进程列表中。
+- 分屏数量另由 `QSettings("MyPlayer", "Monitor")` 的 `live/layout` 保存，使用系统用户设置后端，不在 `monitor-cams.db` 中；复制设备文件不会同时迁移布局。当前没有监控设置页，单播放器设置页中的网络/硬解偏好也不会写入监控。
 - 启动时优先加载固定目录中的配置；仅当它不存在时，依次查找当前工作目录、EXE 目录、EXE 上一级目录中的旧 `monitor-cams.db`，验证后原子写入新位置，保留原文件作为备份。首个找到的旧文件若损坏则提示失败，不会静默改用其他文件；已有新配置即使损坏也不会被旧文件覆盖。旧配置中的相对录像保存地址以旧配置所在目录为基准转换为绝对路径（如原先使用其他工作目录录制，需自行确认保存地址）。也可运行 `myplayer_monitor.exe --migrate-config` 仅执行配置加载/迁移后退出。旧参考项目的 `cams.db` 不会自动导入。通过结构检查不代表设备 URL 已通过连接验证。
 - 录像路径为 `<保存地址>/<设备当前的零起始索引>/cam_yyyy_MM_dd_hh_mm_ss.mp4`，同秒冲突追加 `_1`、`_2` 等后缀。例如第一台设备保存地址为 `D:/recordings`，输出到 `D:/recordings/0/`。不会默认写到 `dist`，也没有统一的全局录像目录。
 - 设备身份仍采用列表索引：有录制任务时禁止删除设备，防止运行中的录像索引漂移；停止全部录像后删除仍会使后续索引前移，可能使历史目录与当前设备错配。编辑保存地址不会迁移旧录像，维护配置前应单独备份配置和录像目录。
@@ -65,6 +76,7 @@
 | `--source <location>` | 可重复，按顺序打开前几个窗格；接受本地文件或核心支持的 RTSP/HTTP 等地址。仅用于本次预览，不新增/保存设备，也不提供命令行录像。 |
 | `--layout <count>` | 仅接受 `1`、`4`、`9`、`16`，默认 `4`（未显式指定时优先使用保存的布局）；源数量不得超过布局格数，否则退出码为 1。 |
 | `--smoke-test` | 打开窗口并提交初始预览后，安排约 1 秒后退出。无源时只是窗口启动检查，不证明视频解码、网络连通或录像成功。 |
+| `--migrate-config` | 仅加载/迁移设备配置，输出目标路径及设备数后退出；失败返回 1。仍会创建 QApplication，因此无桌面环境时也需可用的 Qt 平台插件。 |
 | `-h` / `--help` | 输出参数帮助。 |
 | `-v` / `--version` | 输出应用版本，当前为 `1.0.0`。 |
 
@@ -74,7 +86,7 @@
 
 ### 前置条件
 
-- CMake **3.25 或更高**、C++20 编译器、Qt **6.8 或更高**的 Core/Gui/Widgets，以及 FFmpeg、SDL2、SoundTouch、pkg-config/libass 和仓库内的 sigslot 头文件。
+- CMake **3.25 或更高**、C++20 编译器、Qt **6.8 或更高**的 Core/Gui/Widgets/**Network/Xml**，以及 FFmpeg、SDL2、SoundTouch、pkg-config/libass 和仓库内的 sigslot 头文件。Network/Xml 用于 ONVIF 发现和 SOAP；仅安装 Qt Widgets 依赖不足。
 - Windows 示例使用 **x64 MSVC** 和匹配的 Qt MSVC x64 套件，不能改用 Qt MinGW 套件混搭。示例中的 `Visual Studio 18 2026` 生成器需要 **CMake 4.2+**；使用 VS 2022 时可改为 `Visual Studio 17 2022`。须安装“使用 C++ 的桌面开发”和 Windows SDK。
 - 普通终端 PATH 未包含 `cl`/`msbuild` 不等于未安装：Visual Studio 生成器可以定位安装实例；使用 Ninja 则应先进入 x64 Developer PowerShell/开发命令行。
 
@@ -124,18 +136,43 @@ Windows 监控目标的构建后步骤已复制 CMake 可识别的运行时 DLL�
 
 ### 独立构建不等于双软件打包
 
-独立工程没有根项目的播放器安装树，不能把 `build/monitor` 直接交给 `scripts/package-portable.ps1`。该脚本读取整仓配置中的 Qt/vcpkg 路径，要求启用监控，同时构建两个 Release 目标，再分别生成两个 ZIP、运行库/插件、许可证及 SHA-256 文件。发行流程和已有 **V1.1.0 双软件发行**见[根 README](../../README.md)；脚本不负责发布到远端，且已有同版本输出时会拒绝覆盖。
+独立工程没有根项目的播放器安装树，不能把 `build/monitor` 直接交给 `scripts/package-portable.ps1`。该脚本读取整仓配置中的 Qt/vcpkg 路径，要求两个应用均已启用，构建两个 Release 目标，再分别生成两个 ZIP、运行库/插件、许可证及 SHA-256 文件。例如从上面的 `build/full` 配置打包：
+
+```powershell
+./scripts/package-portable.ps1 -BuildDir build/full -Configuration Release -Version 2.1.0
+```
+
+脚本不负责打标签或发布到远端，已有同版本输出时会拒绝覆盖。`V1.1.0` 是历史双软件发行标签，不是本次 v2.1.0 附件存在的证明。
+
+### Linux / macOS
+
+当前源码包含非 Windows 构建路径：使用 toolchain 或包前缀提供依赖，保持 `MONITOR_USE_BUNDLED_DEPS=OFF`；Windows 资源脚本和 `windeployqt` 部署步骤不会执行。可使用 Ninja 在仓库根目录配置两个应用：
+
+```bash
+cmake -S . -B build/unix -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+  -DPLAYERDEMO_QT_ROOT="$QT_ROOT" \
+  -DMYPLAYER_BUILD_QT_APP=ON -DMYPLAYER_BUILD_MONITOR=ON \
+  -DMYPLAYER_ENABLE_SANITIZERS=OFF -DBUILD_TESTING=OFF
+cmake --build build/unix --target myplayer myplayer_monitor
+./bin/myplayer_monitor
+```
+
+其中 `QT_ROOT` 应指向实际 Qt 6.8+ 前缀（macOS 可参照仓库 workflow 使用 Homebrew `qtbase`），vcpkg triplet 应与目标架构及动态库方案匹配，不能直接复用 Windows DLL 备份。非 Windows 显示采用 SDL 软件 surface 渲染后回读，由 Qt 绘制，**不是 Windows 原生子窗口的加速路径**；Linux 未显式设置 `SDL_AUDIODRIVER` 且初始化音频失败时，核心会尝试 dummy 静音输出，能播放不等于有声音。D3D11VA 硬解只在 Windows 实现。
+
+Linux 的 `scripts/package-portable-linux.sh build/unix 2.1.0` 从同一个 Release 构建打出**同时包含两个应用**的 `MyPlayer-2.1.0-linux-<架构>.tar.gz` 及 `.sha256`；它要求 Qt/vcpkg 路径、匹配的 Qt 许可证和 `patchelf`，扫描依赖并执行暂存包无界面 smoke，但不把全部系统库纳入包，不保证兼容所有发行版。macOS workflow 定义构建/测试流程，当前没有专用 `.app`/DMG 打包、签名或公证脚本；存在 workflow 不代表本次执行已成功。详见[根 README](../../README.md)。
 
 ## 验证范围与建议
 
 当前测试代码提供：
 
 - `monitor_integration_tests`：生成本地媒体，检查 16 路各自收到帧并经共享 VideoWidget 呈现、禁音频预览拒绝纯音频源、换源、销毁部分窗格、停止会话，以及 2 秒测试分片可被 FFmpeg 重新打开并读包。
-- `monitor_startup_tests`：以无效 SDL 音频驱动启动空预览窗，验证初始化失败可由 `open()` 返回错误，不会在窗口构造时终止进程。
+- `monitor_startup_tests`：以无效 SDL 音频驱动启动空预览窗，检查初始化失败可由 `open()` 返回错误，不会在窗口构造时终止进程；非 Windows 另检查播放前不创建原生子窗口。显式无效驱动不会被 Linux 的自动 dummy 回退掩盖。
 - `monitor_recording_browser_tests`：检查录像日期、时间筛选、录像列表刷新，以及实际媒体预览关闭/重新打开、按设备选择录制和独立停止。
 - `monitor_window_smoke_test`：以 `--smoke-test --layout 16` 打开并自动关闭主窗口，不接真实摄像头。
 
-本次 Windows x64/MSVC Release 验证：上述四项监控测试全部通过；另以实际窗口运行浏览器测试，确认两路视频呈现、关闭后重开、仅勾选设备写入、追加录制不重启原任务、单路停止后另一路继续写入，停止后的 MP4 可读到视频包。无界面测试需在测试 EXE 的 `platforms/` 下部署匹配配置的 `qoffscreen.dll`；`windeployqt` 默认可能只部署 `qwindows.dll`。
+旧版文档记录过 Windows x64/MSVC Release 的四项监控测试及实际窗口录像/回放检查；那是历史验证记录，**不是本次 v2.1.0 重新执行的结果**。本次核对文档与测试源码，并运行现有 Windows 两应用的 `--smoke-test`（退出码均为 0）；未重新构建、运行测试套件或验收真实摄像头。无界面测试需部署匹配配置的平台插件；Windows 下测试 EXE 的 `platforms/` 需有 `qoffscreen.dll`，`windeployqt` 默认可能只部署 `qwindows.dll`。其中 integration 和窗口 smoke 未在监控 CMake 中强制 offscreen，无桌面时需自行设置 `QT_QPA_PLATFORM=offscreen`。
 
 在完成依赖配置后，可用以下命令构建并执行独立监控测试；是否通过应以实际运行结果为准：
 
@@ -148,12 +185,12 @@ cmake --build build/monitor --config Release
 ctest --test-dir build/monitor -C Release --output-on-failure
 ```
 
-无论顶层集成构建还是独立构建，监控程序及构建所需运行库都输出到仓库 `bin/`（Debug 为 `myplayer_monitor_debug.exe`，Release 为 `myplayer_monitor.exe`）。
+无论顶层集成构建还是独立构建，监控程序默认输出到仓库 `bin/`（可由 `PLAYERDEMO_OUTPUT_DIR` 修改）；Windows Debug 为 `myplayer_monitor_debug.exe`、Release 为 `myplayer_monitor.exe`，非 Windows 无 `.exe` 后缀。自动复制运行库是 Windows 构建后步骤，其他平台应提供运行时库搜索路径或使用对应部署流程。
 
 这些测试不能证明真实 RTSP 摄像头兼容性、16 路 4K 性能、长时间录像可靠性、网络重连期间录像完整性或全部音视频编码组合。预览使用核心的默认网络超时和有限重连策略，但 UI 无网络参数设置、PTZ、后台自动扫描或摄像头配置下发功能；不会自动连接任何参考项目设备。
 
 ## 实现与来源
 
-每个预览窗格和录像回放窗口各在首次打开媒体时创建独立的公开 SDK `QtPlayer`；音频初始化失败会返回错误，不会阻止空监控窗口启动。显示统一由 `VideoWidget` 处理；Core 与 Qt 各用最新帧邮箱，不逐帧积压 Qt 消息。Qt 组件通过 SDL 纹理显示 CPU 帧和字幕，普通 YUV420P 直接上传 IYUV，并在上传前设置颜色转换模式；只有 BT.2020 颜色空间需要 swscale 回退。不再维护监控专用 renderer/33ms 轮询，而是共享控件管理 SDL。硬件解码帧仍经系统内存，不是零拷贝显示；性能仍需实测。录像仍由独立 FFmpeg 封装线程完成，使用公开 `NetworkRuntime` lease，不访问核心私有对象。
+每个实时预览窗格在首次打开媒体时创建独立的公开 SDK `QtPlayer`；主界面的录像回放面板在 `XViewer` 构造时就创建另一个独立 `QtPlayer`。空实时窗格本身不会初始化 SDL 音频，创建播放器失败由该窗格的 `open()` 返回错误；**这不保证整个主窗口在 SDK/音频初始化失败时仍能启动**，`monitor_startup_tests` 只覆盖空实时窗格。静音预览禁用音频解码/设备输出，也不免除 SDK 实例的音频子系统初始化。显示统一由 `VideoWidget` 处理；Core 与 Qt 各用最新帧邮箱，不逐帧积压 Qt 消息。Windows 原生平台通过 SDL 子窗口纹理显示 CPU 帧和字幕；非 Windows 及 offscreen/minimal 使用 SDL 软件 surface → 像素回读 → Qt 绘制。普通 YUV420P 直接上传 IYUV，并在绘制前设置颜色转换模式；YUV 的 BT.2020 颜色空间使用 swscale 转 BGRA 回退。不再维护监控专用 renderer/33ms 轮询。公开帧共享只读 CPU backing，不为 SDK 包装重复复制像素；这不等于硬件零拷贝，硬解帧仍需下载到系统内存，非 Windows 路径还需回读，性能应实测。录像由独立 FFmpeg 封装线程完成，使用公开 `NetworkRuntime` lease，不访问核心私有对象。
 
 界面、日历、相机配置及图标改编自用户提供的 `h265-ffmpeg/2_project/xviewer`（Apache-2.0），对应许可证保留在 `REFERENCE-LICENSE.txt`；本应用不修改外部参考项目。原有图标仅作为参考界面资源保留，不表示本应用是任何厂商的官方产品。

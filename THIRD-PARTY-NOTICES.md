@@ -41,11 +41,12 @@ Source is included under `sdk/third_party/sigslot/` in the project repository.
 ## Qt 6
 
 Used for both Qt Widgets desktop interfaces. Complete license texts are
-included under `licenses/Qt/` by the portable packaging script. The published
-V1.1.0 Windows packages used Qt 6.9.3:
+included under `licenses/Qt/` by the portable packaging scripts. The Windows
+build example uses Qt 6.9.3:
 <https://download.qt.io/archive/qt/6.9/6.9.3/>.
-For another Qt build, distribute the matching license texts and corresponding
-source/other materials required by the applicable license.
+For v2.1.0, distribute the license texts and corresponding source/other
+materials matching the actual Qt build and applicable license; the release
+number does not select or upgrade Qt.
 
 ## libass And Transitive Dependencies
 

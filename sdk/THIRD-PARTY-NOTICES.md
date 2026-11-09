@@ -9,6 +9,16 @@ actual linked/deployed versions depend on the build. The monitor's optional
 standalone bundled-dependency build has a separate deployment path and is not
 automatically a complete licensed portable package.
 
+For the project v2.1.0 source state, the SDK source archive includes its
+`LICENSE`, `NOTICE`, this notice, and sigslot's license at
+`third_party/sigslot/LICENSE`; external dependency binaries are not included.
+The Windows x64/MSVC Release C ABI install component uses a different layout:
+when a vcpkg share tree is available it copies copyright files to
+`licenses/vcpkg/<port>/copyright`. It does not currently copy sigslot's full
+license separately; include that license from the SDK source before distributing
+the binary SDK. Neither installation nor packaging is a complete compliance
+audit, and this document does not claim v2.1.0 attachments have been published.
+
 ## FFmpeg
 
 Used for media demuxing, decoding, filtering, and format conversion.
@@ -35,7 +45,8 @@ Source: <https://www.surina.net/soundtouch/>.
 Used for signal/slot utilities.
 
 Portable license text: `licenses/sigslot-LICENSE`.
-Source is included under `third_party/sigslot/` in the project repository.
+Source is included at `sdk/third_party/sigslot/` in the project repository,
+or `third_party/sigslot/` within the standalone SDK source archive.
 
 ## Qt 6
 
@@ -58,6 +69,10 @@ texts from the configured vcpkg installation (including FreeType, FriBidi,
 HarfBuzz, libpng, zlib, Brotli, bzip2, OpenSSL, libiconv and libevent when
 present). This is an installation inventory, not proof that every DLL is used
 by both executables. libass source: <https://github.com/libass/libass>.
+
+The Linux Qt SDK may explicitly link the configured vcpkg Fontconfig library
+when present; include its matching notices and those of the dependencies
+actually distributed. Source: <https://www.freedesktop.org/wiki/Software/fontconfig/>.
 
 The Windows packages also include Microsoft's app-local Visual C++ runtime
 redistributable DLLs and Qt's deployed graphics support DLLs.

@@ -1,13 +1,15 @@
-# PlayerSDK C ABI v1
+# PlayerSDK C ABI v1（项目 v2.1.0）
 
 C ABI 是现有 `play_core` 的独立共享库适配层，不依赖 Qt；原 C++ 和 Qt 接口不变。
 公开头文件为 `include/player_sdk_c/player.h`，CMake 目标为 `PlayerSDK::C`，Windows 产物为
 `player_sdk_c.dll` 和导入库 `player_sdk_c.lib`。内部实现仍用 C++20，但 C 调用方不需要 C++ 类型或头文件。
 
+项目发行目标为 `v2.1.0`；当前 `ps_version()` 实际返回 Core 的 `1.0.0`，CMake 共享库 `VERSION` 也是 `1.0.0`，`PS_ABI_VERSION` / `SOVERSION` 仍为 1。项目版本、SDK 自报版本与 ABI 主版本不可混用；本指南不表示 v2.1.0 二进制附件已发布。
+
 ## 构建与链接
 
 默认 `PLAYER_SDK_BUILD_C=ON`；只需要原 C++ SDK 时可关闭。
-沿用 SDK 的 FFmpeg、SDL2、SoundTouch 和 sigslot 依赖，详见上级 README。
+沿用 SDK 的 FFmpeg、SDL2、SoundTouch 和 sigslot 依赖，详见 [SDK 指南](../README.md)。源码构建要求 C++20、CMake 3.25+；Linux/macOS 可复用 `SoundTouch::SoundTouch`，不要求 Windows 的 SoundTouchDLL。
 
 ```cmake
 cmake_minimum_required(VERSION 3.25)
@@ -20,22 +22,29 @@ target_link_libraries(c_host PRIVATE PlayerSDK::C)
 
 仅使用已编译的 Windows SDK 时，调用方只需 C 编译器、该头文件和导入库，不需要构建内部 C++。
 部署需携带 `player_sdk_c.dll` 及其匹配的 FFmpeg、SDL2、SoundTouch 等运行时依赖；不能只复制主 DLL。
-Windows x64/MSVC Release 可安装独立二进制 SDK。在已配置的构建目录执行：
+独立二进制 SDK 的安装、CMake 导出及依赖收集规则**仅在 Windows x64/MSVC 下定义，且只安装 Release**。在已配置的构建目录执行：
 
 ```sh
 cmake --build build --config Release --target player_sdk_c
 cmake --install build --config Release --component PlayerSDK --prefix dist/PlayerSDK
 ```
 
-安装目录包含 `bin/` 下的 DLL 和可解析的非系统依赖、`lib/` 下的导入库、
-`include/` 下的公开头文件，以及 `examples/` 下的纯 C 冒烟示例。
+安装目录包含 `bin/` 下的 DLL 和安装器可解析的非系统依赖、`lib/` 下的导入库、
+`include/` 下的公开头文件，以及 `examples/` 下的纯 C 冒烟示例和布局头。
 CMake 宿主可通过 `-DCMAKE_PREFIX_PATH=<安装目录>` 使用
 `find_package(PlayerSDK CONFIG REQUIRED)` 和 `target_link_libraries(app PRIVATE PlayerSDK::C)`。
 部署时将 `bin/` 的 DLL 放在应用程序旁，并安装与 SDK 构建工具链兼容的 x64 MSVC Redistributable。
 依赖版本发生变化时，请一起替换运行库。关闭程序后再更新 DLL，然后重新启动。
+
+安装还复制 SDK 的 `LICENSE`、`NOTICE`、`THIRD-PARTY-NOTICES.md`；存在 vcpkg 安装树时会复制 `share/` 内的 copyright 到 `licenses/vcpkg/<port>/copyright`。这些并非应用 portable 包的 `licenses/<port>-copyright` 布局，也不是最终合规证明。当前 C 安装规则未单独复制随源码提供的 sigslot LICENSE，发行方须从 `sdk/third_party/sigslot/LICENSE` 补齐，并核对全部实际依赖与对应源码义务。
+
+Linux/macOS 的 C ABI 共享目标有源码构建分支，但当前没有对应 `install` / `find_package` 导出规则；不要将上述 Windows 安装命令当作跨平台二进制发行契约。
+
 独立构建可在 `sdk/` 作为根目录时启用 `PLAYER_SDK_BUILD_TESTS=ON`，执行
 `ctest --test-dir <build-dir> -C Debug -R player_sdk_c --output-on-failure`。
 `tests/api/player_c_smoke.c` 由真正的 C 编译器编译，不是以 C++ 模式模拟 C 消费者。
+
+上述命令是使用说明，不是本次已执行的验证记录；v2.1.0 文档核对未运行 C SDK 构建或测试。
 
 ## 最小使用示例
 
@@ -115,6 +124,8 @@ int main(void)
 - 销毁不能与该句柄上的其他调用并发；必须由调用方协调。`destroy` 返回后不会再有该实例回调，届时才能释放 `user_data`。
   在自身回调中 destroy 返回 `PS_ERROR_INVALID_STATE`，不会销毁或死锁。
 - 多线程可对同一保留事件只读或 retain，但 release 不得与该句柄的读取/retain 并发。
+- `ps_player_create_v1` 的 callback 可以为 NULL（丢弃通知），options 可以为 NULL（默认选项）；`ps_player_destroy(NULL)` 和 `ps_event_release(NULL)` 是无操作。getter 的必需输出不可为 NULL，合法输出会在失败时清零，输入/输出存储不可重叠。
+- Core 的每实例 128 个未完成交付请求预算同样作用于 C 层；慢回调时新请求可同步返回 `PS_ERROR_CAPACITY`。视频、位置与字幕通知允许最新值覆盖，不承诺每帧交付。
 
 ## 能力边界
 
@@ -123,13 +134,15 @@ int main(void)
 `select_subtitle_track(enabled=0, ...)` 关闭字幕。暂停必须传 0/1，音量 `[0,1]`，倍速 `[0.1,2]`。
 硬解选择影响下一次 open。seek 完成位置是解封装目标，不是首个显示帧确认。
 
+`ps_player_options_v1.loop=1` 可显式启用单媒体循环，默认关闭。Linux 在未指定 `SDL_AUDIODRIVER` 且音频初始化失败时可自动尝试静音 dummy 驱动；创建成功不等于有真实声音输出。
+
 此层不导出 QWidget、SDL_Window 或窗口嵌入接口，也不增加新渲染器。C/其他语言消费者使用帧接口自行渲染，
 Qt 用户继续使用 `PlayerSDK::QtWidgets`。字幕 getter 提供原始字幕数据，不承诺已经合成到视频像素。
 
 ## ABI 兼容约定
 
-- `ps_version()` 是产品版本，`ps_abi_version()` 是 ABI 主版本。兼容更新保留
-  `player_sdk_c.dll` 文件名、ABI 主版本和原有导出。首发时冻结 v1 基线。
+- `ps_version()` 提供 SDK 自报版本字符串（当前 `1.0.0`），`ps_abi_version()` 是 ABI 主版本。兼容更新保留
+  Windows 的 `player_sdk_c.dll` 文件名、ABI 主版本和原有导出；v1 基线见公开头与 `exports-v1.txt`。
 - Windows MSVC x64 构建会将实际导出表与 `exports-v1.txt` 对照。新增导出时同步更新清单，
   并保留已发布的符号和签名。
 - 客户端应忽略未知事件，对未知状态和错误码使用通用处理。兼容更新也需要保留现有
@@ -141,7 +154,7 @@ Qt 用户继续使用 `PlayerSDK::QtWidgets`。字幕 getter 提供原始字幕�
   新布局用 `_v2` 类型/函数，同时保留旧导出；输入 `struct_size` 必须等于对应 v1 类型大小。
   调用方使用 `ps_*_init_v1` 获取完整默认值，不要仅依靠清零。
 - 使用平台默认对齐，不可用不同的 `#pragma pack` 或编译器结构体打包选项包含此头文件。
-  当前验证目标为 Windows x64/MSVC；同架构、同平台调用约定和布局兼容才属于 ABI 兼容范围。
-  不承诺跨操作系统/架构直接使用同一二进制，也不把未测试工具链组合视为验证通过。
+  已有历史验证以 Windows x64/MSVC 为目标；同架构、同平台调用约定和布局兼容才属于 ABI 兼容范围。
+  不承诺跨操作系统/架构直接使用同一二进制，也不把 Linux/macOS 源码适配或未测试工具链组合视为验证通过。
 - `player_c_layout.h` 固定 x64 结构体尺寸/关键偏移；内部枚举变化触发编译断言，不能静默改变 C 常量含义。
 - 原 `PlayerSDK::Core` / `PlayerSDK::QtWidgets` 仍是 C++ 源码 API，不因新增此层而获得二进制兼容承诺。

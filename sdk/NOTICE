@@ -36,8 +36,8 @@ Third-party components:
 - SoundTouch: audio tempo, pitch, and rate processing.
 - sigslot: signal/slot utility library.
 - Qt 6: desktop UI framework.
-- libass: ASS/SSA subtitle rendering in the player, with its transitive
-  font/text-rendering dependencies.
+- libass: ASS/SSA subtitle rendering in the shared Qt Widgets component used
+  by both applications, with its transitive font/text-rendering dependencies.
 
 Keep each third-party component's own license file with binary and source
 distributions. This notice is a summary, not a replacement for the full

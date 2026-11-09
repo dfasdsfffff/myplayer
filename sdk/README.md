@@ -1,6 +1,8 @@
-# PlayerSDK 1.0.0 源码接入指南
+# PlayerSDK 源码接入指南（项目 v2.1.0）
 
 `play_core` 本身是 Core SDK（静态库），没有额外的核心包装库。公开 C++ 接口为 `core/include/play_core/`，Qt 接口为 `qt/include/player_sdk_qt/`；新增 C ABI 接口为 `c/include/player_sdk_c/`，使用与兼容约定见 [C ABI 指南](c/README.md)。`src/`、`PlaybackRuntime`、`VideoCtl` 和 controller 均是私有实现/回归测试接口，不属于源码兼容承诺。
+
+本文对应项目 `v2.1.0` 的发行准备，不表示发行附件已生成或上传。项目发行号与当前 SDK 自报版本不同：`play_core::Version`、`ps_version()`、SDK CMake project 和 C 共享库的 `VERSION` 仍为 `1.0.0`，C ABI 主版本仍为 1；本次文档更新不修改这些源码/构建元数据。
 
 ## 源码目录
 
@@ -8,15 +10,17 @@
 
 ## 1. 依赖与构建
 
-首版目标是 Windows x64、C++20、CMake 3.25+、MSVC；可选组件要求 Qt Widgets 6.8+。Core 与 Qt 仍是源码 API，不提供稳定 C++ ABI。新增的 `PlayerSDK::C` 共享库以版本化 C 接口提供独立二进制边界，默认构建，可通过 `PLAYER_SDK_BUILD_C=OFF` 关闭。
+源码构建要求 C++20、CMake 3.25+；可选组件要求 Qt Widgets 6.8+。首版实测目标为 Windows x64/MSVC；当前源码已加入 Linux/macOS 适配，但不将存在平台分支等同于这些平台的完整验收或二进制发行。Core 与 Qt 仍是源码 API，不提供稳定 C++ ABI。`PlayerSDK::C` 共享库以版本化 C 接口提供独立二进制边界，默认构建，可通过 `PLAYER_SDK_BUILD_C=OFF` 关闭；安装/导出包仅在 Windows x64/MSVC Release 条件下定义。
 
-当前开发环境依赖：FFmpeg 9.0.1（avcodec/avdevice/avfilter/avformat/avutil/swresample/swscale）、SDL 2.32.10、SoundTouch 2.4.1 的 SoundTouchDLL、sigslot 1.2.3、Qt 6.9.3、libass 0.17.5。实际构建验证记录见文末；最低版本之外的组合不自动视为验证通过。
+首版历史验证环境依赖：FFmpeg 9.0.1（avcodec/avdevice/avfilter/avformat/avutil/swresample/swscale）、SDL 2.32.10、SoundTouch 2.4.1 的 SoundTouchDLL、sigslot 1.2.3、Qt 6.9.3、libass 0.17.5。它们不是本次 v2.1.0 重新验证的结果；最低版本之外的组合不自动视为验证通过。
 
 - 随包提供：SDK 源码、CMake、sigslot 1.2.3 源码及 LICENSE、示例和公开 API 测试。
 - 宿主提供：FFmpeg、SDL2、SoundTouch 二进制/开发文件；启用 Qt 时另提供 Qt 和 libass，以及其字体/文字处理传递依赖。
 - 不包含依赖 DLL，不自动下载、安装依赖或修改工具链。可以复用兼容的 `SDL2::SDL2` 和 SoundTouch target；构建优先使用已提供的 `SoundTouch::SoundTouchDLL`，否则使用 `SoundTouch::SoundTouch`。仓库的 vcpkg 配置仅为 Windows 动态 triplet 请求 DLL 包装层。FFmpeg 使用 `FFMPEG_INCLUDE_DIRS`、`FFMPEG_LIBRARIES`（如未预先查找则调用 `find_package(FFMPEG)`）。libass 通过 pkg-config 查找。
-- 仓库根目录的 `vcpkg.json` 记录应用开发依赖。外部宿主可在自己的 vcpkg manifest 声明 `ffmpeg`（含 avdevice、avfilter、swscale、swresample）、`sdl2`、Windows 下的 `soundtouch[soundtouchdll]` 或其他平台的 `soundtouch`；Qt 组件再增加 `libass`。用宿主工具链在首次 CMake configure 时选定依赖；不要在已配置的构建目录中更换 triplet/CRT。
+- 仓库根目录的 `vcpkg.json` 记录应用开发依赖。外部宿主可在自己的 vcpkg manifest 声明 `ffmpeg`（含 avdevice、avfilter、swscale、swresample）、`sdl2`；Windows 动态 triplet 使用 `soundtouch[soundtouchdll]`，其他平台或静态 triplet 使用 `soundtouch`。Qt 组件再增加 `libass`。用宿主工具链在首次 CMake configure 时选定依赖；不要在已配置的构建目录中更换 triplet/CRT。
 - sigslot 可通过 `PLAYERDEMO_SIGSLOT_ROOT` 指定兼容的自备副本。
+- Linux/macOS 可使用 `SoundTouch::SoundTouch`，包装层适配 SoundTouch 的整数/浮点采样类型，不要求 Windows 专用 SoundTouchDLL。Linux Qt 组件在配置的 vcpkg 安装树存在 `lib/libfontconfig.so` 时，将其优先链接以避免 Qt 的传递依赖抢先加载另一份 Fontconfig；运行时仍须部署匹配依赖，不能据此承诺任意系统库混用。
+- Linux 若首次 SDL 音频初始化失败且宿主未设置 `SDL_AUDIODRIVER`，Core 会记录警告并以 `dummy` 驱动重试；成功后继续静音播放，不表示真实音频设备可用。宿主显式指定驱动时不走此自动回退，最终初始化失败仍按构造错误报告。
 
 ### 无 Qt 宿主
 
@@ -62,7 +66,13 @@ player->open(QUrl::fromLocalFile(filePath));
 player->play();
 ```
 
-`VideoWidget` 使用 SDL2 渲染到 Qt 管理的原生子窗口，优先硬件渲染器、失败时尝试 SDL 软件渲染器。普通 YUV420P 直接上传 IYUV 纹理，BGRA 直接上传 BGRA 纹理；仅 SDL2 无对应色彩转换模式的 BT.2020 YUV 路径使用 swscale 转 BGRA。YUV 色彩转换模式在纹理上传前设置，兼容 SDL 软件渲染器在上传时完成的转换，并在本次呈现后恢复原模式。画面、位图和 libass 字幕均由 SDL 合成，QPainter 只绘制无视频时的背景，不承担视频显示。`grabVideoFrame()` 显式通过 SDL 读回包含字幕的画面，正常播放不读回、不额外生成 QImage。offscreen/minimal 自动测试使用 SDL surface/software renderer，不将此结果冒充硬件渲染验证。
+`VideoWidget` 的显示路径按平台区分：
+
+- Windows 正常窗口：SDL2 渲染到 Qt 管理的原生子窗口，优先硬件渲染器、失败时尝试 SDL 软件渲染器。正常播放不读回、不额外生成 QImage，QPainter 仅绘制空背景。
+- Linux/macOS，以及 Windows 的 `offscreen`/`minimal`：不创建 SDL 原生子窗口，使用 SDL surface/software renderer 合成，再通过 `SDL_RenderReadPixels` 读回 QImage，由 QPainter 绘制到 QWidget。该路径正常播放也会读回，不能沿用 Windows 原生路径的无读回性能结论，也不能当作硬件渲染验证。
+- 两条路径均由 SDL 合成视频、位图和 libass 字幕。普通 YUV420P 直接上传 IYUV 纹理，BGRA 直接上传 BGRA 纹理；仅 SDL2 无对应色彩转换模式的 BT.2020 YUV 路径使用 swscale 转 BGRA。上传前设置 YUV 色彩模式，呈现后恢复原模式。`grabVideoFrame()` 可显式读回包含字幕的画面。
+
+`framePresented()` / `presentedFrames()` 表示新帧已在当前渲染路径准备完成，不是窗口系统、合成器或显示器的完成栅栏；软件读回路径的信号可能先于 QWidget 实际绘制。
 
 `QtPlayer` 所有方法仅能在 QObject 所在线程调用。所有 Qt 信号在该线程交付。Core 可跨线程提交命令的许可不适用于 QObject。一个 player 仅绑定一个 view；绑定新 view 会自动解绑旧 view。先销毁 view 或先销毁 player 均会安全解绑。`VideoWidget` 也支持手工提交公开 CPU 帧；字幕支持嵌入 ASS/文本/位图以及外部 ASS/SSA/SRT。
 
@@ -70,14 +80,17 @@ player->play();
 
 | 选项 | 默认 | 含义 |
 | --- | --- | --- |
+| `PLAYER_SDK_BUILD_C` | ON | 无 Qt 的 C ABI 共享库 |
 | `PLAYER_SDK_BUILD_QT` | OFF | 可复用 Qt 组件 |
-| `PLAYER_SDK_BUILD_EXAMPLES` | OFF | C++/可选 Qt 示例 |
+| `PLAYER_SDK_BUILD_EXAMPLES` | OFF | Core、启用 C ABI 时的 C、可选 Qt 示例 |
 | `PLAYER_SDK_BUILD_TESTS` | OFF | 仅公开 SDK 验收测试 |
 | `MYPLAYER_BUILD_QT_APP` | OFF（仓库） | 原播放器；开发 presets 显式开启 |
 | `MYPLAYER_BUILD_MONITOR` | OFF（仓库） | 原监控应用 |
 | `BUILD_TESTING` | OFF（仓库） | 仓库私有白盒/应用回归，嵌入时不参与 |
 
 作为子项目时，即使宿主 `BUILD_TESTING=ON`，也不引入 SDK 测试。SDK 不改变宿主 `BUILD_SHARED_LIBS`、输出目录、CRT、全局 C++ 标准/警告设置或安装前缀；只通过 Core target 要求 consumer 支持 C++20。静态库依赖以 CMake link-only 方式正确传递，第三方头文件和私有目录不传播给 Core consumer。Qt 的自动代码生成限定于 Qt 子目录。
+
+若宿主显式启用 `MYPLAYER_ENABLE_SANITIZERS`，静态库会将 sanitizer 运行时链接选项传递给最终消费者；其编译插桩和普通警告选项仍为 target 私有。这是保证已插桩静态库能链接的必要例外，不会自动为宿主全部源码启用插桩。
 
 ## 2. 请求、状态与生命周期契约
 
@@ -99,7 +112,7 @@ player->play();
 | Ready | play、pause、seek、stop、轨道、open、close | 媒体已打开但保持暂停，不输出声音 |
 | Playing / Paused / Stopped | play、pause、seek、stop、轨道、open、close | stop 不销毁解封装器、解码器和源会话 |
 | Reconnecting | open、close；其他请求可能异步失败 | close 取消退避与阻塞 I/O；重连后恢复先前暂停/播放意图 |
-| Ended / Failed | open、close | 自然结束后再次播放需要 open；应用播放列表/单曲循环由应用实现 |
+| Ended / Failed | open、close | 默认自然结束后再次播放需要 open；显式 `PlayerOptions::loop=true` 可启用核心单媒体循环，播放列表/随机播放由应用实现 |
 | Closing | 已提交请求顺序排队 | close 完成后可重新 open |
 
 `setVolume/setPlaybackRate/setHardwareDecode` 可无媒体调用。硬解偏好作用于下次打开；硬解仅 Windows D3D11VA，下载到 CPU，不是零拷贝。
@@ -120,6 +133,8 @@ player->play();
 
 ## 3. 部署、发行和迁移
 
+以下 DLL 部署说明针对 Windows。Linux/macOS 源码宿主仍须部署实际链接的共享依赖（`.so` / `.dylib`）及匹配的 Qt 平台插件，并按自己的安装布局处理动态库搜索路径；当前 C ABI 安装规则没有提供这些平台的完整部署方案。
+
 Core 静态不代表依赖都静态。最终程序需要对应配置的 SDL、SoundTouch、FFmpeg DLL。Qt 程序还要部署 Qt Core/Gui/Widgets、`platforms/qwindows[d].dll`、libass 及字体/文字处理依赖。无界面 Qt 测试配置 `QT_QPA_PLATFORM=offscreen` 时，必须另外部署 `qoffscreen[d].dll`；`windeployqt` 默认可能只拷贝 windows 插件。
 
 宿主负责自己的输出目录和部署。Windows 下可用 `windeployqt` 部署 Qt，用 vcpkg app-local 或 `$<TARGET_RUNTIME_DLLS:host>` 部署导入 targets 对应 DLL，并补齐第三方传递依赖。不同架构、CRT、Debug/Release 或同名不同版本 DLL 不可混用。
@@ -127,10 +142,10 @@ Core 静态不代表依赖都静态。最终程序需要对应配置的 SDL、So
 从仓库根目录生成仅包含 SDK 的源码归档（不包含 apps、build、开发机 DLL；脚本位于 SDK 目录之外）：
 
 ```powershell
-cmake -DOUTPUT_DIR=build/sdk-source-1.0.0 -P scripts/package-sdk.cmake
+cmake -DOUTPUT_DIR=build/sdk-source-2.1.0 -P scripts/package-sdk.cmake
 ```
 
-输出目录必须不存在，脚本不覆盖已有发行物。归档直接使用 `sdk/CMakeLists.txt`，单独解压后可以独立或作为子项目构建。许可证见 `licenses/README.md`。外部 FFmpeg/Qt 等依赖的授权文本由最终发行方按实际版本补齐，不将本源码包当成最终商业授权审计报告。
+输出目录必须不存在，脚本不覆盖已有发行物。当前脚本仍固定生成 `PlayerSDK-1.0.0-source.zip`，没有版本参数；上例的 `2.1.0` 只命名暂存目录，不会将 ZIP 或 SDK 元数据改为 2.1.0。不得将旧名称归档直接当作已发布的 v2.1.0 附件。归档直接使用 `sdk/CMakeLists.txt`，单独解压后可以独立或作为子项目构建。许可证见 [授权清单](licenses/README.md)。外部 FFmpeg/Qt 等依赖的授权文本由最终发行方按实际版本补齐，不将本源码包当成最终商业授权审计报告。
 
 ### 从旧私有入口迁移
 
@@ -142,13 +157,14 @@ cmake -DOUTPUT_DIR=build/sdk-source-1.0.0 -P scripts/package-sdk.cmake
 - FFmpeg 枚举/宽高比 → `MediaType`、`Rational`、`ColorSpace/ColorRange`。
 - 播放列表、历史、设置、下一首/随机播放留在应用；两个应用的画面与字幕统一使用 `VideoWidget`。
 
-源码版本政策：1.x 在稳定发布后尽量保持公开 C++ 源码接口兼容；破坏变更升主版本并给迁移说明。升级 C++ SDK 后必须重编 SDK 及宿主，C++ 二进制兼容性不作承诺。现已提供独立的版本化 C ABI 共享库 `PlayerSDK::C`，其兼容与所有权约定见 [C ABI 指南](c/README.md)；没有 `PlayerSDK::Cpp` 或独立 `player_sdk` Core 包装库。
+源码版本政策：同一稳定主版本尽量保持公开 C++ 源码接口兼容；破坏变更升主版本并给出迁移说明。当前 BGRA 共享缓冲的接入要求见上文，不能仅按项目标签或 SDK 仍为 `1.0.0` 的自报值推断源码无变化。升级 C++ SDK 后必须重编 SDK 及宿主，C++ 二进制兼容性不作承诺。独立版本化 C ABI 共享库 `PlayerSDK::C` 的兼容与所有权约定见 [C ABI 指南](c/README.md)；没有 `PlayerSDK::Cpp` 或独立 `player_sdk` Core 包装库。
 
 ## 4. 验证方式与边界
 
 - `tests/consumer` 是可复制到仓库外的宿主：检查构建隔离与公开 include，构建并运行 close 示例。传 `PLAYER_SDK_SOURCE_DIR` 指向仓库的 `sdk/` 或解压后的 `PlayerSDK/`。
 - `PLAYER_SDK_BUILD_TESTS=ON`：公开 API 生命周期、毫秒定位、会话替代、多实例、保留帧、UTF-8 路径、慢回调容量和回调异常；启用 Qt 后另测真实画面提交、UI 卡顿、字幕及销毁顺序。
+- 启用 C ABI 时还注册 `player_sdk_c_smoke`（C11 消费者及布局基线）和 `player_sdk_c_tests`（控制、媒体/帧访问、错误字幕载荷拒绝、事件保留及销毁等集成覆盖）；它们的存在不表示本次已运行通过，也不等于完整字幕格式矩阵验收。
 - 仓库完整测试继续覆盖解码、同步、网络超时/重连/取消、字幕、播放列表和监控录制；网络集成额外覆盖 SDK 打开中与重连中关闭。
-- 公开接口第一版不宣称跨平台、GPU 零拷贝、QML、独立 DLL 分发、无限实例或已完成长时性能验证。
+- 当前提供 C ABI 共享库及 Windows x64/MSVC Release 安装规则，但不宣称所有平台/工具链均已验收、所有依赖均已完整打包，或已提供 v2.1.0 发行附件。GPU 零拷贝、QML、无限实例和长时性能均不在已验证承诺内。
 
-具体 Debug/Release、外部宿主及源码归档验证结果见 `../docs/PLAYER_SDK_PLAN.md` 的实施记录（仓库文档，不随最小 SDK 包交付）。真实摄像机、长时间播放、HDR、完整媒体格式矩阵、干净机器及法律授权审计不能由本机短时自动测试替代。
+具体 Debug/Release、外部宿主及源码归档的**历史**验证结果见 `../docs/PLAYER_SDK_PLAN.md` 的实施记录（仓库文档，不随最小 SDK 包交付）。该记录不替代 v2.1.0 验证；本次未重新构建 SDK、运行 SDK 测试或性能验证。真实摄像机、长时间播放、HDR、完整媒体格式矩阵、干净机器及法律授权审计不能由本机短时自动测试替代。
