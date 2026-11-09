@@ -88,6 +88,8 @@ QT_QPA_PLATFORM=offscreen SDL_AUDIODRIVER=dummy ctest --test-dir "$build_dir" --
 
 使用 Homebrew 安装 `qtbase` 时，Qt 路径可设为 `export QT_ROOT="$(brew --prefix qtbase)"`。构建后的播放器与监控程序位于构建目录的 `bin/`。macOS 当前提供源码构建与 CI 配置，没有专用 `.app` / DMG 打包脚本。
 
+macOS 在 manifest 中显式声明 vcpkg `fontconfig`，确保 libass 的可选字体后端及其 pkg-config 元数据依赖来自同一依赖树；不要仅向 Homebrew 安装 Fontconfig 或忽略 `libass` 的依赖检查。修改 manifest 后重新执行配置，让 vcpkg 安装新增依赖。当前基线的 libass port 只在 Linux 自动声明 Fontconfig，macOS 需由本项目补齐。
+
 Linux 免安装打包需要动态依赖；在上述配置命令中额外传入 `-DVCPKG_OVERLAY_TRIPLETS="$PWD/cmake/triplets" -DVCPKG_TARGET_TRIPLET=x64-linux-dynamic -DMYPLAYER_ENABLE_SANITIZERS=OFF`，并使用独立的构建目录。仓库提供的这个 triplet 仅用于 Linux x64，不应用于 macOS。
 
 Linux 未显式设置 `SDL_AUDIODRIVER` 且音频子系统初始化失败时会尝试 dummy 驱动，此时无声音；显式指定驱动失败不会触发该回退。非 Windows 视频路径使用 SDL 软件渲染与 Qt 绘制，不应套用 Windows 原生 SDL 呈现路径的性能结论。

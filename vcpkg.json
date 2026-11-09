@@ -16,6 +16,10 @@
       ]
     },
     "libass",
+    {
+      "name": "fontconfig",
+      "platform": "osx"
+    },
     "sdl2",
     {
       "name": "soundtouch",
