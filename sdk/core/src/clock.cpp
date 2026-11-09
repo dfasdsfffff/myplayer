@@ -25,7 +25,10 @@ ClockSnapshot Clock::snapshot() const noexcept
 			m_speed.load(std::memory_order_relaxed),
 			m_serial.load(std::memory_order_relaxed),
 			m_paused.load(std::memory_order_relaxed)};
-		if (begin == m_sequence.load(std::memory_order_acquire))
+		// Pair with the writer's release fence if any field came from a new
+		// write, so the sequence check cannot accept the previous version.
+		std::atomic_thread_fence(std::memory_order_acquire);
+		if (begin == m_sequence.load(std::memory_order_relaxed))
 			return value;
 	}
 }
@@ -45,7 +48,9 @@ double Clock::get() const noexcept
 void Clock::writeSnapshot(const ClockSnapshot& value)
 {
 	std::lock_guard<std::mutex> lock(m_writeMutex);
-	m_sequence.fetch_add(1, std::memory_order_release);
+	m_sequence.fetch_add(1, std::memory_order_relaxed);
+	// Publish the odd sequence before modifying any snapshot field.
+	std::atomic_thread_fence(std::memory_order_release);
 	m_pts.store(value.pts, std::memory_order_relaxed);
 	m_ptsDrift.store(value.ptsDrift, std::memory_order_relaxed);
 	m_lastUpdated.store(value.lastUpdated, std::memory_order_relaxed);

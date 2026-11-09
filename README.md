@@ -68,14 +68,14 @@ v2.1.0 计划按以下名称打包。实际可下载的平台与附件以 [GitHu
 
 准备 CMake 3.25+、Ninja、支持 C++20 的 GCC 或 Clang、Qt 6.8+、pkg-config 和已初始化的 vcpkg。使用与 Qt 相同的 CPU 架构。WSL 下可将构建目录放在 Linux 文件系统中。
 
-Linux x86/x64 构建 FFmpeg 还需要系统提供 NASM。Ubuntu/Debian 在首次 CMake 配置前执行（已有其他构建依赖时）：
+Linux x86/x64 构建 FFmpeg 需要系统提供 NASM；gperf 等依赖还需要完整的 Autotools 工具及宏集合。Ubuntu/Debian 在首次 CMake 配置前执行（已有其他构建依赖时）：
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y nasm
+sudo apt-get install -y nasm autoconf autoconf-archive automake libtool
 ```
 
-Linux sanitizer CI 同样在 vcpkg 配置前安装该工具；缺少 NASM 会使 FFmpeg 依赖构建失败，而非 sanitizer 检查失败。
+Linux sanitizer CI 同样在 vcpkg 配置前安装这些工具；缺少 NASM 会使 FFmpeg 构建失败，缺少 Autotools/宏集合会使 gperf 等依赖配置失败，两者均发生在 sanitizer 测试之前。
 
 macOS 在首次配置前安装 Qt、Ninja 与 vcpkg 依赖构建工具（`autoconf-archive` 为 gperf 等依赖的 Autotools 检查所需）：
 
@@ -193,6 +193,8 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 测试按构建开关分组，实际注册项以顶层和监控目录的 `CMakeLists.txt`、`ctest -N` 为准，不维护固定测试数量。
+
+Windows 的 `install_layout_tests` 固定检查 Release 安装树，仅由 `ctest -C Release` 执行；Debug 测试不依赖 Release 产物。运行该检查前须先完成 Release 构建。
 
 - 播放核心：队列、命令邮箱、解码、音频输出、seek/生命周期、网络读取、硬解策略和媒体兼容性等。
 - 播放器：播放列表、隐私处理、设置、字幕、主窗口和视频呈现等；部分使用 offscreen/dummy 后端。

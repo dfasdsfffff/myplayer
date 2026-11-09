@@ -131,6 +131,7 @@ endfunction()
 
     if(MYPLAYER_BUILD_QT_APP AND WIN32)
         add_test(NAME install_layout_tests
+            CONFIGURATIONS Release
             COMMAND ${CMAKE_COMMAND}
                 -DBINARY_DIR=${CMAKE_BINARY_DIR}
                 -P ${PROJECT_SOURCE_DIR}/tests/install_layout_tests.cmake
