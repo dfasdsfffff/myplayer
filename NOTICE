@@ -6,8 +6,8 @@ MyPlayer is a maintained fork and productized build of the original
 
 Product identity:
 
-- Display names: MyPlayer; MyPlayer Monitor
-- Executables: myplayer; myplayer_monitor
+- Display names: MyPlayer; MyPlayer Monitor; MyPlayer Review
+- Executables: myplayer; myplayer_monitor; myplayer_review
 - Project repository: https://github.com/dfasdsfffff/myplayer
 - Gitee mirror: https://gitee.com/hu-xiao-yun/myplayer
 
@@ -37,7 +37,7 @@ Third-party components:
 - sigslot: signal/slot utility library.
 - Qt 6: desktop UI framework.
 - libass: ASS/SSA subtitle rendering in the shared Qt Widgets component used
-  by both applications, with its transitive font/text-rendering dependencies.
+  by the player, monitor, and review applications, with its transitive font/text-rendering dependencies.
 
 Keep each third-party component's own license file with binary and source
 distributions. This notice is a summary, not a replacement for the full

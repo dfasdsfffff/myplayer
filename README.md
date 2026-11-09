@@ -1,4 +1,4 @@
-# MyPlayer 与 MyPlayer Monitor
+# MyPlayer、MyPlayer Monitor 与 MyPlayer Review
 
 本文档面向 **v2.1.0 发布准备**；目标 Git 标签为 `v2.1.0`，打包版本参数为 `2.1.0`。发行说明见 [v2.1.0](docs/releases/v2.1.0.md)。文档中的目标附件名不代表附件已经上传。
 
@@ -8,8 +8,9 @@
 | --- | --- | --- | --- | --- |
 | MyPlayer | 媒体播放、播放列表、字幕、播放设置 | `apps/qt_player/main.cpp` | `apps/qt_player/CMakeLists.txt` | `myplayer` |
 | MyPlayer Monitor | 多路视频预览、设备管理、录像与录像回放 | `apps/monitor/main.cpp` | `apps/monitor/CMakeLists.txt` | `myplayer_monitor` |
+| MyPlayer Review | 本地视频审片、时间点标注、JSON 工程与 CSV 导出 | `apps/review/main.cpp` | `apps/review/CMakeLists.txt` | `myplayer_review` |
 
-技术栈：Qt 6 Widgets、FFmpeg、SDL2、SoundTouch、sigslot；可复用 Qt 组件使用 libass 渲染字幕，两个应用共用该组件。项目基于 GPL 上游 [itisyang/playerdemo](https://github.com/itisyang/playerdemo)，保留原作者归属与许可证。
+技术栈：Qt 6 Widgets、FFmpeg、SDL2、SoundTouch、sigslot；可复用 Qt 组件使用 libass 渲染字幕，三个应用共用该组件。项目基于 GPL 上游 [itisyang/playerdemo](https://github.com/itisyang/playerdemo)，保留原作者归属与许可证。当前发行和便携包章节仅覆盖原有播放器与监控软件，新审片工具的构建与运行见 [审片说明](apps/review/README.md)。
 
 - 主仓库：<https://github.com/dfasdsfffff/myplayer>
 - Gitee 镜像：<https://gitee.com/hu-xiao-yun/myplayer>
@@ -19,6 +20,7 @@
 - [SDK 方案及实施验收记录](docs/PLAYER_SDK_PLAN.md)
 - [开发与架构指南](docs/PROJECT_GUIDE.md)
 - [监控软件使用、配置与独立构建](apps/monitor/README.md)
+- [审片标注工具使用与构建](apps/review/README.md)
 - [播放核心历史检查记录](docs/playback-core-review.md)
 - [第三方组件与许可证](THIRD-PARTY-NOTICES.md)
 
@@ -159,6 +161,7 @@ bin/myplayer_monitor_debug.exe           # Debug 监控软件
 | --- | --- | --- |
 | `MYPLAYER_BUILD_QT_APP` | `OFF`（Preset 为 ON） | 播放器及对应 UI 测试 |
 | `MYPLAYER_BUILD_MONITOR` | `OFF` | 顶层构建中加入监控软件 |
+| `MYPLAYER_BUILD_REVIEW` | `OFF` | 审片标注工具；独立开启也会引入共享 Qt SDK 组件 |
 | `BUILD_TESTING` | `OFF`（Preset 为 ON） | 仓库白盒/应用回归；不替代 SDK、监控专用开关 |
 | `PLAYER_SDK_BUILD_QT` | `OFF` | 可复用 Qt 组件；构建应用时自动引入 |
 | `PLAYER_SDK_BUILD_C` | `ON` | 构建版本化 C ABI 共享库 `PlayerSDK::C`；只需 C++/Qt SDK 时可关闭 |
@@ -318,6 +321,7 @@ SDK 可直接独立配置：`cmake -S sdk -B build/sdk`（仍需提供依赖工�
 ```text
 apps/qt_player/    播放器 UI、应用播放策略、设置、播放基准
 apps/monitor/      监控 UI、设备配置、录像与回放
+apps/review/       审片标注工具与 JSON/CSV 工程管理
 sdk/core/include/ 公开 C++ SDK API（Player、只读帧、订阅等）
 sdk/core/src/      私有解封装/解码、队列、时钟、网络输入与旧回归入口
 sdk/qt/            PlayerSDK::QtWidgets，QtPlayer 与 VideoWidget
