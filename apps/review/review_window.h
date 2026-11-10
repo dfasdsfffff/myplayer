@@ -12,6 +12,7 @@ class QLabel;
 class QPushButton;
 class QSlider;
 class QTableWidget;
+class QStackedWidget;
 
 namespace player_sdk_qt {
 class QtPlayer;
@@ -66,6 +67,8 @@ private:
     quint64 documentGeneration_{0};
     player_sdk_qt::QtPlayer* player_{nullptr};
     player_sdk_qt::VideoWidget* video_{nullptr};
+    QLabel* videoPlaceholder_{nullptr};
+    QStackedWidget* videoStack_{nullptr};
     quint64 playerGeneration_{0};
     play_core::SessionId session_{0};
     play_core::OperationId openOperation_{0};
@@ -81,6 +84,7 @@ private:
     QLabel* mediaLabel_{nullptr};
     QLabel* statusLabel_{nullptr};
     QLabel* errorLabel_{nullptr};
+    QLabel* emptyNotesLabel_{nullptr};
     QTableWidget* notesTable_{nullptr};
     QAction* saveAction_{nullptr};
     QAction* saveAsAction_{nullptr};

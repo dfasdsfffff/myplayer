@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -26,6 +27,8 @@
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSplitter>
+#include <QStackedWidget>
+#include <QScreen>
 #include <QStatusBar>
 #include <QTableWidget>
 #include <QToolBar>
@@ -164,7 +167,14 @@ ReviewWindow::~ReviewWindow()
 
 void ReviewWindow::buildUi()
 {
-    resize(1200, 760);
+    if (const auto* display = QGuiApplication::primaryScreen()) {
+        const QRect available = display->availableGeometry();
+        resize(std::min(1200, std::max(1, available.width() - 32)),
+               std::min(760, std::max(1, available.height() - 32)));
+        move(available.center() - rect().center());
+    } else {
+        resize(1200, 760);
+    }
     auto* fileMenu = menuBar()->addMenu(tr("文件(&F)"));
     fileMenu->setObjectName(QStringLiteral("fileMenu"));
     auto* openVideoAction = fileMenu->addAction(tr("打开视频…"));
@@ -221,12 +231,18 @@ void ReviewWindow::buildUi()
     auto* central = new QWidget(this);
     central->setObjectName(QStringLiteral("reviewCentralWidget"));
     auto* layout = new QVBoxLayout(central);
-    mediaLabel_ = new QLabel(tr("尚未打开视频或工程"), central);
+    auto* mediaRow = new QHBoxLayout;
+    mediaLabel_ = new QLabel(tr("审片工作区"), central);
     mediaLabel_->setObjectName(QStringLiteral("mediaPathLabel"));
     mediaLabel_->setTextFormat(Qt::PlainText);
     mediaLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    mediaLabel_->setWordWrap(true);
-    layout->addWidget(mediaLabel_);
+    mediaLabel_->setMinimumWidth(0);
+    mediaRow->addWidget(mediaLabel_, 1);
+    auto* openVideoButton = new QPushButton(tr("打开视频…"), central);
+    openVideoButton->setObjectName(QStringLiteral("openVideoButton"));
+    connect(openVideoButton, &QPushButton::clicked, openVideoAction, &QAction::trigger);
+    mediaRow->addWidget(openVideoButton);
+    layout->addLayout(mediaRow);
     auto* splitter = new QSplitter(Qt::Horizontal, central);
     splitter->setObjectName(QStringLiteral("reviewSplitter"));
     splitter->setChildrenCollapsible(false);
@@ -234,10 +250,19 @@ void ReviewWindow::buildUi()
     playback->setMinimumWidth(320);
     auto* playbackLayout = new QVBoxLayout(playback);
     playbackLayout->setContentsMargins(0, 0, 0, 0);
-    video_ = new player_sdk_qt::VideoWidget(playback);
+    videoStack_ = new QStackedWidget(playback);
+    videoPlaceholder_ = new QLabel(tr("打开本地视频开始审片\n按 Ctrl+O 或点击右上角“打开视频…”"), videoStack_);
+    videoPlaceholder_->setObjectName(QStringLiteral("videoPlaceholder"));
+    videoPlaceholder_->setAlignment(Qt::AlignCenter);
+    videoPlaceholder_->setWordWrap(true);
+    videoPlaceholder_->setAutoFillBackground(true);
+    videoStack_->addWidget(videoPlaceholder_);
+    video_ = new player_sdk_qt::VideoWidget(videoStack_);
     video_->setObjectName(QStringLiteral("reviewVideoWidget"));
     video_->setMinimumSize(320, 180);
-    playbackLayout->addWidget(video_, 1);
+    videoStack_->addWidget(video_);
+    videoStack_->setCurrentWidget(videoPlaceholder_);
+    playbackLayout->addWidget(videoStack_, 1);
     positionSlider_ = new QSlider(Qt::Horizontal, playback);
     positionSlider_->setObjectName(QStringLiteral("positionSlider"));
     positionSlider_->setAccessibleName(tr("播放进度"));
@@ -263,6 +288,11 @@ void ReviewWindow::buildUi()
     noteTools->addAction(editNoteAction_);
     noteTools->addAction(deleteNoteAction_);
     annotationLayout->addWidget(noteTools);
+    emptyNotesLabel_ = new QLabel(annotation);
+    emptyNotesLabel_->setObjectName(QStringLiteral("emptyNotesLabel"));
+    emptyNotesLabel_->setAlignment(Qt::AlignCenter);
+    emptyNotesLabel_->setWordWrap(true);
+    annotationLayout->addWidget(emptyNotesLabel_);
     notesTable_ = new QTableWidget(0, 3, annotation);
     notesTable_->setObjectName(QStringLiteral("notesTable"));
     notesTable_->setHorizontalHeaderLabels({tr("时间"), tr("类别"), tr("文字")});
@@ -419,6 +449,7 @@ void ReviewWindow::resetPlayback()
     }
     errorLabel_->clear();
     errorLabel_->hide();
+    videoStack_->setCurrentWidget(videoPlaceholder_);
     statusLabel_->setText(tr("请选择本地视频或标注工程"));
     updateTimeDisplay();
     updateControls();
@@ -466,6 +497,7 @@ bool ReviewWindow::startMedia()
         updateControls();
         return false;
     }
+    videoStack_->setCurrentWidget(video_);
     // Opening explicitly supports queued playback commands in the public SDK.
     submit(player_->play(), tr("播放"));
     return true;
@@ -486,7 +518,8 @@ bool ReviewWindow::openVideo(const QString& path)
     document_ = ReviewDocument{media, {}};
     ++documentGeneration_;
     projectPath_.clear();
-    mediaLabel_->setText(QDir::toNativeSeparators(media));
+    mediaLabel_->setText(info.fileName());
+    mediaLabel_->setToolTip(QDir::toNativeSeparators(media));
     setDirty(true);
     rebuildNotes();
     return startMedia();
@@ -508,7 +541,8 @@ bool ReviewWindow::openProject(const QString& path)
     document_ = std::move(loaded);
     ++documentGeneration_;
     projectPath_ = project;
-    mediaLabel_->setText(QDir::toNativeSeparators(document_.mediaPath));
+    mediaLabel_->setText(QFileInfo(document_.mediaPath).fileName());
+    mediaLabel_->setToolTip(QDir::toNativeSeparators(document_.mediaPath));
     setDirty(false);
     rebuildNotes();
     // Loading annotations succeeds even when their external media is missing.
@@ -545,6 +579,12 @@ void ReviewWindow::updateControls()
     saveAction_->setEnabled(hasDocument);
     saveAsAction_->setEnabled(hasDocument);
     exportAction_->setEnabled(hasDocument);
+    emptyNotesLabel_->setVisible(document_.notes.isEmpty());
+    if (document_.notes.isEmpty()) {
+        emptyNotesLabel_->setText(!hasDocument ? tr("暂无标注")
+                                  : canSeek() ? tr("点击“添加标注”或按 Ctrl+M，记录当前画面。")
+                                              : tr("媒体不可定位，无法添加时间点标注。"));
+    }
     notesTable_->setToolTip(canSeek() ? tr("双击标注可暂停并定位；使用编辑按钮修改文字和类别。")
                                      : tr("当前无法定位；已有标注仍可编辑、删除、保存和导出。"));
 }
