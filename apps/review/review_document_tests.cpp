@@ -354,6 +354,36 @@ bool boundaries(const QDir& directory)
     return true;
 }
 
+bool recoveryRoundTrip(const QDir& directory)
+{
+    const QString recoveryPath = directory.filePath(QStringLiteral("state/recovery.review.json"));
+    review::ReviewRecovery recovery{
+        directory.filePath(QStringLiteral("project/current.review.json")),
+        {directory.filePath(QStringLiteral("media/video.mp4")),
+         {{1234, QStringLiteral("问题"), QStringLiteral("尚未保存的标注")}}}};
+    QString error;
+    if (!Expect(review::saveRecovery(recoveryPath, recovery, error) && error.isEmpty(),
+                "recovery save creates its parent directory"))
+        return false;
+    review::ReviewRecovery loaded;
+    if (!Expect(review::loadRecovery(recoveryPath, loaded, error) && error.isEmpty()
+                    && loaded.projectPath == recovery.projectPath
+                    && equal(loaded.document, recovery.document),
+                "recovery round trip preserves absolute project and media paths"))
+        return false;
+    const review::ReviewRecovery original = loaded;
+    if (!Expect(writeFile(recoveryPath, QByteArray("{"))
+                    && !review::loadRecovery(recoveryPath, loaded, error)
+                    && loaded.projectPath == original.projectPath
+                    && equal(loaded.document, original.document),
+                "invalid recovery leaves the destination unchanged"))
+        return false;
+    review::ReviewRecovery invalid = recovery;
+    invalid.projectPath = QStringLiteral("relative.review.json");
+    return Expect(!review::saveRecovery(recoveryPath, invalid, error) && !error.isEmpty(),
+                  "recovery rejects relative project paths");
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -370,5 +400,6 @@ int main(int argc, char** argv)
                 "time formatting preserves milliseconds and does not wrap at 24 hours"))
         return 1;
     const QDir directory(temporary.path());
-    return roundTripAndCsv(directory) && validationAndFailure(directory) && boundaries(directory) ? 0 : 1;
+    return roundTripAndCsv(directory) && validationAndFailure(directory) && boundaries(directory)
+        && recoveryRoundTrip(directory) ? 0 : 1;
 }

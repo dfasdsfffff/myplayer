@@ -231,4 +231,98 @@ bool exportCsv(const QString& path, const ReviewDocument& document, QString& err
     return commit(file, error);
 }
 
+bool saveRecovery(const QString& path, const ReviewRecovery& recovery, QString& error)
+{
+    if (!validateDocument(recovery.document, error))
+        return false;
+    if (!recovery.projectPath.isEmpty() && !QFileInfo(recovery.projectPath).isAbsolute())
+        return fail(error, QStringLiteral("恢复记录中的工程路径必须是绝对路径。"));
+    QJsonArray notes;
+    for (const ReviewNote& note : recovery.document.notes) {
+        notes.append(QJsonObject{{QStringLiteral("positionMs"), note.positionMs},
+                                 {QStringLiteral("category"), note.category},
+                                 {QStringLiteral("text"), note.text}});
+    }
+    const QJsonObject root{
+        {QStringLiteral("format"), QStringLiteral("myplayer-review-recovery")},
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("project"), recovery.projectPath},
+        {QStringLiteral("media"), recovery.document.mediaPath},
+        {QStringLiteral("notes"), notes}};
+    const QByteArray bytes = QJsonDocument(root).toJson(QJsonDocument::Compact);
+    if (bytes.size() > MaxFileBytes)
+        return fail(error, QStringLiteral("恢复文件不能超过 64 MiB。"));
+    if (!QDir().mkpath(QFileInfo(path).absolutePath()))
+        return fail(error, QStringLiteral("无法创建恢复文件目录。"));
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return fail(error, QStringLiteral("创建恢复文件失败：%1").arg(file.errorString()));
+    if (!writeBytes(file, bytes, error))
+        return false;
+    return commit(file, error);
+}
+
+bool loadRecovery(const QString& path, ReviewRecovery& recovery, QString& error)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return fail(error, QStringLiteral("打开恢复文件失败：%1").arg(file.errorString()));
+    if (file.size() > MaxFileBytes)
+        return fail(error, QStringLiteral("恢复文件不能超过 64 MiB。"));
+    const QByteArray bytes = file.read(MaxFileBytes + 1);
+    if (file.error() != QFileDevice::NoError)
+        return fail(error, QStringLiteral("读取恢复文件失败：%1").arg(file.errorString()));
+    if (bytes.size() > MaxFileBytes || !file.atEnd())
+        return fail(error, QStringLiteral("恢复文件不能超过 64 MiB。"));
+    QJsonParseError parseError;
+    const QJsonDocument json = QJsonDocument::fromJson(bytes, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !json.isObject())
+        return fail(error, QStringLiteral("恢复 JSON 无效：%1").arg(parseError.errorString()));
+    const QJsonObject root = json.object();
+    if (root.value(QStringLiteral("format")).toString() != QStringLiteral("myplayer-review-recovery")
+        || root.value(QStringLiteral("version")).toDouble(-1) != 1.0)
+        return fail(error, QStringLiteral("未知的恢复文件格式或版本。"));
+    const QJsonValue project = root.value(QStringLiteral("project"));
+    const QJsonValue media = root.value(QStringLiteral("media"));
+    const QJsonValue notes = root.value(QStringLiteral("notes"));
+    if (!project.isString() || !media.isString() || !notes.isArray()
+        || media.toString().trimmed().isEmpty() || media.toString().contains(QChar::Null))
+        return fail(error, QStringLiteral("恢复文件中的路径或标注列表无效。"));
+    if ((!project.toString().isEmpty() && !QFileInfo(project.toString()).isAbsolute())
+        || !QFileInfo(media.toString()).isAbsolute())
+        return fail(error, QStringLiteral("恢复文件中的路径必须是绝对路径。"));
+    const QJsonArray array = notes.toArray();
+    if (array.size() > MaxNotes)
+        return fail(error, QStringLiteral("标注数量不能超过 10000 条。"));
+
+    ReviewRecovery loaded;
+    loaded.projectPath = project.toString().isEmpty() ? QString() : QDir::cleanPath(project.toString());
+    loaded.document.mediaPath = QDir::cleanPath(media.toString());
+    loaded.document.notes.reserve(array.size());
+    for (const QJsonValue& value : array) {
+        if (!value.isObject())
+            return fail(error, QStringLiteral("恢复文件中的标注必须是 JSON 对象。"));
+        const QJsonObject object = value.toObject();
+        const QJsonValue position = object.value(QStringLiteral("positionMs"));
+        const QJsonValue category = object.value(QStringLiteral("category"));
+        const QJsonValue text = object.value(QStringLiteral("text"));
+        if (!position.isDouble() || !category.isString() || !text.isString())
+            return fail(error, QStringLiteral("恢复文件中的标注字段类型无效。"));
+        const double milliseconds = position.toDouble();
+        if (!std::isfinite(milliseconds) || milliseconds < 0
+            || milliseconds > static_cast<double>(MaxPositionMs)
+            || std::floor(milliseconds) != milliseconds)
+            return fail(error, QStringLiteral("恢复文件中的标注时间无效。"));
+        ReviewNote note{static_cast<qint64>(milliseconds), category.toString(), text.toString()};
+        if (!validateNote(note, error))
+            return false;
+        loaded.document.notes.append(std::move(note));
+    }
+    if (!validateDocument(loaded.document, error))
+        return false;
+    recovery = std::move(loaded);
+    error.clear();
+    return true;
+}
+
 } // namespace review

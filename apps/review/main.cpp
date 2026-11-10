@@ -29,6 +29,8 @@ int main(int argc, char* argv[])
             if (!opened) {
                 return 1;
             }
+        } else {
+            window.offerRecovery();
         }
         return app.exec();
     } catch (const std::exception& e) {
