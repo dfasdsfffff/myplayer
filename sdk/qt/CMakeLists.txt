@@ -1,7 +1,9 @@
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
 qt_standard_project_setup(REQUIRES 6.8)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBASS REQUIRED IMPORTED_TARGET libass)
+if(NOT TARGET PkgConfig::LIBASS)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBASS REQUIRED IMPORTED_TARGET libass)
+endif()
 qt_add_library(player_sdk_qt STATIC
     qt_player.cpp
     video_widget.cpp

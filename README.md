@@ -115,6 +115,27 @@ Linux 未显式设置 `SDL_AUDIODRIVER` 且音频子系统初始化失败时会�
 
 ### Windows 构建两个软件
 
+如果已经有 MSVC x64 的预编译依赖，可以不使用 vcpkg toolchain。仓库的 `lib/` 已包含 FFmpeg、SDL2 和 SoundTouch；Qt 应用还需自行提供 libass（目录下应有 `include/ass/ass.h`、`lib/ass.lib` 和运行时 DLL）。例如：
+
+```powershell
+cmake -S . -B build-prebuilt -G "Visual Studio 18 2026" -A x64 `
+  -DPLAYERDEMO_USE_PREBUILT_DEPS=ON `
+  -DPLAYERDEMO_LIBASS_ROOT="D:/deps/libass" `
+  -DPLAYERDEMO_QT_ROOT="C:/Qt/6.9.3/msvc2022_64" `
+  -DMYPLAYER_BUILD_QT_APP=ON `
+  -DMYPLAYER_BUILD_MONITOR=ON
+cmake --build build-prebuilt --config Release --target myplayer myplayer_monitor --parallel
+```
+
+如果依赖在其他目录，分别传 `PLAYERDEMO_FFMPEG_ROOT`、`PLAYERDEMO_SDL2_ROOT`、`PLAYERDEMO_SOUNDTOUCH_ROOT`、`PLAYERDEMO_LIBASS_ROOT`。也可以跳过根目录查找，直接指定：
+
+- FFmpeg：`PLAYERDEMO_FFMPEG_INCLUDE_DIR`，以及 `PLAYERDEMO_FFMPEG_avcodec_LIBRARY`、`PLAYERDEMO_FFMPEG_avdevice_LIBRARY`、`PLAYERDEMO_FFMPEG_avfilter_LIBRARY`、`PLAYERDEMO_FFMPEG_avformat_LIBRARY`、`PLAYERDEMO_FFMPEG_avutil_LIBRARY`、`PLAYERDEMO_FFMPEG_swresample_LIBRARY`、`PLAYERDEMO_FFMPEG_swscale_LIBRARY`，每项为完整 `.lib` 路径。
+- SDL2：有 CMake 包时传 `SDL2_DIR`（包含 `sdl2-config.cmake` 的目录）；没有包配置时传 `PLAYERDEMO_SDL2_INCLUDE_DIR`、`PLAYERDEMO_SDL2_LIBRARY`（完整 `.lib` 路径）、`PLAYERDEMO_SDL2_DLL`。
+- SoundTouch：有 CMake 包时传 `SoundTouch_DIR`；否则传 `PLAYERDEMO_SOUNDTOUCH_INCLUDE_DIR`（其下须有 `soundtouch/SoundTouchDLL.h`）、`PLAYERDEMO_SOUNDTOUCH_LIBRARY`、`PLAYERDEMO_SOUNDTOUCH_DLL`。
+- libass：传 `PLAYERDEMO_LIBASS_INCLUDE_DIR`（其下须有 `ass/ass.h`）和 `PLAYERDEMO_LIBASS_LIBRARY`（完整 `.lib` 路径）。
+
+只构建无 Qt 的 SDK Core 时无需 libass，可关闭三个应用选项。预编译模式目前支持 Windows x64/MSVC；不要对同一个构建目录切换 vcpkg 与预编译模式，重新配置时使用新的 `-B` 目录。Debug 构建需要对应的 Debug 依赖；上例使用 Release。
+
 将以下两个路径替换为本机实际安装目录；首次配置会由 vcpkg 安装 manifest 依赖，可能需要下载和编译：
 
 ```powershell

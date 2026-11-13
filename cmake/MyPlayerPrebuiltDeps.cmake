@@ -1,0 +1,95 @@
+if(NOT WIN32 OR NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "PLAYERDEMO_USE_PREBUILT_DEPS currently supports Windows x64 with MSVC")
+endif()
+
+set(PLAYERDEMO_FFMPEG_ROOT "${PLAYERDEMO_DEPS_ROOT}/ffmpeg-7.1.1" CACHE PATH "Prebuilt FFmpeg root")
+set(PLAYERDEMO_SDL2_ROOT "${PLAYERDEMO_DEPS_ROOT}/SDL2" CACHE PATH "Prebuilt SDL2 root")
+set(PLAYERDEMO_SOUNDTOUCH_ROOT "${PLAYERDEMO_DEPS_ROOT}/soundtouch-2.3.3" CACHE PATH "Prebuilt SoundTouch root")
+set(PLAYERDEMO_LIBASS_ROOT "" CACHE PATH "Prebuilt libass root, required for Qt applications")
+
+find_path(PLAYERDEMO_FFMPEG_INCLUDE_DIR libavcodec/avcodec.h
+    PATHS "${PLAYERDEMO_FFMPEG_ROOT}/include" NO_DEFAULT_PATH)
+if(NOT EXISTS "${PLAYERDEMO_FFMPEG_INCLUDE_DIR}/libavcodec/avcodec.h")
+    message(FATAL_ERROR "Set PLAYERDEMO_FFMPEG_INCLUDE_DIR to the directory containing libavcodec/avcodec.h")
+endif()
+set(FFMPEG_INCLUDE_DIRS "${PLAYERDEMO_FFMPEG_INCLUDE_DIR}")
+set(FFMPEG_LIBRARIES "")
+foreach(component avcodec avdevice avfilter avformat avutil swresample swscale)
+    find_library(PLAYERDEMO_FFMPEG_${component}_LIBRARY NAMES ${component}
+        PATHS "${PLAYERDEMO_FFMPEG_ROOT}/lib" "${PLAYERDEMO_FFMPEG_ROOT}/bin" NO_DEFAULT_PATH)
+    if(NOT EXISTS "${PLAYERDEMO_FFMPEG_${component}_LIBRARY}")
+        message(FATAL_ERROR "Set PLAYERDEMO_FFMPEG_${component}_LIBRARY to the full path of ${component}.lib")
+    endif()
+    list(APPEND FFMPEG_LIBRARIES "${PLAYERDEMO_FFMPEG_${component}_LIBRARY}")
+endforeach()
+set(FFMPEG_FOUND TRUE)
+
+if(PLAYERDEMO_SDL2_INCLUDE_DIR OR PLAYERDEMO_SDL2_LIBRARY OR PLAYERDEMO_SDL2_DLL)
+    if(NOT EXISTS "${PLAYERDEMO_SDL2_INCLUDE_DIR}/SDL.h" OR
+       NOT EXISTS "${PLAYERDEMO_SDL2_LIBRARY}" OR
+       NOT EXISTS "${PLAYERDEMO_SDL2_DLL}")
+        message(FATAL_ERROR "Set PLAYERDEMO_SDL2_INCLUDE_DIR, PLAYERDEMO_SDL2_LIBRARY and PLAYERDEMO_SDL2_DLL to existing paths")
+    endif()
+    add_library(SDL2::SDL2 SHARED IMPORTED)
+    set_target_properties(SDL2::SDL2 PROPERTIES
+        IMPORTED_IMPLIB "${PLAYERDEMO_SDL2_LIBRARY}"
+        IMPORTED_LOCATION "${PLAYERDEMO_SDL2_DLL}"
+        INTERFACE_INCLUDE_DIRECTORIES "${PLAYERDEMO_SDL2_INCLUDE_DIR}")
+else()
+    find_package(SDL2 CONFIG REQUIRED PATHS "${PLAYERDEMO_SDL2_ROOT}" "${PLAYERDEMO_SDL2_ROOT}/cmake" NO_DEFAULT_PATH)
+endif()
+if(NOT TARGET SDL2::SDL2)
+    message(FATAL_ERROR "SDL2::SDL2 target not found under PLAYERDEMO_SDL2_ROOT: ${PLAYERDEMO_SDL2_ROOT}")
+endif()
+
+if(NOT PLAYERDEMO_SOUNDTOUCH_INCLUDE_DIR AND NOT PLAYERDEMO_SOUNDTOUCH_LIBRARY AND NOT PLAYERDEMO_SOUNDTOUCH_DLL)
+    find_package(SoundTouch CONFIG QUIET PATHS "${PLAYERDEMO_SOUNDTOUCH_ROOT}" NO_DEFAULT_PATH)
+endif()
+if(NOT TARGET SoundTouch::SoundTouchDLL AND NOT TARGET SoundTouch::SoundTouch)
+    if(PLAYERDEMO_SOUNDTOUCH_INCLUDE_DIR)
+        if(NOT EXISTS "${PLAYERDEMO_SOUNDTOUCH_INCLUDE_DIR}/soundtouch/SoundTouchDLL.h")
+            message(FATAL_ERROR "PLAYERDEMO_SOUNDTOUCH_INCLUDE_DIR must contain soundtouch/SoundTouchDLL.h")
+        endif()
+        set(_soundtouch_include "${PLAYERDEMO_SOUNDTOUCH_INCLUDE_DIR}")
+    elseif(EXISTS "${PLAYERDEMO_SOUNDTOUCH_ROOT}/include/soundtouch/SoundTouchDLL.h")
+        set(_soundtouch_include "${PLAYERDEMO_SOUNDTOUCH_ROOT}/include")
+    elseif(EXISTS "${PLAYERDEMO_SOUNDTOUCH_ROOT}/lib/SoundTouchDLL.h")
+        set(_soundtouch_include "${CMAKE_CURRENT_BINARY_DIR}/prebuilt-include")
+        file(MAKE_DIRECTORY "${_soundtouch_include}/soundtouch")
+        file(WRITE "${_soundtouch_include}/soundtouch/SoundTouchDLL.h"
+            "#include \"${PLAYERDEMO_SOUNDTOUCH_ROOT}/lib/SoundTouchDLL.h\"\n")
+    else()
+        message(FATAL_ERROR "SoundTouchDLL.h not found under PLAYERDEMO_SOUNDTOUCH_ROOT: ${PLAYERDEMO_SOUNDTOUCH_ROOT}")
+    endif()
+    if(NOT PLAYERDEMO_SOUNDTOUCH_LIBRARY)
+        find_library(PLAYERDEMO_SOUNDTOUCH_LIBRARY NAMES SoundTouchDLL_x64 SoundTouchDLL
+            PATHS "${PLAYERDEMO_SOUNDTOUCH_ROOT}/lib" NO_DEFAULT_PATH)
+    endif()
+    if(NOT PLAYERDEMO_SOUNDTOUCH_DLL)
+        find_file(PLAYERDEMO_SOUNDTOUCH_DLL NAMES SoundTouchDLL_x64.dll SoundTouchDLL.dll
+            PATHS "${PLAYERDEMO_SOUNDTOUCH_ROOT}/lib" "${PLAYERDEMO_SOUNDTOUCH_ROOT}/bin" NO_DEFAULT_PATH)
+    endif()
+    if(NOT EXISTS "${PLAYERDEMO_SOUNDTOUCH_LIBRARY}" OR NOT EXISTS "${PLAYERDEMO_SOUNDTOUCH_DLL}")
+        message(FATAL_ERROR "SoundTouch import library or DLL not found under PLAYERDEMO_SOUNDTOUCH_ROOT: ${PLAYERDEMO_SOUNDTOUCH_ROOT}")
+    endif()
+    add_library(SoundTouch::SoundTouchDLL SHARED IMPORTED)
+    set_target_properties(SoundTouch::SoundTouchDLL PROPERTIES
+        IMPORTED_IMPLIB "${PLAYERDEMO_SOUNDTOUCH_LIBRARY}"
+        IMPORTED_LOCATION "${PLAYERDEMO_SOUNDTOUCH_DLL}"
+        INTERFACE_INCLUDE_DIRECTORIES "${_soundtouch_include}")
+endif()
+
+if(MYPLAYER_BUILD_QT_APP OR MYPLAYER_BUILD_MONITOR OR MYPLAYER_BUILD_REVIEW OR PLAYER_SDK_BUILD_QT)
+    find_path(PLAYERDEMO_LIBASS_INCLUDE_DIR ass/ass.h
+        PATHS "${PLAYERDEMO_LIBASS_ROOT}/include" NO_DEFAULT_PATH)
+    find_library(PLAYERDEMO_LIBASS_LIBRARY NAMES ass libass
+        PATHS "${PLAYERDEMO_LIBASS_ROOT}/lib" NO_DEFAULT_PATH)
+    if(NOT EXISTS "${PLAYERDEMO_LIBASS_INCLUDE_DIR}/ass/ass.h" OR
+       NOT EXISTS "${PLAYERDEMO_LIBASS_LIBRARY}")
+        message(FATAL_ERROR "Set PLAYERDEMO_LIBASS_ROOT or both PLAYERDEMO_LIBASS_INCLUDE_DIR and PLAYERDEMO_LIBASS_LIBRARY")
+    endif()
+    add_library(PkgConfig::LIBASS UNKNOWN IMPORTED)
+    set_target_properties(PkgConfig::LIBASS PROPERTIES
+        IMPORTED_LOCATION "${PLAYERDEMO_LIBASS_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${PLAYERDEMO_LIBASS_INCLUDE_DIR}")
+endif()
