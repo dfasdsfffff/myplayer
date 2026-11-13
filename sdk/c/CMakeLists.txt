@@ -12,6 +12,13 @@ target_include_directories(player_sdk_c PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(player_sdk_c PRIVATE PlayerSDK::Core)
+# vcpkg's static FFmpeg is built with --enable-pic. Its x86 assembly also
+# requires symbolic binding when incorporated into a Linux shared library.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND VCPKG_INSTALLED_DIR AND VCPKG_TARGET_TRIPLET
+    AND EXISTS "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib/libavcodec.a"
+    AND NOT EXISTS "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib/libavcodec.so")
+    target_link_options(player_sdk_c PRIVATE "LINKER:-Bsymbolic")
+endif()
 myplayer_enable_warnings(player_sdk_c)
 myplayer_enable_sanitizers(player_sdk_c)
 

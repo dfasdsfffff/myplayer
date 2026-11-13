@@ -22,6 +22,7 @@ target_link_libraries(c_host PRIVATE PlayerSDK::C)
 
 仅使用已编译的 Windows SDK 时，调用方只需 C 编译器、该头文件和导入库，不需要构建内部 C++。
 部署需携带 `player_sdk_c.dll` 及其匹配的 FFmpeg、SDL2、SoundTouch 等运行时依赖；不能只复制主 DLL。
+Linux 使用 vcpkg 的静态 FFmpeg（如 `x64-linux`）构建此 `.so` 时，CMake 会在检测到静态 `libavcodec.a` 后自动加入 `-Wl,-Bsymbolic`。vcpkg 的 FFmpeg port 已启用 `--enable-pic`；若其他静态依赖仍报非 PIC 重定位错误，须将该依赖重新编译为 PIC，不能仅对本目标设置 `POSITION_INDEPENDENT_CODE`。切换 triplet 请使用新的构建目录，避免混用静态与动态依赖。
 独立二进制 SDK 的安装、CMake 导出及依赖收集规则**仅在 Windows x64/MSVC 下定义，且只安装 Release**。在已配置的构建目录执行：
 
 ```sh
