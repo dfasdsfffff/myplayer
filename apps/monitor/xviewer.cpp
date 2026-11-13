@@ -1,5 +1,5 @@
 #include "xviewer.h"
-#include "ui_XViewer.h"
+#include "ui_xviewer.h"
 #include "xcamera_config.h"
 #include "xcamera_record.h"
 #include "xcamera_widget.h"

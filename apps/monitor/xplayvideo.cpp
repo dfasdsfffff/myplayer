@@ -1,6 +1,6 @@
 #include "xplayvideo.h"
 
-#include "ui_XPlayVideo.h"
+#include "ui_xplayvideo.h"
 #include <QCloseEvent>
 #include <QIcon>
 #include <QPushButton>
