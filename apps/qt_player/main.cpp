@@ -6,9 +6,12 @@
 #include <QDebug>
 #include <cstdlib>
 #include <cstring>
+#if defined(Q_OS_LINUX)
+#include <fontconfig/fontconfig.h>
+#endif
 //#undef main
 
-int main(int argc, char *argv[])
+static int runPlayer(int argc, char *argv[])
 {
 //    qDebug() << "123";
     QApplication a(argc, argv);
@@ -58,4 +61,14 @@ int main(int argc, char *argv[])
     w.show();
 
     return a.exec();
+}
+
+int main(int argc, char *argv[])
+{
+    const int result = runPlayer(argc, argv);
+#if defined(Q_OS_LINUX)
+    // QApplication and widgets are gone; release Fontconfig's process-wide cache.
+    FcFini();
+#endif
+    return result;
 }

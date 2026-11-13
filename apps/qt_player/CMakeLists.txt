@@ -94,6 +94,10 @@ target_link_libraries(myplayer PRIVATE
     Qt6::Widgets
     PkgConfig::LIBASS
 )
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(Fontconfig REQUIRED)
+    target_link_libraries(myplayer PRIVATE Fontconfig::Fontconfig)
+endif()
 
 set_target_properties(myplayer PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PLAYERDEMO_OUTPUT_DIR}"
