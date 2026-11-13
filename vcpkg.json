@@ -20,7 +20,17 @@
       "name": "fontconfig",
       "platform": "osx"
     },
-    "sdl2",
+    {
+      "name": "sdl2",
+      "features": [
+        "alsa"
+      ],
+      "platform": "linux"
+    },
+    {
+      "name": "sdl2",
+      "platform": "!linux"
+    },
     {
       "name": "soundtouch",
       "features": [

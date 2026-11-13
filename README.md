@@ -111,7 +111,7 @@ macOS 在 manifest 中显式声明 vcpkg `fontconfig`，确保 libass 的可选�
 
 Linux 免安装打包需要动态依赖；在上述配置命令中额外传入 `-DVCPKG_OVERLAY_TRIPLETS="$PWD/cmake/triplets" -DVCPKG_TARGET_TRIPLET=x64-linux-dynamic -DMYPLAYER_ENABLE_SANITIZERS=OFF`，并使用独立的构建目录。仓库提供的这个 triplet 仅用于 Linux x64，不应用于 macOS。
 
-Linux 未显式设置 `SDL_AUDIODRIVER` 且音频子系统初始化失败时会尝试 dummy 驱动，此时无声音；显式指定驱动失败不会触发该回退。非 Windows 视频路径使用 SDL 软件渲染与 Qt 绘制，不应套用 Windows 原生 SDL 呈现路径的性能结论。
+Linux 下 `vcpkg.json` 为 SDL2 启用 `alsa` feature，SDL2 运行时动态加载系统的 `libasound.so.2` 输出声音，因此目标系统需提供 ALSA 或 PipeWire 的 ALSA 兼容层；只有 ALSA 也不可用时才回退到 dummy。Linux 未显式设置 `SDL_AUDIODRIVER` 且音频子系统初始化失败时会尝试 dummy 驱动，此时无声音；显式指定驱动失败不会触发该回退。非 Windows 视频路径使用 SDL 软件渲染与 Qt 绘制，不应套用 Windows 原生 SDL 呈现路径的性能结论。
 
 ### Windows 构建两个软件
 

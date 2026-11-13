@@ -101,7 +101,7 @@ SDL 输出为 `AUDIO_S16SYS`。PCM 回调从有界环形队列读取、补静音
 
 D3D11VA 仍只在 Windows 实现，偏好不保证设备可用；硬件帧下载到 CPU，不是 GPU 零拷贝。PQ/HLG 仅标记，不提供完整 HDR 色调映射。运行中硬解下载失败不保证无缝软回退。
 
-Linux 在未显式设置 `SDL_AUDIODRIVER` 且首次 SDL 音频初始化失败时记录警告并尝试 `dummy` 驱动，允许静音运行；显式指定无效驱动仍返回失败。此回退不意味着已找到真实音频设备，macOS/Windows 也没有同样的自动 dummy 分支。
+Linux 在未显式设置 `SDL_AUDIODRIVER` 且首次 SDL 音频初始化失败时记录警告并尝试 `dummy` 驱动，允许静音运行；显式指定无效驱动仍返回失败。此回退不意味着已找到真实音频设备，macOS/Windows 也没有同样的自动 dummy 分支。vcpkg manifest 在 Linux 为 SDL2 启用 `alsa` feature（经 `libasound.so.2` 动态加载），构建出的程序有真实音频后端；缺少 ALSA/PipeWire 兼容层时才会进入上述静音回退。
 
 输入包含 probe/analyze、读/连接超时、HTTP user-agent/headers、RTSP TCP/UDP；打开/探测/读取使用独立 I/O deadline 和 interrupt cancellation。SDK 可取消重连退避，成功重连恢复之前暂停/播放意图，最终失败才发公开错误。`stablePlaybackReset` 仍是预留字段，尚无稳定播放后重置重连次数实现。
 
