@@ -24,6 +24,8 @@ class VideoWidget;
 }
 
 namespace review {
+class ReviewTimelineSlider;
+
 
 class ReviewWindow final : public QMainWindow {
     Q_OBJECT
@@ -95,7 +97,7 @@ private:
     qint64 durationMs_{0};
     bool seekableVideo_{false};
     bool openFailed_{false};
-    QSlider* positionSlider_{nullptr};
+    ReviewTimelineSlider* positionSlider_{nullptr};
     QSlider* volumeSlider_{nullptr};
     QComboBox* speedCombo_{nullptr};
     QPushButton* playPauseButton_{nullptr};
@@ -105,6 +107,7 @@ private:
     QLabel* errorLabel_{nullptr};
     QLabel* emptyNotesLabel_{nullptr};
     QLabel* saveStateLabel_{nullptr};
+    QLabel* notesCountLabel_{nullptr};
     QLineEdit* noteSearch_{nullptr};
     QComboBox* noteCategoryFilter_{nullptr};
     QTableWidget* notesTable_{nullptr};

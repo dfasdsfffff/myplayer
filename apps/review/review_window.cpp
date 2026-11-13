@@ -23,12 +23,15 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPaintEvent>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScreen>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QStyleOptionSlider>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStandardPaths>
@@ -53,6 +56,17 @@ constexpr int SliderSteps = 1000000;
 constexpr int MaxNotes = 10000;
 constexpr qsizetype MaxNoteText = 10000;
 constexpr qint64 MaxPositionMs = 9007199254740991LL;
+
+QColor noteCategoryColor(const QString& category)
+{
+    if (category == QStringLiteral("问题"))
+        return QColor(QStringLiteral("#ff7b72"));
+    if (category == QStringLiteral("建议"))
+        return QColor(QStringLiteral("#58a6ff"));
+    if (category == QStringLiteral("重点"))
+        return QColor(QStringLiteral("#f2cc60"));
+    return QColor(QStringLiteral("#a78bfa"));
+}
 
 QString absolutePath(const QString& path)
 {
@@ -81,7 +95,6 @@ QString chooseFile(QWidget* parent, const QString& name, const QString& title,
 {
     QFileDialog dialog(parent, title);
     dialog.setObjectName(name);
-    dialog.setOption(QFileDialog::DontUseNativeDialog);
     dialog.setNameFilter(filter);
     dialog.setAcceptMode(save ? QFileDialog::AcceptSave : QFileDialog::AcceptOpen);
     dialog.setFileMode(save ? QFileDialog::AnyFile : QFileDialog::ExistingFile);
@@ -206,6 +219,59 @@ private:
 };
 } // namespace
 
+class ReviewTimelineSlider final : public QSlider {
+public:
+    explicit ReviewTimelineSlider(QWidget* parent = nullptr)
+        : QSlider(Qt::Horizontal, parent)
+    {
+        setMinimumHeight(24);
+    }
+
+    void setReviewNotes(const QList<ReviewNote>& notes, qint64 durationMs)
+    {
+        markers_.clear();
+        markers_.reserve(notes.size());
+        for (const ReviewNote& note : notes)
+            markers_.push_back({note.positionMs, noteCategoryColor(note.category)});
+        durationMs_ = durationMs;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        QSlider::paintEvent(event);
+        if (durationMs_ <= 0 || markers_.isEmpty())
+            return;
+
+        QStyleOptionSlider option;
+        initStyleOption(&option);
+        const QRect groove = style()->subControlRect(
+            QStyle::CC_Slider, &option, QStyle::SC_SliderGroove, this);
+        if (!groove.isValid())
+            return;
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        for (const Marker& marker : markers_) {
+            const long double fraction = static_cast<long double>(
+                std::clamp<qint64>(marker.positionMs, 0, durationMs_)) / durationMs_;
+            const int x = groove.left() + qRound(static_cast<double>(fraction * groove.width()));
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(marker.color);
+            painter.drawRoundedRect(QRect(x - 2, groove.center().y() - 7, 4, 14), 2, 2);
+        }
+    }
+
+private:
+    struct Marker {
+        qint64 positionMs;
+        QColor color;
+    };
+    QList<Marker> markers_;
+    qint64 durationMs_{0};
+};
+
 ReviewWindow::ReviewWindow(QWidget* parent)
     : QMainWindow(parent), undoStack_(new QUndoStack(this)), recoveryTimer_(new QTimer(this))
 {
@@ -244,7 +310,7 @@ void ReviewWindow::buildUi()
         QWidget#reviewHeader { background:#181e25; }
         QWidget#reviewPlayerPanel, QWidget#reviewNotesPanel { background:#171f29; }
         QWidget#mediaHeader, QWidget#playbackPanel { background:#19232e; border:1px solid #303b48; }
-        QLabel { background:transparent; }
+        QLabel { background:transparent; color:#cad5df; }
         QLabel#brandLabel { color:#edf2f7; font-size:17px; font-weight:bold; }
         QLabel#sectionLabel, QLabel#notesTitle { color:#e4edf5; font-size:15px; font-weight:bold; }
         QLabel#mutedLabel, QLabel#playbackStatusLabel, QLabel#emptyNotesLabel { color:#8395a7; }
@@ -401,7 +467,8 @@ void ReviewWindow::buildUi()
     body->setChildrenCollapsible(false);
     body->setContentsMargins(16, 16, 16, 12);
 
-    auto* playback = new QWidget(body);
+    auto* playback = new QWidget;
+    body->addWidget(playback);
     playback->setObjectName(QStringLiteral("reviewPlayerPanel"));
     playback->setMinimumWidth(560);
     auto* playbackLayout = new QVBoxLayout(playback);
@@ -440,9 +507,10 @@ void ReviewWindow::buildUi()
     auto* controlsLayout = new QVBoxLayout(playbackPanel);
     controlsLayout->setContentsMargins(14, 10, 14, 10);
     controlsLayout->setSpacing(8);
-    positionSlider_ = new QSlider(Qt::Horizontal, playbackPanel);
+    positionSlider_ = new ReviewTimelineSlider(playbackPanel);
     positionSlider_->setObjectName(QStringLiteral("positionSlider"));
     positionSlider_->setAccessibleName(tr("播放进度"));
+    positionSlider_->setToolTip(tr("彩色标记表示问题、建议、重点和其他审片标注。"));
     positionSlider_->setRange(0, SliderSteps);
     controlsLayout->addWidget(positionSlider_);
     auto* controls = new QHBoxLayout;
@@ -476,7 +544,8 @@ void ReviewWindow::buildUi()
     controlsLayout->addLayout(controls);
     playbackLayout->addWidget(playbackPanel);
 
-    auto* annotation = new QWidget(body);
+    auto* annotation = new QWidget;
+    body->addWidget(annotation);
     annotation->setObjectName(QStringLiteral("reviewNotesPanel"));
     annotation->setMinimumWidth(360);
     auto* annotationLayout = new QVBoxLayout(annotation);
@@ -487,6 +556,9 @@ void ReviewWindow::buildUi()
     notesTitle->setObjectName(QStringLiteral("notesTitle"));
     titleRow->addWidget(notesTitle);
     titleRow->addStretch();
+    notesCountLabel_ = new QLabel(annotation);
+    notesCountLabel_->setObjectName(QStringLiteral("mutedLabel"));
+    titleRow->addWidget(notesCountLabel_);
     annotationLayout->addLayout(titleRow);
     auto* noteTools = new QToolBar(annotation);
     noteTools->setObjectName(QStringLiteral("noteToolBar"));
@@ -526,6 +598,7 @@ void ReviewWindow::buildUi()
 
     body->setStretchFactor(0, 3);
     body->setStretchFactor(1, 2);
+    body->setSizes({720, 480});
     rootLayout->addWidget(body, 1);
     statusLabel_ = new QLabel(central);
     statusLabel_->setObjectName(QStringLiteral("playbackStatusLabel"));
@@ -612,6 +685,7 @@ void ReviewWindow::bindPlayer()
                 playbackError(tr("该视频不可定位，无法添加或定位标注。"));
         }
         updateTimeDisplay();
+        positionSlider_->setReviewNotes(document_.notes, durationMs_);
         updateControls();
     });
     connect(player_, &player_sdk_qt::QtPlayer::positionChanged, this,
@@ -686,6 +760,7 @@ void ReviewWindow::resetPlayback()
     errorLabel_->hide();
     videoStack_->setCurrentWidget(videoPlaceholder_);
     statusLabel_->setText(tr("请选择本地视频或标注工程"));
+    positionSlider_->setReviewNotes(document_.notes, durationMs_);
     updateTimeDisplay();
     updateControls();
 }
@@ -940,11 +1015,19 @@ void ReviewWindow::rebuildNotes(int selected)
         auto* time = new QTableWidgetItem(formatTime(note.positionMs));
         time->setData(Qt::UserRole, index);
         notesTable_->setItem(row, 0, time);
-        notesTable_->setItem(row, 1, new QTableWidgetItem(note.category));
+        auto* categoryItem = new QTableWidgetItem(note.category);
+        categoryItem->setForeground(noteCategoryColor(note.category));
+        notesTable_->setItem(row, 1, categoryItem);
         notesTable_->setItem(row, 2, new QTableWidgetItem(note.text));
         if (index == selected)
             notesTable_->selectRow(row);
     }
+    if (notesCountLabel_) {
+        notesCountLabel_->setText(order.size() == static_cast<std::size_t>(document_.notes.size())
+            ? tr("%1 条").arg(document_.notes.size())
+            : tr("%1 / %2 条").arg(order.size()).arg(document_.notes.size()));
+    }
+    positionSlider_->setReviewNotes(document_.notes, durationMs_);
     updateControls();
 }
 
