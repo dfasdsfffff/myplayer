@@ -62,6 +62,7 @@ public:
     using Completion = std::function<void(bool)>;
     void SdkPause(bool paused, Completion done);
     void SdkSeek(int64_t milliseconds, std::function<void(int, int64_t)> done);
+    void SdkStepFrame(int direction, std::function<void(int, int64_t)> done);
     void SdkTrack(bool audio, std::optional<int> track, Completion done);
     Signal<int64_t> SigPositionMs;
     Signal<> SigNaturalEnd;

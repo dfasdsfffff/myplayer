@@ -20,6 +20,7 @@ ps_player_set_hardware_decode_v1
 ps_player_set_paused_v1
 ps_player_set_playback_rate_v1
 ps_player_set_volume_v1
+ps_player_step_frame_v1
 ps_player_stop_v1
 ps_source_init_v1
 ps_version

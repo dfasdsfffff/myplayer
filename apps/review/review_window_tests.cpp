@@ -16,6 +16,7 @@
 #include <QThread>
 #include <QTimer>
 
+#include <algorithm>
 #include <filesystem>
 #include <functional>
 #include <iostream>
@@ -57,8 +58,12 @@ int main(int argc, char** argv)
     auto* frame = action("exportFrameAction");
     auto* loop = action("loopPlaybackAction");
     auto* notes = action("notesVisibleAction");
+    auto* previousFrame = action("previousFrameAction");
+    auto* nextFrame = action("nextFrameAction");
+    if (!expect(previousFrame && nextFrame, "frame step actions exist")) return 1;
     if (!expect(jump && start && end && info && frame && loop && notes, "review actions exist")) return 1;
-    bool ok = expect(!jump->isEnabled() && !start->isEnabled() && !end->isEnabled()
+    bool ok = expect(!previousFrame->isEnabled() && !nextFrame->isEnabled(), "empty player disables frame stepping");
+    ok &= expect(!jump->isEnabled() && !start->isEnabled() && !end->isEnabled()
                      && !info->isEnabled() && !frame->isEnabled(), "empty player disables media actions");
     auto* panel = window.findChild<QWidget*>(QStringLiteral("reviewNotesPanel"));
     notes->trigger();
@@ -77,6 +82,22 @@ int main(int argc, char** argv)
     loop->setChecked(false);
     ok &= expect(waitFor([&] { return jump->isEnabled(); }), "reopened media is controllable");
     auto* player = window.findChild<player_sdk_qt::QtPlayer*>();
+    qint64 steppedPosition = -1;
+    QObject::connect(player, &player_sdk_qt::QtPlayer::operationFinished, &window,
+                     [&](const play_core::OperationResult& result) {
+        if (result.status == play_core::OperationStatus::Succeeded && !result.requestedPositionMs && result.actualPositionMs)
+            steppedPosition = *result.actualPositionMs;
+    });
+    ok &= expect(nextFrame->isEnabled() && previousFrame->isEnabled(), "video enables frame stepping");
+    nextFrame->trigger();
+    ok &= expect(!nextFrame->isEnabled(), "step action disables while request is pending");
+    ok &= expect(waitFor([&] { return steppedPosition >= 0 && nextFrame->isEnabled(); }), "next frame completes");
+    const qint64 nextPosition = steppedPosition;
+    steppedPosition = -1;
+    previousFrame->trigger();
+    ok &= expect(waitFor([&] { return steppedPosition >= 0; }), "previous frame completes");
+    ok &= expect(steppedPosition == std::max<qint64>(0, nextPosition - 100)
+                 && player->state() == play_core::PlayerState::Paused, "review step uses adjacent frame and stays paused");
     qint64 requested = -1;
     QObject::connect(player, &player_sdk_qt::QtPlayer::operationFinished, &window,
                      [&](const play_core::OperationResult& result) {

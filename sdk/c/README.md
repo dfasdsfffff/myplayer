@@ -47,6 +47,12 @@ Linux/macOS 的 C ABI 共享目标有源码构建分支，但当前没有对应 
 
 上述命令是使用说明，不是本次已执行的验证记录；v2.1.0 文档核对未运行 C SDK 构建或测试。
 
+## 逐帧接口
+
+`ps_player_step_frame_v1(player, direction, &request)` 接受 `-1`（上一帧）或 `+1`（下一帧），需要可定位、非直播视频。操作成功后保持暂停，`PS_EVENT_OPERATION` 的 `actual_position_ms` 是已发布帧的时间戳，`has_requested_position` 为 0；首尾边界停留，不循环。普通 `ps_player_seek_v1` 的结果仍只确认解封装定位目标，不变为帧精确定位。完整约定见 [SDK 逐帧说明](../README.md#逐帧审阅)。
+
+这是新增导出符号，不改变 v1 结构布局或既有枚举值。使用新接口的宿主必须部署包含该符号的新共享库；仅检查 ABI 主版本 1 不能证明旧 DLL 支持它。
+
 ## 最小使用示例
 
 ```c

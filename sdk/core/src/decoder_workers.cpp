@@ -6,6 +6,7 @@
 #include "media_sync.h"
 
 #include <cmath>
+#include <mutex>
 #include <string>
 
 namespace {
@@ -60,6 +61,111 @@ int DecoderWorkers::QueuePicture(VideoState* state, AVFrame* sourceFrame, double
     return 0;
 }
 
+namespace {
+
+struct StepScanCollector {
+    AVFrame* candidate{nullptr};
+    double pts{NAN};
+    double duration{0};
+    int64_t pos{-1};
+    int serial{-1};
+    bool valid{false};
+    bool finalized{false};
+    int scanSerial{-1};
+    int64_t lastTimestampUs{AV_NOPTS_VALUE};
+};
+
+int64_t FrameTimestampUs(VideoState* state, double pts)
+{
+    if (!state || !std::isfinite(pts))
+        return AV_NOPTS_VALUE;
+    return static_cast<int64_t>(std::llround(pts * AV_TIME_BASE));
+}
+
+void PublishStepError(VideoState* state, int serial, int error)
+{
+    std::lock_guard lock(state->session.step.mutex);
+    if (state->session.step.active && state->session.step.serial.load(std::memory_order_acquire) == serial)
+        state->session.step.error.store(error, std::memory_order_release);
+}
+
+int FinishStepScan(VideoState* state, StepScanCollector& collector, AVFrame* successor = nullptr,
+    double successorPts = NAN, double successorDuration = 0, int64_t successorPos = -1, int successorSerial = -1)
+{
+    if (collector.finalized || collector.scanSerial != state->session.step.serial.load(std::memory_order_acquire))
+        return 0;
+    collector.finalized = true;
+    if (!collector.valid) {
+        PublishStepError(state, collector.scanSerial, AVERROR(EINVAL));
+        return 0;
+    }
+    int ret = DecoderWorkers::QueuePicture(state, collector.candidate, collector.pts, collector.duration,
+        collector.pos, collector.serial);
+    if (ret >= 0 && successor)
+        ret = DecoderWorkers::QueuePicture(state, successor, successorPts, successorDuration,
+            successorPos, successorSerial);
+    if (ret < 0)
+        return ret;
+    std::lock_guard lock(state->session.step.mutex);
+    if (collector.scanSerial != state->session.step.serial.load(std::memory_order_acquire) ||
+        !state->session.step.active.load(std::memory_order_acquire))
+        return 0;
+    state->session.step.scan.store(false, std::memory_order_release);
+    state->session.step.ready.store(true, std::memory_order_release);
+    return 0;
+}
+
+int CollectStepFrame(VideoState* state, StepScanCollector& collector, AVFrame* frame,
+    double pts, double duration, int64_t pos, int serial)
+{
+    if (!state->session.step.scan.load(std::memory_order_acquire))
+        return DecoderWorkers::QueuePicture(state, frame, pts, duration, pos, serial);
+    if (serial != state->session.step.serial.load(std::memory_order_acquire)) {
+        av_frame_unref(frame);
+        return 0;
+    }
+    if (collector.scanSerial != serial) {
+        if (collector.candidate) av_frame_unref(collector.candidate);
+        collector.scanSerial = serial;
+        collector.valid = false;
+        collector.finalized = false;
+        collector.lastTimestampUs = AV_NOPTS_VALUE;
+    }
+    int64_t target;
+    int direction;
+    {
+        std::lock_guard<std::mutex> lock(state->session.step.mutex);
+        target = state->session.step.targetPtsUs;
+        direction = state->session.step.direction;
+    }
+    const auto timestamp = FrameTimestampUs(state, pts);
+    if (timestamp == AV_NOPTS_VALUE ||
+        (collector.lastTimestampUs != AV_NOPTS_VALUE && timestamp <= collector.lastTimestampUs)) {
+        PublishStepError(state, serial, AVERROR(EINVAL));
+        av_frame_unref(frame);
+        return 0;
+    }
+    collector.lastTimestampUs = timestamp;
+    if (direction < 0 && target != AV_NOPTS_VALUE && timestamp >= target && collector.valid)
+        return FinishStepScan(state, collector, frame, pts, duration, pos, serial);
+    if (!collector.candidate)
+        collector.candidate = av_frame_alloc();
+    if (!collector.candidate)
+        return AVERROR(ENOMEM);
+    av_frame_unref(collector.candidate);
+    av_frame_move_ref(collector.candidate, frame);
+    collector.pts = pts;
+    collector.duration = duration;
+    collector.pos = pos;
+    collector.serial = serial;
+    collector.valid = true;
+    if (target == AV_NOPTS_VALUE || (direction > 0 ? timestamp > target : timestamp >= target))
+        return FinishStepScan(state, collector);
+    return 0;
+}
+
+} // namespace
+
 int DecoderWorkers::GetVideoFrame(VideoState* state, AVFrame* frame)
 {
     int got_picture;
@@ -74,9 +180,13 @@ int DecoderWorkers::GetVideoFrame(VideoState* state, AVFrame* frame)
             dpts = av_q2d(state->video.video_st->time_base) * frame->pts;
         frame->sample_aspect_ratio = av_guess_sample_aspect_ratio(state->session.ic, state->video.video_st, frame);
 
-        if (framedrop > 0
+        if (!state->session.paused.load(std::memory_order_acquire) &&
+            !state->session.step.active.load(std::memory_order_acquire) &&
+            !state->video.step.load(std::memory_order_acquire) &&
+            !state->session.step.scan.load(std::memory_order_acquire) &&
+            (framedrop > 0
             || (framedrop && MediaSync::get_master_sync_type(state) != AV_SYNC_VIDEO_MASTER)
-            ) {
+            )) {
             if (frame->pts != AV_NOPTS_VALUE) {
                 double diff = dpts - MediaSync::get_master_clock(state);
                 if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD &&
@@ -217,13 +327,27 @@ int DecoderWorkers::Video(void* opaque)
         ReportDecoderFailure(state, state->video.videoq, AVERROR(ENOMEM));
         return AVERROR(ENOMEM);
     }
+    StepScanCollector stepScan;
 
     for (;;) {
         ret = GetVideoFrame(state, frame);
         if (ret < 0)
             goto the_end;
-        if (!ret)
+        if (!ret) {
+            if (state->session.step.scan.load(std::memory_order_acquire) &&
+                state->video.vid_decoder.finished == state->session.step.serial.load(std::memory_order_acquire) &&
+                state->video.vid_decoder.finished == state->video.videoq.serial()) {
+                if (stepScan.scanSerial != state->video.vid_decoder.finished) {
+                    stepScan.scanSerial = state->video.vid_decoder.finished;
+                    stepScan.valid = false;
+                    stepScan.finalized = false;
+                }
+                ret = FinishStepScan(state, stepScan);
+                if (ret < 0)
+                    goto the_end;
+            }
             continue;
+        }
 #if CONFIG_AVFILTER
         if (last_w != frame->width ||
             last_h != frame->height ||
@@ -290,7 +414,8 @@ int DecoderWorkers::Video(void* opaque)
             tb = av_buffersink_get_time_base(filt_out);
             duration = (frame_rate.num && frame_rate.den ? av_q2d(AVRational{ frame_rate.den, frame_rate.num }) : 0);
             pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
-            ret = QueuePicture(state, frame, pts, duration, fd ? fd->pkt_pos : -1, state->video.vid_decoder.pkt_serial);
+            ret = CollectStepFrame(state, stepScan, frame, pts, duration, fd ? fd->pkt_pos : -1,
+                state->video.vid_decoder.pkt_serial);
             av_frame_unref(frame);
             if (state->video.videoq.serial() != state->video.vid_decoder.pkt_serial)
                 break;
@@ -300,7 +425,8 @@ int DecoderWorkers::Video(void* opaque)
         duration = (frame_rate.num && frame_rate.den ? av_q2d({ frame_rate.den, frame_rate.num }) : 0);
         pts = ((frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb));
         FrameData* fd = frame->opaque_ref ? reinterpret_cast<FrameData*>(frame->opaque_ref->data) : nullptr;
-        ret = QueuePicture(state, frame, pts, duration, fd ? fd->pkt_pos : -1, state->video.vid_decoder.pkt_serial);
+        ret = CollectStepFrame(state, stepScan, frame, pts, duration, fd ? fd->pkt_pos : -1,
+            state->video.vid_decoder.pkt_serial);
         av_frame_unref(frame);
 #endif
         if (ret < 0)
@@ -309,6 +435,7 @@ int DecoderWorkers::Video(void* opaque)
 the_end:
 
     ReportDecoderFailure(state, state->video.videoq, ret);
+    av_frame_free(&stepScan.candidate);
     av_frame_free(&frame);
     avfilter_graph_free(&graph);
     return ret;

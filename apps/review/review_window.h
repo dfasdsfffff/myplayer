@@ -63,6 +63,7 @@ private:
     void togglePlayback();
     void seekFromSlider();
     void seekRelative(qint64 offsetMs);
+    void stepFrame(int direction);
     void jumpToTime();
     void exportFrame();
     void showMediaInfo();
@@ -128,6 +129,9 @@ private:
     QAction* seekNoteAction_{nullptr};
     QAction* previousNoteAction_{nullptr};
     QAction* jumpAction_{nullptr};
+    QAction* previousFrameAction_{nullptr};
+    QAction* nextFrameAction_{nullptr};
+    play_core::OperationId stepOperation_{0};
     QAction* startAction_{nullptr};
     QAction* endAction_{nullptr};
     QAction* loopAction_{nullptr};

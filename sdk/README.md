@@ -108,9 +108,9 @@ player->play();
 | 当前状态 | 合法媒体命令 | 说明 |
 | --- | --- | --- |
 | Closed | open、close | 重复 close 成功且产生自己的结果 |
-| Opening | play/pause/seek/stop/轨道命令排队；open/close 可取消旧任务 | 打开完成后执行排队命令，不把 open 当成播放 |
-| Ready | play、pause、seek、stop、轨道、open、close | 媒体已打开但保持暂停，不输出声音 |
-| Playing / Paused / Stopped | play、pause、seek、stop、轨道、open、close | stop 不销毁解封装器、解码器和源会话 |
+| Opening | play/pause/seek/stepFrame/stop/轨道命令排队；open/close 可取消旧任务 | 打开完成后执行排队命令，不把 open 当成播放 |
+| Ready | play、pause、seek、stepFrame、stop、轨道、open、close | 媒体已打开但保持暂停，不输出声音 |
+| Playing / Paused / Stopped | play、pause、seek、stepFrame、stop、轨道、open、close | stop 不销毁解封装器、解码器和源会话 |
 | Reconnecting | open、close；其他请求可能异步失败 | close 取消退避与阻塞 I/O；重连后恢复先前暂停/播放意图 |
 | Ended / Failed | open、close | 默认自然结束后再次播放需要 open；显式 `PlayerOptions::loop=true` 可启用核心单媒体循环，播放列表/随机播放由应用实现 |
 | Closing | 已提交请求顺序排队 | close 完成后可重新 open |
@@ -124,6 +124,22 @@ player->play();
 - `MediaInfo` 是只读快照。借用 `PlayerEvent&` 仅在回调期间有效，需要保留时复制事件或保存其共享对象。
 - UTF-8 本地文件路径直接传 native path，不传 `file://`；网络输入传 `scheme://` URL。Qt 包装接受 `QUrl`，自动转换本地路径。
 - SDK 自身公开诊断不包含原始带凭据 URL；宿主直接使用 FFmpeg 或启用其诊断时，应同时审计第三方日志策略，不安装覆盖宿主的全局 FFmpeg 日志回调。
+
+### 逐帧审阅
+
+Core 与 Qt 提供 `stepFrame(+1)` / `stepFrame(-1)`，C ABI 对应 `ps_player_step_frame_v1(player, direction, &request)`。方向只接受 `+1` 和 `-1`；不是任意帧数，也不通过平均帧率换算成 `seek()`。
+
+- 需要已就绪、可定位、非直播的视频；纯音频、关闭、自然播放结束或失败的会话返回失败。自然播放结束后须重新 `open()`。
+- 从尚未显示视频的 Ready 状态首次步进显示第一帧。步进成功后停在 Paused；首帧向后、末帧向前停留在边界，不循环。
+- 成功结果的 `actualPositionMs` 是本次发布帧的归一化 PTS，`requestedPositionMs` 为空。它与普通 `seek()` 的解封装目标语义不同。没有时间戳，或扫描到重复／逆序时间戳时返回失败，不估算相邻帧。
+- 操作完成表示 SDK 已发布目标帧，不表示显示器完成呈现。帧和位置仍使用最新值邮箱；要逐帧处理每个画面，应等本次操作结果后再提交下一次，不要连续提交后依赖每个中间帧都被交付。
+- 为保证普通播放丢帧或 seek 后仍能找到真实相邻帧，当前前后步进都从媒体起点重新解码，以有界帧缓存选取目标；长片后段操作可能较慢，不是实时倒放或高性能帧索引。恢复播放会重新定位并跳过目标前的解码预滚。原有倍速设置不会将“一帧”变为多帧。
+- 同一时刻只执行一个步进；重叠请求可异步返回 busy，宿主应等待操作完成。播放／暂停／停止、seek、关闭或换源可以中断步进。嵌入字幕不做完整历史预滚重建，不能将视频帧精确性等同于字幕事件的精确重建。
+
+```cpp
+auto request = player.stepFrame(-1);
+// 在 Operation 回调匹配 request.operation；成功时读取 actualPositionMs。
+```
 
 ### 注销、关闭与回调重入
 
@@ -162,9 +178,15 @@ cmake -DOUTPUT_DIR=build/sdk-source-2.1.0 -P scripts/package-sdk.cmake
 ## 4. 验证方式与边界
 
 - `tests/consumer` 是可复制到仓库外的宿主：检查构建隔离与公开 include，构建并运行 close 示例。传 `PLAYER_SDK_SOURCE_DIR` 指向仓库的 `sdk/` 或解压后的 `PlayerSDK/`。
-- `PLAYER_SDK_BUILD_TESTS=ON`：公开 API 生命周期、毫秒定位、会话替代、多实例、保留帧、UTF-8 路径、慢回调容量和回调异常；启用 Qt 后另测真实画面提交、UI 卡顿、字幕及销毁顺序。
+- `PLAYER_SDK_BUILD_TESTS=ON`：公开 API 生命周期、毫秒定位、会话替代、多实例、保留帧、UTF-8 路径、慢回调容量和回调异常；逐帧回归使用固定帧率与可变帧率/B 帧/带音频素材，检查前后相邻帧 PTS、像素内容、首尾边界、倍速独立性、暂停/恢复、seek 后后退和关闭取消。启用 Qt 后另测逐帧转发、真实画面提交、UI 卡顿、字幕及销毁顺序。
 - 启用 C ABI 时还注册 `player_sdk_c_smoke`（C11 消费者及布局基线）和 `player_sdk_c_tests`（控制、媒体/帧访问、错误字幕载荷拒绝、事件保留及销毁等集成覆盖）；它们的存在不表示本次已运行通过，也不等于完整字幕格式矩阵验收。
 - 仓库完整测试继续覆盖解码、同步、网络超时/重连/取消、字幕、播放列表和监控录制；网络集成额外覆盖 SDK 打开中与重连中关闭。
 - 当前提供 C ABI 共享库及 Windows x64/MSVC Release 安装规则，但不宣称所有平台/工具链均已验收、所有依赖均已完整打包，或已提供 v2.1.0 发行附件。GPU 零拷贝、QML、无限实例和长时性能均不在已验证承诺内。
 
-具体 Debug/Release、外部宿主及源码归档的**历史**验证结果见 `../docs/PLAYER_SDK_PLAN.md` 的实施记录（仓库文档，不随最小 SDK 包交付）。该记录不替代 v2.1.0 验证；本次未重新构建 SDK、运行 SDK 测试或性能验证。真实摄像机、长时间播放、HDR、完整媒体格式矩阵、干净机器及法律授权审计不能由本机短时自动测试替代。
+### 逐帧改动验证（2026-11-16）
+
+Windows x64 / MSVC Release，使用现有 `build-review`、FFmpeg 7.1.1 和 Qt 6.9.3：SDK Core/Qt/C、审片程序构建成功；`player_sdk_tests`、`player_sdk_qt_tests`、`player_sdk_c_tests`、`player_sdk_c_smoke`、`review_window_tests`、`review_document_tests`、`playback_integration_tests`、`decoder_workers_tests`、`stream_reader_tests`、`audio_output_tests` 共 10 项通过。Core、Qt、C 和审片窗口集成测试另各连续运行 5 次通过；Core 包含取消步进后立即重新步进的回归。Qt/窗口测试使用 offscreen，不代表完整原生窗口或硬解格式矩阵验收。
+
+单独执行的 `cmake_configuration_tests` 因隔离配置没有继承本机预编译依赖路径、找不到 FFmpeg CMake 配置而失败，未计入上述通过项。未进行跨平台、长片性能或完整字幕预滚重建验收。
+
+具体 Debug/Release、外部宿主及源码归档的**历史**验证结果见 `../docs/PLAYER_SDK_PLAN.md` 的实施记录（仓库文档，不随最小 SDK 包交付）。该历史记录不替代新发行版本验收；此前 v2.1.0 文档核对时未重新构建 SDK、运行 SDK 测试或性能验证。真实摄像机、长时间播放、HDR、完整媒体格式矩阵、干净机器及法律授权审计不能由本机短时自动测试替代。

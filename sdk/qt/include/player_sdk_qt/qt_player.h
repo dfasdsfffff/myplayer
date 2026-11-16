@@ -14,6 +14,7 @@ public:
     play_core::Request play();
     play_core::Request setPaused(bool paused);
     play_core::Request seek(qint64 milliseconds);
+    play_core::Request stepFrame(int direction);
     play_core::Request stop();
     play_core::Request close();
     play_core::Request setHardwareDecode(play_core::HardwareDecode preference);

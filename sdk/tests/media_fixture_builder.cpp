@@ -56,14 +56,14 @@ void WriteWav(const std::filesystem::path& path)
     output.write(reinterpret_cast<const char*>(pcm.data()), dataBytes);
 }
 
-void WriteVideo(const std::filesystem::path& path, int frameCount)
+void WriteVideo(const std::filesystem::path& path, int frameCount, bool stepping = false)
 {
     AVFormatContext* format = nullptr;
     AVCodecContext* codec = nullptr;
     AVFrame* frame = nullptr;
     AVPacket* packet = nullptr;
     try {
-        if (avformat_alloc_output_context2(&format, nullptr, "avi", path.string().c_str()) < 0 || !format)
+        if (avformat_alloc_output_context2(&format, nullptr, stepping ? "matroska" : "avi", path.string().c_str()) < 0 || !format)
             throw std::runtime_error("cannot allocate video fixture output");
         const AVCodec* encoder = avcodec_find_encoder(AV_CODEC_ID_MPEG4);
         if (!encoder)
@@ -78,6 +78,21 @@ void WriteVideo(const std::filesystem::path& path, int frameCount)
         codec->time_base = AVRational{1, 10};
         codec->framerate = AVRational{10, 1};
         codec->gop_size = 10;
+        if (stepping) {
+            codec->time_base = AVRational{1, 1000};
+            codec->max_b_frames = 2;
+        }
+        AVStream* audio = nullptr;
+        if (stepping) {
+            audio = avformat_new_stream(format, nullptr);
+            if (!audio) throw std::runtime_error("cannot allocate step fixture audio");
+            audio->time_base = AVRational{1, 8000};
+            audio->codecpar->codec_type = AVMEDIA_TYPE_AUDIO;
+            audio->codecpar->codec_id = AV_CODEC_ID_PCM_S16LE;
+            audio->codecpar->sample_rate = 8000;
+            audio->codecpar->bits_per_coded_sample = 16;
+            av_channel_layout_default(&audio->codecpar->ch_layout, 1);
+        }
         if (format->oformat->flags & AVFMT_GLOBALHEADER)
             codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
         if (avcodec_open2(codec, encoder, nullptr) < 0 ||
@@ -86,6 +101,8 @@ void WriteVideo(const std::filesystem::path& path, int frameCount)
         stream->time_base = codec->time_base;
         if (!(format->oformat->flags & AVFMT_NOFILE) && avio_open(&format->pb, path.string().c_str(), AVIO_FLAG_WRITE) < 0)
             throw std::runtime_error("cannot open video fixture");
+        if (stepping)
+            format->avoid_negative_ts = AVFMT_AVOID_NEG_TS_DISABLED;
         if (avformat_write_header(format, nullptr) < 0)
             throw std::runtime_error("cannot write video fixture header");
         frame = av_frame_alloc();
@@ -100,12 +117,29 @@ void WriteVideo(const std::filesystem::path& path, int frameCount)
         for (int index = 0; index < frameCount; ++index) {
             av_frame_make_writable(frame);
             for (int y = 0; y < frame->height; ++y)
-                std::fill_n(frame->data[0] + y * frame->linesize[0], frame->width, index < frameCount / 2 ? 64 : 192);
+                std::fill_n(frame->data[0] + y * frame->linesize[0], frame->width, stepping ? 32 + index * 6 : (index < frameCount / 2 ? 64 : 192));
             for (int y = 0; y < frame->height / 2; ++y) {
                 std::fill_n(frame->data[1] + y * frame->linesize[1], frame->width / 2, 90);
                 std::fill_n(frame->data[2] + y * frame->linesize[2], frame->width / 2, 240);
             }
-            frame->pts = index;
+            frame->pts = stepping ? (index / 2) * 160 + (index % 2) * 40 : index;
+            if (audio) {
+                const int samples = (index % 2 ? 120 : 40) * 8;
+                if (av_new_packet(packet, samples * 2) < 0)
+                    throw std::runtime_error("cannot allocate step fixture audio packet");
+                for (int i = 0; i < samples; ++i) {
+                    const auto sample = static_cast<std::int16_t>(std::sin(i * 2.0 * std::numbers::pi * 440.0 / 8000) * 10000);
+                    packet->data[i * 2] = static_cast<uint8_t>(sample & 255);
+                    packet->data[i * 2 + 1] = static_cast<uint8_t>(static_cast<uint16_t>(sample) >> 8);
+                }
+                packet->pts = packet->dts = frame->pts * 8;
+                packet->duration = samples;
+                packet->stream_index = audio->index;
+                av_packet_rescale_ts(packet, AVRational{1, 8000}, audio->time_base);
+                if (av_interleaved_write_frame(format, packet) < 0)
+                    throw std::runtime_error("cannot write step fixture audio packet");
+                av_packet_unref(packet);
+            }
             if (avcodec_send_frame(codec, frame) < 0)
                 throw std::runtime_error("cannot encode video fixture frame");
             while (avcodec_receive_packet(codec, packet) == 0) {
@@ -143,6 +177,13 @@ void WriteVideo(const std::filesystem::path& path, int frameCount)
 }
 
 } // namespace
+
+std::filesystem::path BuildFrameStepFixture(const std::filesystem::path& directory)
+{
+    const auto path = directory / "frame-step.mkv";
+    WriteVideo(path, 24, true);
+    return path;
+}
 
 GeneratedMediaFixtures BuildMediaFixtures(const std::filesystem::path& directory, int videoFrameCount)
 {

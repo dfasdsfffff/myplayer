@@ -61,13 +61,6 @@ void TogglePause(VideoState* state)
     state->session.paused.store(paused, std::memory_order_release);
 }
 
-void StepToNextFrame(VideoState* state)
-{
-    if (state->session.paused)
-        TogglePause(state);
-    state->video.step = 1;
-}
-
 void WaitForReadSignal(VideoState* state)
 {
     SDL_LockMutex(state->session.read_wait_mutex);
@@ -268,6 +261,7 @@ void StreamReader::Run(VideoState* state)
             break;
         if (const int decoderError = state->session.decoderError.load(std::memory_order_acquire); decoderError < 0) {
             ret = decoderError;
+            CompleteVideoStep(state, decoderError, AV_NOPTS_VALUE);
             state->session.readError.store(PlaybackError::DecoderFailure, std::memory_order_release);
             goto fail;
         }
@@ -278,6 +272,37 @@ void StreamReader::Run(VideoState* state)
                 state->session.read_pause_return = av_read_pause(inputContext);
             else
                 av_read_play(inputContext);
+        }
+
+        uint64_t stepGeneration = 0;
+        bool hasStepRequest = false;
+        {
+            std::lock_guard<std::mutex> stepLock(state->session.step.mutex);
+            if (state->session.step.readerRequest) {
+                stepGeneration = state->session.step.generation;
+                state->session.step.readerRequest = false;
+                hasStepRequest = true;
+            }
+        }
+        if (hasStepRequest) {
+            const int64_t start = inputContext->start_time == AV_NOPTS_VALUE ? 0 : inputContext->start_time;
+            ret = avformat_seek_file(inputContext, -1, INT64_MIN, start, start, AVSEEK_FLAG_BACKWARD);
+            std::lock_guard<std::mutex> stepLock(state->session.step.mutex);
+            if (state->session.step.active && stepGeneration == state->session.step.generation) {
+                if (ret < 0) {
+                    state->session.step.error.store(ret, std::memory_order_release);
+                } else {
+                    endOfMediaNotified = false;
+                    state->session.eof = 0;
+                    std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
+                    if (state->audio.audio_stream >= 0)
+                        packet_queue_flush(&state->audio.audioq);
+                    if (state->subtitle.subtitle_stream >= 0)
+                        packet_queue_flush(&state->subtitle.subtitleq);
+                    packet_queue_flush(&state->video.videoq);
+                    state->session.step.serial.store(state->video.videoq.serial(), std::memory_order_release);
+                }
+            }
         }
 
         int64_t seekTarget = 0;
@@ -307,8 +332,9 @@ void StreamReader::Run(VideoState* state)
                     packet_queue_flush(&state->audio.audioq);
                 if (state->subtitle.subtitle_stream >= 0)
                     packet_queue_flush(&state->subtitle.subtitleq);
-                if (state->video.video_stream >= 0)
+                if (state->video.video_stream >= 0) {
                     packet_queue_flush(&state->video.videoq);
+                }
                 if (seekFlags & AVSEEK_FLAG_BYTE)
                     state->clocks.extclk.set(NAN, 0);
                 else
@@ -323,12 +349,15 @@ void StreamReader::Run(VideoState* state)
                 state->session.seek_req = false;
                 seekCompletion = std::move(state->session.sdkSeekCompletion);
             }
-            if (seekCompletion)
-                seekCompletion(ret, seekTarget);
             state->session.queue_attachments_req = 1;
             state->session.eof = 0;
-            if (paused)
-                StepToNextFrame(state);
+            if (ret >= 0 && state->session.paused.load(std::memory_order_acquire) &&
+                state->session.discardBeforePtsUs.load(std::memory_order_acquire) == AV_NOPTS_VALUE) {
+                state->session.seek_frame_step.store(true, std::memory_order_release);
+                state->session.force_refresh.store(1, std::memory_order_release);
+            }
+            if (seekCompletion)
+                seekCompletion(ret, seekTarget);
         }
         if (state->session.queue_attachments_req) {
             std::shared_lock<std::shared_mutex> attachmentTrackLock(state->session.trackMutex);
@@ -342,13 +371,14 @@ void StreamReader::Run(VideoState* state)
         }
 
         std::shared_lock<std::shared_mutex> trackLock(state->session.trackMutex);
+        const bool stepScan = state->session.step.scan.load(std::memory_order_acquire);
         if (!state->session.unlimitedBuffer &&
             (state->audio.audioq.snapshot().bytes
                 + state->video.videoq.snapshot().bytes
                 + state->subtitle.subtitleq.snapshot().bytes > MAX_QUEUE_SIZE
-                || (HasEnoughPackets(state->audio.audio_st, state->audio.audio_stream, &state->audio.audioq) &&
+                || ((stepScan || HasEnoughPackets(state->audio.audio_st, state->audio.audio_stream, &state->audio.audioq)) &&
                     HasEnoughPackets(state->video.video_st, state->video.video_stream, &state->video.videoq) &&
-                    HasEnoughPackets(state->subtitle.subtitle_st, state->subtitle.subtitle_stream, &state->subtitle.subtitleq)))) {
+                    (stepScan || HasEnoughPackets(state->subtitle.subtitle_st, state->subtitle.subtitle_stream, &state->subtitle.subtitleq))))) {
             trackLock.unlock();
             WaitForReadSignal(state);
             continue;
@@ -412,12 +442,12 @@ void StreamReader::Run(VideoState* state)
             (double)(0 != AV_NOPTS_VALUE ? 0 : 0) / 1000000
             <= ((double)AV_NOPTS_VALUE / 1000000);
         std::shared_lock<std::shared_mutex> routingTrackLock(state->session.trackMutex);
-        if (packet->stream_index == state->audio.audio_stream && packetInPlayRange) {
+        if (!stepScan && packet->stream_index == state->audio.audio_stream && packetInPlayRange) {
             packet_queue_put(&state->audio.audioq, packet);
         } else if (packet->stream_index == state->video.video_stream && packetInPlayRange
             && !(state->video.video_st->disposition & AV_DISPOSITION_ATTACHED_PIC)) {
             packet_queue_put(&state->video.videoq, packet);
-        } else if (packet->stream_index == state->subtitle.subtitle_stream && packetInPlayRange) {
+        } else if (!stepScan && packet->stream_index == state->subtitle.subtitle_stream && packetInPlayRange) {
             packet_queue_put(&state->subtitle.subtitleq, packet);
         } else {
             av_packet_unref(packet);

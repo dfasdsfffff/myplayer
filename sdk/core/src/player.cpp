@@ -10,6 +10,7 @@
 #include <thread>
 #include <atomic>
 #include <cmath>
+#include <cerrno>
 #include <stdexcept>
 
 namespace play_core {
@@ -98,7 +99,7 @@ std::shared_ptr<const VideoFrame> publicFrame(std::shared_ptr<const ::VideoFrame
 }
 }
 struct Player::Impl {
-    enum class Command { Hardware, Open, Play, Pause, Seek, Stop, Close, Volume, Rate, Audio, Subtitle };
+    enum class Command { Hardware, Open, Play, Pause, Seek, StepFrame, Stop, Close, Volume, Rate, Audio, Subtitle };
     struct Job { Command command; Request request; MediaSource source; double value{0}; std::optional<int> track; std::int64_t position{0}; };
     PlayerOptions options;
     std::shared_ptr<VideoCtl> ctl;
@@ -116,6 +117,7 @@ struct Player::Impl {
     std::shared_ptr<const MediaInfo> info;
     PlayerState state{PlayerState::Closed};
     bool stopped{false};
+    OperationId transportOperation{0};
     PlayerState reconnectState{PlayerState::Ready};
     std::vector<Job> deferred;
     std::mutex deliveryMutex;
@@ -219,6 +221,11 @@ struct Player::Impl {
                 emit(std::move(e)); cancelAll(OperationStatus::Failed);
             });
         }));
+        connections.emplace_back(ctl->SigPauseStat.connect([this, sid](bool paused) {
+            if (paused) post([this, sid] {
+                if (sid == session && state == PlayerState::Playing) setState(PlayerState::Paused);
+            });
+        }));
         connections.emplace_back(ctl->SigPositionMs.connect([this, sid](int64_t position) {
             PlayerEvent e; e.type = PlayerEvent::Type::Position; e.session = sid; e.positionMs = position; emit(std::move(e));
         }));
@@ -273,6 +280,8 @@ struct Player::Impl {
         if (r.session != session) { fail(r, "Media session replaced"); return; }
         if (opening) { deferred.push_back(j); return; }
         if (!info || state == PlayerState::Closed || state == PlayerState::Failed || state == PlayerState::Ended) { fail(r, "No ready media"); return; }
+        if (j.command == Command::Play || j.command == Command::Pause || j.command == Command::Stop)
+            transportOperation = r.operation;
         switch (j.command) {
         case Command::Play:
             if (stopped && info->seekable) {
@@ -291,6 +300,28 @@ struct Player::Impl {
                     error < 0 ? PlayerError{ErrorCode::Media, "Demuxer seek failed or busy", error} : PlayerError{}, requested,
                     error < 0 ? std::nullopt : std::optional<int64_t>{actual});
             }); });
+            break;
+        case Command::StepFrame:
+            if (!info->seekable || info->live || state == PlayerState::Reconnecting || info->width <= 0 || info->height <= 0) {
+                fail(r, "Frame stepping requires ready, seekable video"); break;
+            }
+            ctl->SdkStepFrame(static_cast<int>(j.value), [this, r, transport = transportOperation](int error, int64_t actual) {
+                post([this, r, transport, error, actual] {
+                    if (!pending.contains(r.operation) || r.session != session) return;
+                    if (error < 0) {
+                        const bool cancelled = error == AVERROR_EXIT || error == AVERROR(ECANCELED);
+                        finish(r, cancelled ? OperationStatus::Cancelled : OperationStatus::Failed,
+                            {cancelled ? ErrorCode::Cancelled : ErrorCode::Media,
+                             cancelled ? "Frame step interrupted" : "Frame step failed", error});
+                    } else {
+                        if (transportOperation == transport) {
+                            stopped = false;
+                            setState(PlayerState::Paused);
+                        }
+                        finish(r, OperationStatus::Succeeded, {}, {}, actual);
+                    }
+                });
+            });
             break;
         case Command::Audio: case Command::Subtitle:
             ctl->SdkTrack(j.command == Command::Audio, j.track, [this, r](bool ok) { post([this, r, ok] {
@@ -354,6 +385,11 @@ Request Player::close() { Impl::Job j{}; j.command = Impl::Command::Close; retur
 Request Player::seek(int64_t ms) {
     if (ms < 0 || ms > INT64_MAX / 2000) return {0,0,{ErrorCode::InvalidArgument,"Seek position out of range"}};
     Impl::Job j{}; j.command = Impl::Command::Seek; j.position = ms; return impl_->submit(std::move(j));
+}
+Request Player::stepFrame(int direction) {
+    if (direction != -1 && direction != 1)
+        return {0,0,{ErrorCode::InvalidArgument,"Frame step direction must be -1 or +1"}};
+    Impl::Job j{}; j.command = Impl::Command::StepFrame; j.value = direction; return impl_->submit(std::move(j));
 }
 Request Player::setHardwareDecode(HardwareDecode preference) {
     if (preference != HardwareDecode::Auto && preference != HardwareDecode::Disabled && preference != HardwareDecode::D3D11VA)

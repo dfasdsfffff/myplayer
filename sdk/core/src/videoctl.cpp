@@ -113,6 +113,7 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 void VideoCtl::stream_close(VideoState* is)
 {
 	if (!is) return;
+    CancelVideoStep(is);
 	/* XXX: 使用特殊的url_shutdown调用来彻底中止解析 */
 	is->session.abort_request = 1;
 	is->session.io.cancelled.store(true, std::memory_order_release);
@@ -184,6 +185,7 @@ void VideoCtl::stream_seek(int64_t pos, int64_t rel)
 {
 	if (!m_CurStream) return;
 	if (!m_CurStream->session.ic || !CanSeek(m_CurStream->session.mediaInfo)) return;
+    CancelVideoStep(m_CurStream);
 
 	std::lock_guard<std::mutex> seekLock(m_CurStream->session.seek_mutex);
 	if (!m_CurStream->session.seek_req) {
@@ -223,9 +225,10 @@ void VideoCtl::toggle_pause()
 	std::unique_lock<std::shared_mutex> lock(m_streamMutex);
 	if (!m_CurStream) return;
 	VideoState* is = m_CurStream;
+    CancelVideoStep(is);
 
 	stream_toggle_pause();
-	is->video.step = 0;
+	is->video.step.store(0, std::memory_order_release);
 }
 
 void VideoCtl::step_to_next_frame()
@@ -236,7 +239,7 @@ void VideoCtl::step_to_next_frame()
 	if (m_CurStream->session.paused) {
 		stream_toggle_pause();
 	}
-	m_CurStream->video.step = 1;
+	m_CurStream->video.step.store(1, std::memory_order_release);
 }
 
 /* called to display each frame */
@@ -248,13 +251,23 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 	Frame* sp, * sp2;
 
 	double rdftspeed = 0.02;
+    bool stepPublished = false;
+    int64_t stepPublishedPts = AV_NOPTS_VALUE;
+
+    if (is->session.seek_frame_step.exchange(false, std::memory_order_acq_rel))
+        is->video.step.store(1, std::memory_order_release);
+    const int stepError = is->session.step.error.exchange(0, std::memory_order_acq_rel);
+    if (stepError < 0)
+        CompleteVideoStep(is, stepError, AV_NOPTS_VALUE);
+    if (is->session.step.ready.exchange(false, std::memory_order_acq_rel) && IsVideoStepActive(is))
+        is->video.step.store(1, std::memory_order_release);
 
 	if (!is->session.paused && MediaSync::get_master_sync_type(is) == AV_SYNC_EXTERNAL_CLOCK && is->session.realtime)
 		MediaSync::check_external_clock_speed(is);
-	if (is->audio.audio_st)
+	if (is->audio.audio_st && !is->video.video_st)
 	{
 		time = av_gettime_relative() / 1000000.0;
-		if (is->session.force_refresh || is->audio.last_vis_time + rdftspeed < time)
+		if (is->session.force_refresh.load(std::memory_order_acquire) || is->audio.last_vis_time + rdftspeed < time)
 		{
 			// 显示当前图片（如果有）
 			video_display();
@@ -283,14 +296,20 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			if (lastvp->serial != vp->serial)
 				is->video.frame_timer = av_gettime_relative() / 1000000.0;
 
-			if (is->session.paused)
-				goto display;
+            const auto discardBefore = is->session.discardBeforePtsUs.load(std::memory_order_acquire);
+            if (discardBefore != AV_NOPTS_VALUE && std::isfinite(vp->pts) &&
+                std::llround(vp->pts * AV_TIME_BASE) < discardBefore) {
+                is->video.pictq.next();
+                goto retry;
+            }
+            if (is->session.paused && !is->video.step.load(std::memory_order_acquire))
+                goto display;
 
 			/* compute nominal last_duration */
 			last_duration = MediaSync::vp_duration(is, lastvp, vp);
 			delay = MediaSync::compute_target_delay(last_duration, is);
 			time = av_gettime_relative() / 1000000.0;
-			if (time < is->video.frame_timer + delay) {
+			if (!is->video.step.load(std::memory_order_acquire) && time < is->video.frame_timer + delay) {
 				*remaining_time = FFMIN(is->video.frame_timer + delay - time, *remaining_time);
 				goto display;
 			}
@@ -309,7 +328,7 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			if (is->video.pictq.nb_remaining() > 1) {
 				Frame* nextvp = is->video.pictq.peek_next();
 				duration = MediaSync::vp_duration(is, vp, nextvp);
-				if (!is->video.step && (framedrop > 0 || (framedrop && MediaSync::get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) && time > is->video.frame_timer + duration) {
+				if (!is->video.step.load(std::memory_order_acquire) && (framedrop > 0 || (framedrop && MediaSync::get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) && time > is->video.frame_timer + duration) {
 					is->video.frame_drops_late++;
 					is->video.pictq.next();
 					goto retry;
@@ -339,20 +358,36 @@ void VideoCtl::video_refresh(void* opaque, double* remaining_time)
 			}
 
 			is->video.pictq.next();
-			is->session.force_refresh = 1;
+			is->session.force_refresh.store(1, std::memory_order_release);
 
-			if (is->video.step && !is->session.paused)
-				stream_toggle_pause();
-		}
-	display:
-		/* display picture */
-		if (is->session.force_refresh && is->video.pictq.hasShown())
-			video_display();
-		emit_subtitle_frame(is);
-	}
-	is->session.force_refresh = 0;
+            if (is->video.step.exchange(0, std::memory_order_acq_rel)) {
+                stepPublished = true;
+                stepPublishedPts = std::isfinite(vp->pts)
+                    ? static_cast<int64_t>(std::llround(vp->pts * AV_TIME_BASE)) : AV_NOPTS_VALUE;
+                if (!is->session.paused.load(std::memory_order_acquire))
+                    stream_toggle_pause();
+                is->clocks.audclk.set(vp->pts, is->audio.audioq.serial());
+                is->clocks.extclk.set(vp->pts, is->clocks.extclk.serial());
+                is->video.frame_timer = av_gettime_relative() / 1000000.0;
+            }
+        }
+    display:
+        if (is->session.force_refresh.load(std::memory_order_acquire) && is->video.pictq.hasShown() &&
+            (!IsVideoStepActive(is) || stepPublished))
+            video_display();
+        emit_subtitle_frame(is);
+    }
+    is->session.force_refresh.store(0, std::memory_order_release);
+    if (stepPublished) {
+        SigPositionMs(CurrentVideoTimestampMs(is));
+        const bool published = stepPublishedPts != AV_NOPTS_VALUE &&
+            is->video.displayedPtsUs.load(std::memory_order_acquire) == stepPublishedPts;
+        CompleteVideoStep(is, published ? 0 : AVERROR(EINVAL), stepPublishedPts);
+    }
 
-	const double position = MediaSync::get_master_clock(is);
+    const auto displayed = is->video.displayedPtsUs.load(std::memory_order_acquire);
+    const double position = is->session.paused && displayed != AV_NOPTS_VALUE
+        ? displayed / static_cast<double>(AV_TIME_BASE) : MediaSync::get_master_clock(is);
     if (std::isfinite(position)) {
         const auto start = is->session.ic && is->session.ic->start_time != AV_NOPTS_VALUE ? is->session.ic->start_time / 1000 : 0;
         SigPositionMs(std::max<int64_t>(0, static_cast<int64_t>(position * 1000.0) - start));
@@ -726,7 +761,9 @@ void VideoCtl::refresh_loop_wait_event(VideoState* is) {
 		m_bPlayLoop.store(false, std::memory_order_release);
 		return;
 	}
-	if (is && (!is->session.paused || is->session.force_refresh))
+    if (is && (!is->session.paused || is->session.force_refresh.load(std::memory_order_acquire) ||
+        is->session.step.active.load(std::memory_order_acquire) || is->session.seek_frame_step.load(std::memory_order_acquire) ||
+        is->video.step.load(std::memory_order_acquire)))
 		video_refresh(is, &remaining_time);
 	if (remaining_time > 0.0)
 		av_usleep(static_cast<int64_t>(remaining_time * 1000000.0));
@@ -1039,12 +1076,12 @@ void VideoCtl::emit_video_frame(VideoState* is)
 		return;
 	}
     if (std::isfinite(vp->pts)) {
-        const auto start = is->session.ic && is->session.ic->start_time != AV_NOPTS_VALUE ? is->session.ic->start_time / 1000 : 0;
-        frame->timestampMs = static_cast<int64_t>(vp->pts * 1000.0) - start;
+        frame->timestampMs = VideoStepTimestampMs(is, static_cast<int64_t>(std::llround(vp->pts * AV_TIME_BASE)));
     }
 	if (frame->unsupportedHdrTransfer && !m_reportedHdrFallback.exchange(true, std::memory_order_acq_rel))
 		SigPlayMsg("HDR transfer characteristics are unsupported; using BGRA software fallback");
 
+    SetDisplayedVideoTimestamp(is, vp->pts);
 	m_rendererDispatcher.dispatchFrame(frame);
 }
 
@@ -1114,7 +1151,10 @@ void VideoCtl::OnPause()
 
 void VideoCtl::requestStop()
 {
-    { std::lock_guard lock(m_sdkMutex); m_sdkCommands.clear(); }
+    std::vector<std::function<void(VideoState*)>> pendingCommands;
+    { std::lock_guard lock(m_sdkMutex); pendingCommands.swap(m_sdkCommands); }
+    for (auto& command : pendingCommands)
+        command(nullptr);
 	m_commandMailbox.clear();
 	m_reconnectController.cancel();
 	m_bPlayLoop.store(false, std::memory_order_release);
@@ -1123,6 +1163,7 @@ void VideoCtl::requestStop()
 	if (!m_CurStream)
 		return;
 
+	CancelVideoStep(m_CurStream);
 	m_CurStream->session.abort_request.store(1, std::memory_order_release);
 	m_CurStream->session.io.cancelled.store(true, std::memory_order_release);
 	if (m_CurStream->session.continue_read_thread)
@@ -1369,10 +1410,40 @@ void VideoCtl::SdkPause(bool paused, Completion done)
 {
     postSdk([this, paused, done = std::move(done)](VideoState* state) {
         if (!state) { done(false); return; }
-        if ((state->session.paused.load() != 0) != paused)
-            stream_toggle_pause();
-        SigPauseStat(paused);
-        done(true);
+        const auto revision = ++state->session.transportRevision;
+        CancelVideoStep(state);
+        const auto apply = [this, paused, revision, done](VideoState* current, int result) {
+            if (!current || current->session.transportRevision != revision || result < 0) {
+                done(false);
+                return;
+            }
+            if ((current->session.paused.load() != 0) != paused)
+                stream_toggle_pause();
+            current->video.step.store(0, std::memory_order_release);
+            current->session.seek_frame_step.store(false, std::memory_order_release);
+            if (!paused) {
+                current->session.step.resumeSeek.store(false, std::memory_order_release);
+                m_audioOutput.Flush(false);
+            }
+            SigPauseStat(paused);
+            done(true);
+        };
+        const auto pts = state->video.displayedPtsUs.load(std::memory_order_acquire);
+        if (!paused && state->session.step.resumeSeek.load(std::memory_order_acquire) && pts != AV_NOPTS_VALUE) {
+            std::unique_lock lock(state->session.seek_mutex);
+            if (state->session.seek_req) { lock.unlock(); done(false); return; }
+            state->session.discardBeforePtsUs.store(pts, std::memory_order_release);
+            state->session.seek_pos = pts;
+            state->session.seek_rel = 0;
+            state->session.seek_flags &= ~AVSEEK_FLAG_BYTE;
+            state->session.sdkSeekCompletion = [this, apply](int result, int64_t) {
+                postSdk([apply, result](VideoState* current) { apply(current, result); });
+            };
+            state->session.seek_req = true;
+            SDL_CondSignal(state->session.continue_read_thread);
+            return;
+        }
+        apply(state, 0);
     });
 }
 
@@ -1385,6 +1456,14 @@ void VideoCtl::SdkSeek(int64_t milliseconds, std::function<void(int, int64_t)> d
         auto& session = state->session;
         std::unique_lock lock(session.seek_mutex);
         if (session.seek_req) { lock.unlock(); done(AVERROR(EBUSY), milliseconds); return; }
+        lock.unlock();
+        ++session.transportRevision;
+        CancelVideoStep(state);
+        state->video.step.store(0, std::memory_order_release);
+        session.seek_frame_step.store(false, std::memory_order_release);
+        session.step.resumeSeek.store(false, std::memory_order_release);
+        session.discardBeforePtsUs.store(AV_NOPTS_VALUE, std::memory_order_release);
+        lock.lock();
         m_audioOutput.Flush(true);
         session.seek_pos = milliseconds * 1000;
         const auto start = session.ic->start_time == AV_NOPTS_VALUE ? 0 : session.ic->start_time;
@@ -1394,6 +1473,59 @@ void VideoCtl::SdkSeek(int64_t milliseconds, std::function<void(int, int64_t)> d
         session.sdkSeekCompletion = [done, start](int result, int64_t target) { done(result, (target - start) / 1000); };
         session.seek_req = true;
         SDL_CondSignal(session.continue_read_thread);
+    });
+}
+
+void VideoCtl::SdkStepFrame(int direction, std::function<void(int, int64_t)> done)
+{
+    postSdk([this, direction, done = std::move(done)](VideoState* state) mutable {
+        if (!done)
+            return;
+        if (!state || (direction != 1 && direction != -1) || !state->session.ic ||
+            !state->video.video_st || (state->video.video_st->disposition & AV_DISPOSITION_ATTACHED_PIC) ||
+            !state->session.mediaInfo.seekable || state->session.mediaInfo.live) {
+            done(AVERROR(EINVAL), state ? CurrentVideoTimestampMs(state) : 0);
+            return;
+        }
+        auto& step = state->session.step;
+        std::unique_lock stepLock(step.mutex);
+        if (step.active) {
+            stepLock.unlock();
+            done(AVERROR(EBUSY), CurrentVideoTimestampMs(state));
+            return;
+        }
+        const int64_t currentPtsUs = state->video.displayedPtsUs.load(std::memory_order_acquire);
+        {
+            std::lock_guard<std::mutex> seekLock(state->session.seek_mutex);
+            if (state->session.seek_req) {
+                stepLock.unlock();
+                done(AVERROR(EBUSY), CurrentVideoTimestampMs(state));
+                return;
+            }
+        }
+        step.active = true;
+        ++step.generation;
+        step.direction = direction;
+        step.targetPtsUs = currentPtsUs;
+        step.readerRequest = true;
+        step.serial.store(-1, std::memory_order_release);
+        step.error.store(0, std::memory_order_release);
+        step.scan.store(true, std::memory_order_release);
+        step.resumeSeek.store(true, std::memory_order_release);
+        step.ready.store(false, std::memory_order_release);
+        step.completion = std::move(done);
+        stepLock.unlock();
+
+        ++state->session.transportRevision;
+        state->session.seek_frame_step.store(false, std::memory_order_release);
+        state->session.discardBeforePtsUs.store(AV_NOPTS_VALUE, std::memory_order_release);
+        state->video.step.store(0, std::memory_order_release);
+        if (!state->session.paused.load(std::memory_order_acquire))
+            stream_toggle_pause();
+        m_audioOutput.Flush(true);
+        SigPauseStat(true);
+        if (state->session.continue_read_thread)
+            SDL_CondSignal(state->session.continue_read_thread);
     });
 }
 

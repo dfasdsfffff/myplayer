@@ -422,6 +422,14 @@ void ReviewWindow::buildUi()
     connect(forwardAction, &QAction::triggered, this, [this] { seekRelative(5000); });
 
     playbackMenu->addSeparator();
+    previousFrameAction_ = playbackMenu->addAction(tr("上一帧"));
+    previousFrameAction_->setObjectName(QStringLiteral("previousFrameAction"));
+    previousFrameAction_->setShortcut(QKeySequence(Qt::Key_Comma));
+    connect(previousFrameAction_, &QAction::triggered, this, [this] { stepFrame(-1); });
+    nextFrameAction_ = playbackMenu->addAction(tr("下一帧"));
+    nextFrameAction_->setObjectName(QStringLiteral("nextFrameAction"));
+    nextFrameAction_->setShortcut(QKeySequence(Qt::Key_Period));
+    connect(nextFrameAction_, &QAction::triggered, this, [this] { stepFrame(1); });
     startAction_ = playbackMenu->addAction(tr("转到开头"));
     startAction_->setObjectName(QStringLiteral("goToStartAction"));
     startAction_->setShortcut(QKeySequence(Qt::Key_Home));
@@ -606,7 +614,7 @@ void ReviewWindow::buildUi()
     controlsLayout->addLayout(controls);
     auto* navigation = new QToolBar(playbackPanel);
     navigation->setObjectName(QStringLiteral("reviewNavigationToolbar"));
-    navigation->addActions({startAction_, endAction_, jumpAction_, loopAction_, exportFrameAction_});
+    navigation->addActions({previousFrameAction_, nextFrameAction_, startAction_, endAction_, jumpAction_, loopAction_, exportFrameAction_});
     controlsLayout->addWidget(navigation);
     playbackLayout->addWidget(playbackPanel);
 
@@ -801,6 +809,18 @@ void ReviewWindow::bindPlayer()
         if (generation != playerGeneration_ || result.session != session_)
             return;
         const QString action = pendingOperations_.take(result.operation);
+        if (result.operation == stepOperation_) {
+            stepOperation_ = 0;
+            if (result.status == play_core::OperationStatus::Succeeded && result.actualPositionMs) {
+                positionMs_ = *result.actualPositionMs;
+                const QSignalBlocker blocker(positionSlider_);
+                const long double fraction = durationMs_ > 0
+                    ? static_cast<long double>(std::min(positionMs_, durationMs_)) / durationMs_ : 0;
+                positionSlider_->setValue(static_cast<int>(fraction * SliderSteps));
+                updateTimeDisplay();
+            }
+            updateControls();
+        }
         if (result.status == play_core::OperationStatus::Failed) {
             if (result.operation == openOperation_) {
                 openFailed_ = true;
@@ -833,6 +853,7 @@ void ReviewWindow::resetPlayback()
 {
     session_ = 0;
     openOperation_ = 0;
+    stepOperation_ = 0;
     state_ = play_core::PlayerState::Closed;
     positionMs_ = 0;
     durationMs_ = 0;
@@ -1010,6 +1031,9 @@ void ReviewWindow::updateControls()
     playPauseButton_->setEnabled(canControlMedia() || replay);
     playPauseButton_->setText(state_ == play_core::PlayerState::Playing ? tr("暂停")
                               : replay ? tr("重新播放") : tr("播放"));
+    const bool canStep = canSeek() && !stepOperation_ && mediaInfo_ && !mediaInfo_->live;
+    previousFrameAction_->setEnabled(canStep);
+    nextFrameAction_->setEnabled(canStep);
     jumpAction_->setEnabled(canSeek() && durationMs_ > 0);
     startAction_->setEnabled(canSeek());
     endAction_->setEnabled(canSeek() && durationMs_ > 0);
@@ -1296,6 +1320,17 @@ void ReviewWindow::seekRelative(qint64 offsetMs)
     const qint64 target = std::clamp(positionMs_ + offsetMs, qint64{0},
                                      durationMs_ > 0 ? durationMs_ : MaxPositionMs);
     submit(player_->seek(target), tr("相对时间跳转"));
+}
+
+void ReviewWindow::stepFrame(int direction)
+{
+    if (!canSeek() || stepOperation_ || !mediaInfo_ || mediaInfo_->live)
+        return;
+    const auto request = player_->stepFrame(direction);
+    if (submit(request, direction < 0 ? tr("上一帧") : tr("下一帧"))) {
+        stepOperation_ = request.operation;
+        updateControls();
+    }
 }
 
 void ReviewWindow::jumpToTime()

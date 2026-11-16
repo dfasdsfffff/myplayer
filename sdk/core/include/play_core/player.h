@@ -30,7 +30,7 @@ struct OperationResult {
     OperationStatus status{OperationStatus::Succeeded};
     PlayerError error;
     std::optional<std::int64_t> requestedPositionMs;
-    // Demuxer seek target, not the timestamp of the first decoded/displayed frame.
+    // Seek: demuxer target. Frame step: timestamp of the published video frame.
     std::optional<std::int64_t> actualPositionMs;
 };
 enum class HardwareDecode { Auto, Disabled, D3D11VA };
@@ -81,6 +81,9 @@ public:
     Request play();
     Request setPaused(bool paused);
     Request seek(std::int64_t positionMs);
+    // direction must be -1 or +1. Requires seekable video; leaves playback paused.
+    // Success follows frame publication; actualPositionMs is its timestamp.
+    Request stepFrame(int direction);
     Request stop();
     Request close();
     Request setHardwareDecode(HardwareDecode preference); // affects the next open

@@ -78,6 +78,7 @@ play_core::Request QtPlayer::open(play_core::MediaSource source) {
 play_core::Request QtPlayer::play() { QT_SDK_GUARD(); return track(impl_->core.play()); }
 play_core::Request QtPlayer::setPaused(bool b) { QT_SDK_GUARD(); return track(impl_->core.setPaused(b)); }
 play_core::Request QtPlayer::seek(qint64 ms) { QT_SDK_GUARD(); return track(impl_->core.seek(ms)); }
+play_core::Request QtPlayer::stepFrame(int direction) { QT_SDK_GUARD(); return track(impl_->core.stepFrame(direction)); }
 play_core::Request QtPlayer::stop() { QT_SDK_GUARD(); return track(impl_->core.stop()); }
 play_core::Request QtPlayer::close() { QT_SDK_GUARD(); return track(impl_->core.close()); }
 play_core::Request QtPlayer::setHardwareDecode(play_core::HardwareDecode p) { QT_SDK_GUARD(); return track(impl_->core.setHardwareDecode(p)); }

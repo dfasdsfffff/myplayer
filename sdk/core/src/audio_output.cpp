@@ -217,7 +217,11 @@ reload:
         if (!(audioFrame = state->audio.sampq.peek_readable()))
             return -1;
         state->audio.sampq.next();
-    } while (audioFrame->serial != state->audio.audioq.serial());
+    } while (audioFrame->serial != state->audio.audioq.serial() ||
+        (state->session.discardBeforePtsUs.load(std::memory_order_acquire) != AV_NOPTS_VALUE &&
+         std::isfinite(audioFrame->pts) && audioFrame->frame->sample_rate > 0 &&
+         (audioFrame->pts + static_cast<double>(audioFrame->frame->nb_samples) / audioFrame->frame->sample_rate) * AV_TIME_BASE <=
+             state->session.discardBeforePtsUs.load(std::memory_order_acquire)));
 
     dataSize = av_samples_get_buffer_size(nullptr, audioFrame->frame->ch_layout.nb_channels,
         audioFrame->frame->nb_samples,

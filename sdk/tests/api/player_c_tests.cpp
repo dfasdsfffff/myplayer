@@ -79,6 +79,15 @@ int main() {
         location.assign(location.size(), '?');
         source.location = nullptr;
         o.wait(code, r);
+        check(ps_player_step_frame_v1(guard.p, 0, &r) == PS_ERROR_INVALID_ARGUMENT, "Invalid step direction accepted");
+        code = ps_player_step_frame_v1(guard.p, 1, &r);
+        const auto firstStep = o.wait(code, r);
+        check(firstStep.has_actual_position && firstStep.actual_position_ms == 0 && !firstStep.has_requested_position,
+            "First frame step timestamp lost");
+        code = ps_player_step_frame_v1(guard.p, 1, &r);
+        check(o.wait(code, r).actual_position_ms == 100, "C next frame was not adjacent");
+        code = ps_player_step_frame_v1(guard.p, -1, &r);
+        check(o.wait(code, r).actual_position_ms == 0, "C previous frame was not adjacent");
         code = ps_player_play_v1(guard.p, &r); o.wait(code, r);
         {
             std::unique_lock lock(o.mutex);
@@ -128,6 +137,8 @@ int main() {
             check(ps_event_get_media_info_v1(audio.media, &media) == PS_OK && media.track_count == 1, "Audio track count lost");
             check(ps_event_get_track_v1(audio.media, 0, &track) == PS_OK && track.type == PS_MEDIA_AUDIO && track.codec[0], "Audio track lost");
         }
+        code = ps_player_step_frame_v1(audioGuard.p, 1, &r);
+        check(audio.wait(code, r, false).operation_status == PS_OPERATION_FAILED, "Audio-only step did not fail");
         code = ps_player_close_v1(audioGuard.p, &r); audio.wait(code, r);
         check(ps_player_destroy(audioGuard.p) == PS_OK, "Audio destroy failed"); audioGuard.p = nullptr;
         std::filesystem::remove_all(dir);

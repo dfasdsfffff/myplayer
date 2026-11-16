@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <algorithm>
+#include <cmath>
 #include <functional>
 #include <mutex>
 #include <shared_mutex>
@@ -11,6 +13,21 @@
 #include "network_input.h"
 #include "soundtouch_wrap.h"
 
+struct VideoStepState {
+    std::mutex mutex;
+    std::atomic_bool active{false};
+    bool readerRequest{false};
+    uint64_t generation{0};
+    int direction{0};
+    int64_t targetPtsUs{AV_NOPTS_VALUE};
+    std::function<void(int, int64_t)> completion;
+    std::atomic_bool scan{false};
+    std::atomic_bool ready{false};
+    std::atomic<int> serial{-1};
+    std::atomic<int> error{0};
+    std::atomic_bool resumeSeek{false};
+};
+
 struct SessionState {
     ~SessionState();
 
@@ -19,12 +36,16 @@ struct SessionState {
     // 由读取线程、播放循环和 UI 控制线程并发访问，使用原子变量消除数据竞争
     std::atomic<int> abort_request{0};
     std::shared_mutex trackMutex;
-    int force_refresh = 0;
+    std::atomic<int> force_refresh{0};
     std::atomic<int> paused{0};
     int last_paused = 0;
     int queue_attachments_req = 0;
     // seek 命令由控制线程写入、读取线程消费，必须作为一个整体读取。
     std::mutex seek_mutex;
+    VideoStepState step;
+    std::atomic_bool seek_frame_step{false};
+    std::atomic<int64_t> discardBeforePtsUs{AV_NOPTS_VALUE};
+    uint64_t transportRevision{0};
     bool seek_req = false;
     std::function<void(int, int64_t)> sdkSeekCompletion;
     int seek_flags = 0;
@@ -111,6 +132,7 @@ struct VideoTrackState {
     double frame_last_returned_time = 0;
     double frame_last_filter_delay = 0;
     std::atomic<int> video_stream{0};
+    std::atomic<int64_t> displayedPtsUs{AV_NOPTS_VALUE};
     AVStream* video_st = nullptr;
     PacketQueue videoq;
     double max_frame_duration = 0;
@@ -118,7 +140,7 @@ struct VideoTrackState {
     int height = 0;
     int xleft = 0;
     int ytop = 0;
-    int step = 0;
+    std::atomic<int> step{0};
 };
 
 struct SubtitleState {
@@ -150,8 +172,72 @@ typedef struct VideoState {
     SessionState session;
 } VideoState;
 
+inline int64_t VideoStepTimestampMs(const VideoState* state, int64_t ptsUs)
+{
+    if (!state || ptsUs == AV_NOPTS_VALUE)
+        return 0;
+    const int64_t start = state->session.ic && state->session.ic->start_time != AV_NOPTS_VALUE
+        ? state->session.ic->start_time : 0;
+    return std::max<int64_t>(0, (ptsUs - start) / 1000);
+}
+
+inline int64_t CurrentVideoTimestampMs(const VideoState* state)
+{
+    return VideoStepTimestampMs(state, state ? state->video.displayedPtsUs.load(std::memory_order_acquire) : AV_NOPTS_VALUE);
+}
+
+inline void CompleteVideoStep(VideoState* state, int result, int64_t ptsUs)
+{
+    if (!state)
+        return;
+    std::function<void(int, int64_t)> completion;
+    {
+        std::lock_guard<std::mutex> lock(state->session.step.mutex);
+        if (!state->session.step.active)
+            return;
+        state->session.step.active = false;
+        state->session.step.readerRequest = false;
+        completion = std::move(state->session.step.completion);
+        state->session.step.scan.store(false, std::memory_order_release);
+        state->session.step.ready.store(false, std::memory_order_release);
+        state->video.step.store(0, std::memory_order_release);
+    }
+    if (completion)
+        completion(result, result < 0 ? CurrentVideoTimestampMs(state) : VideoStepTimestampMs(state, ptsUs));
+}
+
+inline void CancelVideoStep(VideoState* state, int result = AVERROR(ECANCELED))
+{
+    CompleteVideoStep(state, result, AV_NOPTS_VALUE);
+}
+
+inline bool IsVideoStepActive(VideoState* state)
+{
+    return state && state->session.step.active.load(std::memory_order_acquire);
+}
+
+inline void SetDisplayedVideoTimestamp(VideoState* state, double pts)
+{
+    if (state)
+        state->video.displayedPtsUs.store(std::isfinite(pts)
+            ? static_cast<int64_t>(std::llround(pts * AV_TIME_BASE)) : AV_NOPTS_VALUE, std::memory_order_release);
+}
+
 inline SessionState::~SessionState()
 {
+    std::function<void(int, int64_t)> completion;
+    {
+        std::lock_guard<std::mutex> lock(step.mutex);
+        if (step.active) {
+            step.active = false;
+            step.readerRequest = false;
+            completion = std::move(step.completion);
+        }
+    }
+    step.scan.store(false, std::memory_order_release);
+    step.ready.store(false, std::memory_order_release);
+    if (completion)
+        completion(AVERROR(ECANCELED), 0);
     if (read_tid.joinable()) {
         abort_request = 1;
         io.cancelled.store(true, std::memory_order_release);

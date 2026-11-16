@@ -11,6 +11,7 @@
 #include <iostream>
 #include <thread>
 #include <algorithm>
+#include <map>
 using namespace player_sdk_qt;
 namespace {
 template<class F> bool wait(F predicate, int timeout = 5000) {
@@ -26,6 +27,26 @@ int main(int argc,char** argv) {
         QTemporaryDir dir; require(dir.isValid(),"No temporary directory");
         const auto fixtures = BuildMediaFixtures(std::filesystem::path(dir.path().toStdWString()),120);
         const auto u8 = fixtures.video.u8string();
+        {
+            QtPlayer stepping;
+            std::map<play_core::OperationId, play_core::OperationResult> operations;
+            std::shared_ptr<const play_core::VideoFrame> frame;
+            QObject::connect(&stepping, &QtPlayer::operationFinished, &app, [&](auto r) { operations.emplace(r.operation, r); });
+            QObject::connect(&stepping, &QtPlayer::videoFrameChanged, &app, [&](auto f) { frame = f; });
+            auto complete = [&](play_core::Request r) {
+                require(bool(r), "Qt step request rejected");
+                require(wait([&] { return operations.contains(r.operation); }), "Qt step operation timed out");
+                require(operations.at(r.operation).status == play_core::OperationStatus::Succeeded, "Qt step operation failed");
+                return operations.at(r.operation);
+            };
+            complete(stepping.open(play_core::MediaSource{std::string(u8.begin(), u8.end())}));
+            require(complete(stepping.stepFrame(1)).actualPositionMs == 0, "Qt initial frame incorrect");
+            require(complete(stepping.stepFrame(1)).actualPositionMs == 100, "Qt next frame incorrect");
+            require(complete(stepping.stepFrame(-1)).actualPositionMs == 0, "Qt previous frame incorrect");
+            require(frame && frame->timestampMs == 0 && stepping.state() == play_core::PlayerState::Paused,
+                "Qt frame and paused state do not match step result");
+            complete(stepping.close());
+        }
         auto* player = new QtPlayer;
         auto* view = new VideoWidget; view->resize(320,240); view->setPlayer(player); view->show();
         int frames = 0; int results = 0;

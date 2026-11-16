@@ -50,6 +50,10 @@ int main(void) {
     CHECK(ps_player_set_volume_v1(player, NAN, &request) == PS_ERROR_INVALID_ARGUMENT);
     CHECK(ps_player_set_playback_rate_v1(player, 3, &request) == PS_ERROR_INVALID_ARGUMENT);
     CHECK(ps_player_seek_v1(player, -1, &request) == PS_ERROR_INVALID_ARGUMENT);
+    CHECK(ps_player_step_frame_v1(NULL, 1, &request) == PS_ERROR_INVALID_ARGUMENT);
+    CHECK(ps_player_step_frame_v1(player, 1, NULL) == PS_ERROR_INVALID_ARGUMENT);
+    CHECK(ps_player_step_frame_v1(player, 0, &request) == PS_ERROR_INVALID_ARGUMENT);
+    CHECK(ps_player_step_frame_v1(player, 2, &request) == PS_ERROR_INVALID_ARGUMENT);
     CHECK(ps_player_select_subtitle_track_v1(player, 3, 0, &request) == PS_ERROR_INVALID_ARGUMENT);
     CHECK(ps_player_set_volume_v1(player, 0.5, &request) == PS_OK && request.operation);
     CHECK(ps_player_set_playback_rate_v1(player, 1, &request) == PS_OK);

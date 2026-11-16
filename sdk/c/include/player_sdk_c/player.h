@@ -178,6 +178,9 @@ PS_API int32_t PS_CALL ps_player_open_v1(ps_player_handle player, const ps_sourc
 PS_API int32_t PS_CALL ps_player_play_v1(ps_player_handle player, ps_request_v1* out_request);
 PS_API int32_t PS_CALL ps_player_set_paused_v1(ps_player_handle player, int32_t paused, ps_request_v1* out_request);
 PS_API int32_t PS_CALL ps_player_seek_v1(ps_player_handle player, int64_t position_ms, ps_request_v1* out_request);
+/* direction is -1 (previous) or +1 (next); requires seekable video and leaves
+ * playback paused. Successful operation actual_position_ms is the frame PTS. */
+PS_API int32_t PS_CALL ps_player_step_frame_v1(ps_player_handle player, int32_t direction, ps_request_v1* out_request);
 PS_API int32_t PS_CALL ps_player_stop_v1(ps_player_handle player, ps_request_v1* out_request);
 PS_API int32_t PS_CALL ps_player_close_v1(ps_player_handle player, ps_request_v1* out_request);
 PS_API int32_t PS_CALL ps_player_set_hardware_decode_v1(ps_player_handle player, int32_t hardware, ps_request_v1* out_request);

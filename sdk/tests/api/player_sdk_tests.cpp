@@ -1,6 +1,7 @@
 #include <play_core/player.h>
 #include "media_fixture_builder.h"
 #include <condition_variable>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -16,13 +17,16 @@ struct Observer {
     std::shared_ptr<const play_core::VideoFrame> frame;
     std::int64_t position{0};
     unsigned duplicates{0};
+    unsigned frames{0};
+    play_core::PlayerState state{play_core::PlayerState::Closed};
     void event(const play_core::PlayerEvent& e) {
         std::lock_guard lock(mutex);
         if (e.type == play_core::PlayerEvent::Type::Operation) {
             if (results.contains(e.operation.operation)) ++duplicates;
             results[e.operation.operation] = e.operation;
         }
-        if (e.video) frame = e.video;
+        if (e.video) { frame = e.video; ++frames; }
+        if (e.type == play_core::PlayerEvent::Type::State) state = e.state;
         if (e.type == play_core::PlayerEvent::Type::Position) position = e.positionMs;
         cv.notify_all();
     }
@@ -31,16 +35,107 @@ struct Observer {
         require(cv.wait_for(lock,10s,[&] { return results.contains(r.operation); }),"Operation timed out");
         auto result = results.at(r.operation);
         if (success && result.status != play_core::OperationStatus::Succeeded)
-            throw std::runtime_error("Operation failed: " + result.error.message);
+            throw std::runtime_error("Operation " + std::to_string(r.operation) + " failed: " + result.error.message +
+                " (" + std::to_string(result.error.nativeCode) + ")");
         return result;
     }
 };
+void testFrameSteps(const std::filesystem::path& path, bool variable) {
+    Observer o;
+    play_core::Player player({play_core::HardwareDecode::Disabled});
+    auto sub = player.subscribe([&](const auto& e) { o.event(e); });
+    require(!player.stepFrame(0) && !player.stepFrame(2), "Invalid frame direction accepted");
+    require(o.wait(player.stepFrame(1), false).status == play_core::OperationStatus::Failed,
+        "Closed player accepted stepping");
+    const auto u8 = path.u8string();
+    o.wait(player.open({std::string(u8.begin(), u8.end())}));
+    const auto timestamp = [variable](int index) -> int64_t {
+        return variable ? (index / 2) * 160 + (index % 2) * 40 : index * 100;
+    };
+    auto step = [&](int direction, int index) {
+        const auto result = [&] {
+            try { return o.wait(player.stepFrame(direction)); }
+            catch (const std::exception& e) {
+                throw std::runtime_error(std::string(variable ? "VFR " : "CFR ") + "step " +
+                    std::to_string(direction) + " to frame " + std::to_string(index) + ": " + e.what());
+            }
+        }();
+        if (result.actualPositionMs != timestamp(index))
+            throw std::runtime_error("Non-adjacent frame: expected " + std::to_string(timestamp(index)) +
+                ", got " + std::to_string(result.actualPositionMs.value_or(-1)));
+        require(!result.requestedPositionMs, "Frame step reported an invented seek target");
+        std::lock_guard lock(o.mutex);
+        require(o.frame && o.frame->timestampMs == result.actualPositionMs, "Step completed before target publication");
+        require(o.state == play_core::PlayerState::Paused, "Step did not leave player paused");
+        if (variable) {
+            require(o.frame->planes[0].data != nullptr, "Step fixture lost pixels");
+            const int luma = o.frame->planes[0].data.get()[0];
+            require(std::abs(luma - (32 + index * 6)) <= 3, "Frame content does not match its timestamp");
+        }
+    };
+    step(1, 0);
+    step(-1, 0);
+    o.wait(player.setPlaybackRate(0.1));
+    for (int i = 1; i < 24; ++i) {
+        if (i == 12) o.wait(player.setPlaybackRate(2.0));
+        step(1, i);
+    }
+    if (variable) { step(1, 23); step(1, 23); }
+    for (int i = 22; i >= 0; --i) step(-1, i);
+    step(-1, 0);
+    unsigned before;
+    std::this_thread::sleep_for(180ms);
+    { std::lock_guard lock(o.mutex);
+      require(o.frame && o.frame->timestampMs == 0 && o.position == 0, "Paused stepping advanced the frame or clock"); }
+    o.wait(player.setPlaybackRate(1.0));
+    o.wait(player.play());
+    { std::unique_lock lock(o.mutex);
+      require(o.cv.wait_for(lock, 3s, [&] { return o.frame && o.frame->timestampMs >= timestamp(3); }),
+          "Resume after stepping remained stuck paused"); }
+    o.wait(player.setPaused(true));
+    { std::lock_guard lock(o.mutex); before = o.frames; }
+    o.wait(player.seek(1500));
+    int seekIndex = -1;
+    { std::unique_lock lock(o.mutex);
+      require(o.cv.wait_for(lock, 3s, [&] { return o.frames > before && o.frame && o.frame->timestampMs >= timestamp(5); }),
+          "Paused seek did not publish a later frame");
+      for (int i = 0; i < (variable ? 24 : 120); ++i)
+          if (o.frame->timestampMs == timestamp(i)) seekIndex = i;
+    }
+    require(seekIndex > 0, "Seek fixture did not land on a known later frame");
+    step(-1, seekIndex - 1);
+    const auto forward = o.wait(player.stepFrame(1));
+    const auto backward = o.wait(player.stepFrame(-1));
+    require(forward.actualPositionMs && backward.actualPositionMs && *backward.actualPositionMs < *forward.actualPositionMs,
+        "Stepping after ordinary playback failed");
+    for (int i = 0; i < 8; ++i) {
+        const auto interrupted = player.stepFrame(1);
+        const auto pause = player.setPaused(true);
+        const auto replacement = player.stepFrame(-1);
+        o.wait(interrupted, false);
+        o.wait(pause);
+        const auto replaced = o.wait(replacement);
+        { std::lock_guard lock(o.mutex);
+          require(o.frame && o.frame->timestampMs == replaced.actualPositionMs,
+              "Cancelled scan published into its replacement operation"); }
+    }
+    std::vector<play_core::Request> burst;
+    for (int i = 0; i < 8; ++i) burst.push_back(player.stepFrame(1));
+    o.wait(player.close());
+    for (auto r : burst) o.wait(r, false);
+    o.wait(player.open({std::string(u8.begin(), u8.end())}));
+    step(1, 0);
+    o.wait(player.close());
+    { std::lock_guard lock(o.mutex); require(!o.duplicates, "Frame step completed more than once"); }
+}
 }
 int main() {
     auto dir = std::filesystem::temp_directory_path() / ("player-sdk-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     try {
         std::filesystem::create_directory(dir);
         const auto fixture = BuildMediaFixtures(dir,120);
+        testFrameSteps(fixture.video, false);
+        testFrameSteps(BuildFrameStepFixture(dir), true);
         const auto chinese = dir / std::filesystem::path(u8"中文视频.y4m");
         std::filesystem::rename(fixture.video,chinese);
         const auto utf8 = chinese.u8string();

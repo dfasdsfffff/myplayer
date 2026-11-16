@@ -9,3 +9,5 @@ struct GeneratedMediaFixtures {
 };
 
 GeneratedMediaFixtures BuildMediaFixtures(const std::filesystem::path& directory, int videoFrameCount = 10);
+// MPEG-4 B-frames, alternating 40/120 ms intervals, distinct luma, and PCM audio.
+std::filesystem::path BuildFrameStepFixture(const std::filesystem::path& directory);

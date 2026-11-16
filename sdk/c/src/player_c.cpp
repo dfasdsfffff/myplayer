@@ -145,6 +145,9 @@ int32_t PS_CALL ps_player_set_paused_v1(ps_player_handle p, int32_t b, ps_reques
 int32_t PS_CALL ps_player_seek_v1(ps_player_handle p, int64_t ms, ps_request_v1* out) {
     return request(p, out, [&](auto& c) { return c.seek(ms); });
 }
+int32_t PS_CALL ps_player_step_frame_v1(ps_player_handle p, int32_t direction, ps_request_v1* out) {
+    return request(p, out, [&](auto& c) { return c.stepFrame(direction); });
+}
 int32_t PS_CALL ps_player_set_hardware_decode_v1(ps_player_handle p, int32_t h, ps_request_v1* out) {
     return request(p, out, [&](auto& c) { require(hardware(h)); return c.setHardwareDecode(static_cast<play_core::HardwareDecode>(h)); });
 }
