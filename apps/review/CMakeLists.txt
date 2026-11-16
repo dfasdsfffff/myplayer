@@ -28,11 +28,41 @@ if(BUILD_TESTING)
     target_link_libraries(review_document_tests PRIVATE Qt6::Core)
     myplayer_enable_warnings(review_document_tests)
     add_test(NAME review_document_tests COMMAND review_document_tests)
+
+    qt_add_executable(review_window_tests
+        review_window_tests.cpp
+        review_window.cpp
+        review_window.h
+        review_document.cpp
+        ../../sdk/tests/media_fixture_builder.cpp
+    )
+    target_include_directories(review_window_tests PRIVATE
+        ../../sdk/tests
+        ${FFMPEG_INCLUDE_DIRS}
+    )
+    target_link_libraries(review_window_tests PRIVATE PlayerSDK::QtWidgets ${FFMPEG_LIBRARIES})
+    myplayer_enable_warnings(review_window_tests)
+    add_test(NAME review_window_tests COMMAND review_window_tests)
+    set_tests_properties(review_window_tests PROPERTIES
+        TIMEOUT 45
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_AUDIODRIVER=dummy"
+    )
 endif()
 
 if(WIN32)
     get_target_property(qt_qmake Qt6::qmake IMPORTED_LOCATION)
     get_filename_component(qt_bin "${qt_qmake}" DIRECTORY)
+    if(TARGET review_window_tests)
+        add_custom_command(TARGET review_window_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:review_window_tests>
+                $<TARGET_FILE_DIR:review_window_tests>
+            COMMAND "${qt_bin}/windeployqt.exe" "$<TARGET_FILE:review_window_tests>" --no-translations --no-compiler-runtime
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${qt_bin}/../plugins/platforms" "$<TARGET_FILE_DIR:review_window_tests>/platforms"
+            COMMAND_EXPAND_LISTS
+        )
+    endif()
     add_custom_command(TARGET myplayer_review POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_RUNTIME_DLLS:myplayer_review>

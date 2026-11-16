@@ -18,6 +18,9 @@
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QKeySequence>
+#include <QInputDialog>
+#include <QImage>
+#include <QSaveFile>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -418,6 +421,65 @@ void ReviewWindow::buildUi()
     forwardAction->setShortcut(QKeySequence(Qt::Key_Right));
     connect(forwardAction, &QAction::triggered, this, [this] { seekRelative(5000); });
 
+    playbackMenu->addSeparator();
+    startAction_ = playbackMenu->addAction(tr("转到开头"));
+    startAction_->setObjectName(QStringLiteral("goToStartAction"));
+    startAction_->setShortcut(QKeySequence(Qt::Key_Home));
+    connect(startAction_, &QAction::triggered, this, [this] {
+        if (canSeek()) submit(player_->seek(0), tr("转到开头"));
+    });
+    endAction_ = playbackMenu->addAction(tr("转到结尾附近"));
+    endAction_->setObjectName(QStringLiteral("goToEndAction"));
+    endAction_->setShortcut(QKeySequence(Qt::Key_End));
+    connect(endAction_, &QAction::triggered, this, [this] {
+        if (canSeek() && durationMs_ > 0) {
+            if (submit(player_->setPaused(true), tr("暂停")))
+                submit(player_->seek(std::max<qint64>(0, durationMs_ - 1)), tr("转到结尾附近"));
+        }
+    });
+    jumpAction_ = playbackMenu->addAction(tr("跳转到时间…"));
+    jumpAction_->setObjectName(QStringLiteral("jumpToTimeAction"));
+    jumpAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
+    connect(jumpAction_, &QAction::triggered, this, &ReviewWindow::jumpToTime);
+    for (const auto& entry : std::vector<std::pair<QKeyCombination, qint64>>{
+             {Qt::SHIFT | Qt::Key_J, -1000}, {Qt::CTRL | Qt::Key_J, -10000},
+             {Qt::SHIFT | Qt::Key_L, 1000}, {Qt::CTRL | Qt::Key_L, 10000}}) {
+        const qint64 offset = entry.second;
+        auto* action = playbackMenu->addAction(offset < 0 ? tr("后退 %1 秒").arg(-offset / 1000)
+                                                         : tr("前进 %1 秒").arg(offset / 1000));
+        action->setShortcut(QKeySequence(entry.first));
+        connect(action, &QAction::triggered, this, [this, offset] { seekRelative(offset); });
+    }
+    loopAction_ = playbackMenu->addAction(tr("循环播放"));
+    loopAction_->setObjectName(QStringLiteral("loopPlaybackAction"));
+    loopAction_->setCheckable(true);
+    loopAction_->setToolTip(tr("播放结束后重新打开当前视频；不是无缝循环。"));
+
+    auto* viewMenu = menuBar()->addMenu(tr("查看(&V)"));
+    auto* fullScreenAction = viewMenu->addAction(tr("全屏"));
+    fullScreenAction->setShortcut(QKeySequence(Qt::Key_F11));
+    connect(fullScreenAction, &QAction::triggered, this, [this] {
+        if (isFullScreen()) showNormal(); else showFullScreen();
+    });
+    auto* escapeFullScreen = new QAction(this);
+    escapeFullScreen->setShortcut(QKeySequence(Qt::Key_Escape));
+    addAction(escapeFullScreen);
+    connect(escapeFullScreen, &QAction::triggered, this, [this] {
+        if (isFullScreen()) showNormal();
+    });
+    auto* notesVisibleAction = viewMenu->addAction(tr("显示标注面板"));
+    notesVisibleAction->setObjectName(QStringLiteral("notesVisibleAction"));
+    notesVisibleAction->setCheckable(true);
+    notesVisibleAction->setChecked(true);
+    notesVisibleAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H));
+    mediaInfoAction_ = viewMenu->addAction(tr("媒体信息…"));
+    mediaInfoAction_->setObjectName(QStringLiteral("mediaInfoAction"));
+    connect(mediaInfoAction_, &QAction::triggered, this, &ReviewWindow::showMediaInfo);
+    exportFrameAction_ = fileMenu->addAction(tr("导出当前画面 PNG…"));
+    exportFrameAction_->setObjectName(QStringLiteral("exportFrameAction"));
+    exportFrameAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+    connect(exportFrameAction_, &QAction::triggered, this, &ReviewWindow::exportFrame);
+
     auto* central = new QWidget(this);
     central->setObjectName(QStringLiteral("reviewCentralWidget"));
     auto* rootLayout = new QVBoxLayout(central);
@@ -537,16 +599,21 @@ void ReviewWindow::buildUi()
     controls->addWidget(volumeSlider_);
     speedCombo_ = new QComboBox(playbackPanel);
     speedCombo_->setObjectName(QStringLiteral("speedCombo"));
-    for (double rate : {0.5, 0.75, 1.0, 1.25, 1.5, 2.0})
-        speedCombo_->addItem(QString::number(rate, 'f', rate == 0.75 || rate == 1.25 ? 2 : 1) + QStringLiteral("×"), rate);
+    for (double rate : {0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0})
+        speedCombo_->addItem(QString::number(rate, 'g', 3) + QStringLiteral("×"), rate);
     speedCombo_->setCurrentIndex(speedCombo_->findData(1.0));
     controls->addWidget(speedCombo_);
     controlsLayout->addLayout(controls);
+    auto* navigation = new QToolBar(playbackPanel);
+    navigation->setObjectName(QStringLiteral("reviewNavigationToolbar"));
+    navigation->addActions({startAction_, endAction_, jumpAction_, loopAction_, exportFrameAction_});
+    controlsLayout->addWidget(navigation);
     playbackLayout->addWidget(playbackPanel);
 
     auto* annotation = new QWidget;
     body->addWidget(annotation);
     annotation->setObjectName(QStringLiteral("reviewNotesPanel"));
+    connect(notesVisibleAction, &QAction::toggled, annotation, &QWidget::setVisible);
     annotation->setMinimumWidth(360);
     auto* annotationLayout = new QVBoxLayout(annotation);
     annotationLayout->setContentsMargins(14, 14, 14, 10);
@@ -660,7 +727,17 @@ void ReviewWindow::bindPlayer()
         case play_core::PlayerState::Reconnecting: statusLabel_->setText(tr("正在重新连接…")); break;
         case play_core::PlayerState::Stopped: statusLabel_->setText(tr("已停止")); break;
         case play_core::PlayerState::Closing: statusLabel_->setText(tr("正在关闭媒体…")); break;
-        case play_core::PlayerState::Ended: statusLabel_->setText(tr("播放结束，可重新播放")); break;
+        case play_core::PlayerState::Ended:
+            statusLabel_->setText(tr("播放结束，可重新播放"));
+            if (loopAction_->isChecked() && seekableVideo_ && durationMs_ > 0 && !openFailed_) {
+                // Reopening destroys the sender, so defer until signal delivery is finished.
+                QTimer::singleShot(0, this, [this, generation] {
+                    if (generation == playerGeneration_ && state_ == play_core::PlayerState::Ended
+                        && loopAction_->isChecked() && !openFailed_)
+                        startMedia();
+                });
+            }
+            break;
         case play_core::PlayerState::Failed:
             openFailed_ = true;
             statusLabel_->setText(tr("播放失败，标注仍可编辑和保存"));
@@ -672,6 +749,7 @@ void ReviewWindow::bindPlayer()
             [this, generation](std::shared_ptr<const play_core::MediaInfo> info) {
         if (generation != playerGeneration_)
             return;
+        mediaInfo_ = info;
         seekableVideo_ = false;
         durationMs_ = 0;
         if (info) {
@@ -700,6 +778,16 @@ void ReviewWindow::bindPlayer()
             positionSlider_->setValue(static_cast<int>(fraction * SliderSteps));
         }
         updateTimeDisplay();
+    });
+    connect(player_, &player_sdk_qt::QtPlayer::videoFrameChanged, this,
+            [this, generation](std::shared_ptr<const play_core::VideoFrame> frame) {
+        if (generation != playerGeneration_)
+            return;
+        const bool available = static_cast<bool>(frame);
+        if (available != hasVideoFrame_) {
+            hasVideoFrame_ = available;
+            updateControls();
+        }
     });
     connect(player_, &player_sdk_qt::QtPlayer::volumeChanged, this,
             [this, generation](double volume) {
@@ -750,6 +838,8 @@ void ReviewWindow::resetPlayback()
     durationMs_ = 0;
     seekableVideo_ = false;
     openFailed_ = false;
+    hasVideoFrame_ = false;
+    mediaInfo_.reset();
     pendingOperations_.clear();
     {
         const QSignalBlocker blocker(positionSlider_);
@@ -920,6 +1010,11 @@ void ReviewWindow::updateControls()
     playPauseButton_->setEnabled(canControlMedia() || replay);
     playPauseButton_->setText(state_ == play_core::PlayerState::Playing ? tr("暂停")
                               : replay ? tr("重新播放") : tr("播放"));
+    jumpAction_->setEnabled(canSeek() && durationMs_ > 0);
+    startAction_->setEnabled(canSeek());
+    endAction_->setEnabled(canSeek() && durationMs_ > 0);
+    exportFrameAction_->setEnabled(hasVideoFrame_ && !openFailed_);
+    mediaInfoAction_->setEnabled(static_cast<bool>(mediaInfo_));
     positionSlider_->setEnabled(canSeek() && durationMs_ > 0);
     volumeSlider_->setEnabled(canControlMedia());
     speedCombo_->setEnabled(canControlMedia());
@@ -1200,7 +1295,80 @@ void ReviewWindow::seekRelative(qint64 offsetMs)
         return;
     const qint64 target = std::clamp(positionMs_ + offsetMs, qint64{0},
                                      durationMs_ > 0 ? durationMs_ : MaxPositionMs);
-    submit(player_->seek(target), offsetMs < 0 ? tr("后退 5 秒") : tr("前进 5 秒"));
+    submit(player_->seek(target), tr("相对时间跳转"));
+}
+
+void ReviewWindow::jumpToTime()
+{
+    if (!canSeek() || durationMs_ <= 0)
+        return;
+    const quint64 generation = playerGeneration_;
+    QInputDialog dialog(this);
+    dialog.setObjectName(QStringLiteral("jumpToTimeDialog"));
+    dialog.setWindowTitle(tr("跳转到时间"));
+    dialog.setLabelText(tr("输入 小时:分钟:秒.毫秒（最大 %1）").arg(formatTime(durationMs_ - 1)));
+    dialog.setTextValue(formatTime(std::min(positionMs_, durationMs_ - 1)));
+    if (dialog.exec() != QDialog::Accepted || generation != playerGeneration_ || !canSeek())
+        return;
+    qint64 target = 0;
+    if (!parseTimecode(dialog.textValue(), target) || target >= durationMs_) {
+        showError(tr("无法跳转"), tr("时间格式无效或超出视频范围。请使用 小时:分钟:秒.毫秒。"));
+        return;
+    }
+    if (submit(player_->setPaused(true), tr("暂停")))
+        submit(player_->seek(target), tr("跳转到时间"));
+}
+
+void ReviewWindow::exportFrame()
+{
+    if (!hasVideoFrame_ || openFailed_)
+        return;
+    // Capture before the modal dialog; playback can advance while choosing a path.
+    const QImage image = video_->grabVideoFrame();
+    if (image.isNull()) {
+        showError(tr("无法导出画面"), tr("当前没有可读取的画面。"));
+        return;
+    }
+    const QString initial = QFileInfo(document_.mediaPath).completeBaseName()
+        + QStringLiteral("-%1.png").arg(positionMs_);
+    const QString path = chooseFile(this, QStringLiteral("exportFrameDialog"), tr("导出当前画面"),
+                                    tr("PNG 图像 (*.png)"), true, initial, QStringLiteral("png"));
+    if (path.isEmpty())
+        return;
+    if (samePath(path, document_.mediaPath) || samePath(path, projectPath_)) {
+        showError(tr("无法导出画面"), tr("不能覆盖当前媒体或标注工程。"));
+        return;
+    }
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || !image.save(&file, "PNG") || !file.commit()) {
+        showError(tr("无法导出画面"), tr("PNG 写入失败：%1").arg(file.errorString()));
+        return;
+    }
+    statusBar()->showMessage(tr("画面已导出：%1").arg(QDir::toNativeSeparators(path)), 5000);
+}
+
+void ReviewWindow::showMediaInfo()
+{
+    if (!mediaInfo_)
+        return;
+    const auto& info = *mediaInfo_;
+    QString text = tr("文件：%1\n分辨率：%2 × %3\n时长：%4\n像素宽高比：%5:%6\n旋转：%7°\n可定位：%8")
+        .arg(QDir::toNativeSeparators(document_.mediaPath))
+        .arg(info.width).arg(info.height).arg(formatTime(durationMs_))
+        .arg(info.sampleAspectRatio.num).arg(info.sampleAspectRatio.den)
+        .arg(info.rotationDegrees).arg(info.seekable ? tr("是") : tr("否"));
+    for (const auto& track : info.tracks) {
+        const QString type = track.type == play_core::MediaType::Video ? tr("视频")
+            : track.type == play_core::MediaType::Audio ? tr("音频")
+            : track.type == play_core::MediaType::Subtitle ? tr("字幕") : tr("其他");
+        text += tr("\n轨道 %1 · %2 · %3 · %4 · %5").arg(track.streamIndex).arg(type,
+            QString::fromStdString(track.codec), QString::fromStdString(track.language),
+            QString::fromStdString(track.title));
+    }
+    QMessageBox dialog(QMessageBox::Information, tr("媒体信息"), text, QMessageBox::Ok, this);
+    dialog.setTextFormat(Qt::PlainText);
+    dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    dialog.exec();
 }
 
 void ReviewWindow::relinkMedia()

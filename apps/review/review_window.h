@@ -63,6 +63,9 @@ private:
     void togglePlayback();
     void seekFromSlider();
     void seekRelative(qint64 offsetMs);
+    void jumpToTime();
+    void exportFrame();
+    void showMediaInfo();
     void relinkMedia();
     void applyPlaybackSettings();
     bool submit(const play_core::Request& request, const QString& action);
@@ -124,6 +127,14 @@ private:
     QAction* deleteNoteAction_{nullptr};
     QAction* seekNoteAction_{nullptr};
     QAction* previousNoteAction_{nullptr};
+    QAction* jumpAction_{nullptr};
+    QAction* startAction_{nullptr};
+    QAction* endAction_{nullptr};
+    QAction* loopAction_{nullptr};
+    QAction* exportFrameAction_{nullptr};
+    QAction* mediaInfoAction_{nullptr};
+    std::shared_ptr<const play_core::MediaInfo> mediaInfo_;
+    bool hasVideoFrame_{false};
     QAction* nextNoteAction_{nullptr};
 };
 
