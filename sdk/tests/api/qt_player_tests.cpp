@@ -12,6 +12,7 @@
 #include <thread>
 #include <algorithm>
 #include <map>
+#include <limits>
 using namespace player_sdk_qt;
 namespace {
 template<class F> bool wait(F predicate, int timeout = 5000) {
@@ -97,6 +98,37 @@ int main(int argc,char** argv) {
         manual.resize(400,300); QApplication::processEvents();
         pixels=manual.grabVideoFrame(); require(!pixels.isNull() && pixels.width()>0 && pixels.height()>0 &&
             std::abs(double(pixels.width())/pixels.height()-4./3.)<.02,"SDL resize output aspect stale");
+        // Four quadrants make mirror, zoom and pan observable in readback.
+        auto quadrants=std::make_shared<play_core::VideoFrame>();
+        quadrants->width=64; quadrants->height=32; quadrants->bytesPerLine=256;
+        auto data=std::make_shared<std::vector<uint8_t>>(64*32*4,0);
+        for (int y=0;y<32;++y) for (int x=0;x<64;++x) {
+            const int i=(y*64+x)*4;
+            (*data)[i]=(x>=32 && y>=16) ? 255 : 0;
+            (*data)[i+1]=x>=32 ? 255 : 0;
+            (*data)[i+2]=x<32 ? 255 : 0;
+            (*data)[i+3]=255;
+        }
+        quadrants->bgra=data; manual.setVideoFrame(quadrants);
+        require(manual.isViewFit(),"default display remains Fit");
+        pixels=manual.grabVideoFrame();
+        require(qRed(pixels.pixel(pixels.width()/4,pixels.height()*11/30))>240 && qGreen(pixels.pixel(pixels.width()*3/4,pixels.height()*11/30))>240,"quadrant fixture");
+        manual.setMirrors(true,false); pixels=manual.grabVideoFrame();
+        require(qGreen(pixels.pixel(pixels.width()/4,pixels.height()*11/30))>240 && qRed(pixels.pixel(pixels.width()*3/4,pixels.height()*11/30))>240,"horizontal mirror pixels");
+        manual.setMirrors(false,true); pixels=manual.grabVideoFrame();
+        require(qBlue(pixels.pixel(pixels.width()*3/4,pixels.height()*11/30))>240,"vertical mirror pixels");
+        quadrants->sampleAspectRatio={2,1}; quadrants->rotationDegrees=90;
+        manual.setMirrors(true,false); manual.setVideoFrame(quadrants); pixels=manual.grabVideoFrame();
+        require(qGreen(pixels.pixel(pixels.width()/2,pixels.height()/4))>240 && qRed(pixels.pixel(pixels.width()/2,pixels.height()*3/4))>240,"mirror composes with SAR and rotation");
+        quadrants->sampleAspectRatio={1,1}; quadrants->rotationDegrees=0; manual.setVideoFrame(quadrants);
+        manual.setMirrors(false,false); manual.setViewScale(1); pixels=manual.grabVideoFrame();
+        require(!manual.isViewFit() && manual.viewScale()==1 && qRed(pixels.pixel(pixels.width()/2-30,pixels.height()/2-10))>240
+            && qRed(pixels.pixel(pixels.width()/2-40,pixels.height()/2-10))<10,"1:1 physical pixel width");
+        manual.setViewScale(10); manual.panView(QPointF(100000,100000)); pixels=manual.grabVideoFrame();
+        require(std::abs(manual.viewPan().x())<=120.1 && std::abs(manual.viewPan().y())<=10.1,"pan clamped to image bounds");
+        const auto oldScale=manual.viewScale(); manual.setViewScale(std::numeric_limits<double>::quiet_NaN());
+        require(manual.viewScale()==oldScale,"nonfinite scale rejected");
+        manual.fitView(); require(manual.isViewFit() && manual.viewPan().isNull(),"Fit resets pan");
         auto yuv=std::make_shared<play_core::VideoFrame>();
         yuv->format=play_core::VideoFrameFormat::Yuv420P; yuv->width=64; yuv->height=32;
         yuv->colorSpace=play_core::ColorSpace::Bt709; yuv->colorRange=play_core::ColorRange::Limited;
@@ -107,14 +139,14 @@ int main(int argc,char** argv) {
             yuv->planes[i]={data,stride,height};
         }
         manual.setVideoFrame(yuv); pixels=manual.grabVideoFrame();
-        require(!pixels.isNull() && qRed(pixels.pixel(200,150))>240 && qGreen(pixels.pixel(200,150))>240,"SDL IYUV limited-range upload incorrect");
+        require(!pixels.isNull() && qRed(pixels.pixel(pixels.width()/2,pixels.height()/2))>240 && qGreen(pixels.pixel(pixels.width()/2,pixels.height()/2))>240,"SDL IYUV limited-range upload incorrect");
         auto fullRangeY = std::shared_ptr<uint8_t>(new uint8_t[64*32],std::default_delete<uint8_t[]>());
         std::fill_n(fullRangeY.get(),64*32,32);
         yuv->planes[0]={fullRangeY,64,32};
         yuv->colorRange=play_core::ColorRange::Full;
         SDL_SetYUVConversionMode(SDL_YUV_CONVERSION_BT601);
         manual.setVideoFrame(yuv); pixels=manual.grabVideoFrame();
-        require(!pixels.isNull() && std::abs(qRed(pixels.pixel(200,150))-32)<5,
+        require(!pixels.isNull() && std::abs(qRed(pixels.pixel(pixels.width()/2,pixels.height()/2))-32)<5,
             "SDL IYUV full-range upload used the wrong conversion mode");
         require(SDL_GetYUVConversionMode()==SDL_YUV_CONVERSION_BT601,
             "Video widget did not restore SDL YUV conversion mode");
@@ -130,16 +162,16 @@ int main(int argc,char** argv) {
         subtitle->bitmaps.push_back(std::move(bitmap));
         manual.setSubtitleFrame(subtitle);
         pixels=manual.grabVideoFrame();
-        require(!pixels.isNull() && qRed(pixels.pixel(200,160))>200 && qGreen(pixels.pixel(200,160))<100,
+        require(!pixels.isNull() && qRed(pixels.pixel(pixels.width()/2,pixels.height()*8/15))>200 && qGreen(pixels.pixel(pixels.width()/2,pixels.height()*8/15))<100,
             "SDL bitmap subtitle not drawn");
         pixels=manual.grabVideoFrame();
-        require(qRed(pixels.pixel(200,160))>200 && qGreen(pixels.pixel(200,160))<100,
+        require(qRed(pixels.pixel(pixels.width()/2,pixels.height()*8/15))>200 && qGreen(pixels.pixel(pixels.width()/2,pixels.height()*8/15))<100,
             "Cached subtitle lost on redraw");
         manual.setSubtitleFrame({});
         pixels=manual.grabVideoFrame();
-        require(qGreen(pixels.pixel(200,160))>200,"Cleared subtitle texture still drawn");
+        require(qGreen(pixels.pixel(pixels.width()/2,pixels.height()*8/15))>200,"Cleared subtitle texture still drawn");
         yuv->colorSpace=play_core::ColorSpace::Bt2020; manual.setVideoFrame(yuv);
-        pixels=manual.grabVideoFrame(); require(!pixels.isNull() && qGreen(pixels.pixel(200,150))>240,"SDL BT2020 fallback failed");
+        pixels=manual.grabVideoFrame(); require(!pixels.isNull() && qGreen(pixels.pixel(pixels.width()/2,pixels.height()/2))>240,"SDL BT2020 fallback failed");
         manual.setVideoFrame({}); require(manual.grabVideoFrame().isNull(),"SDL clear retained stale output");
         }
         require((SDL_WasInit(SDL_INIT_VIDEO)&SDL_INIT_VIDEO)!=0,"SDK teardown destroyed host SDL video state");

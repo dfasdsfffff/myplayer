@@ -1,12 +1,16 @@
 #pragma once
 
 #include "review_document.h"
+#include "review_playback_controller.h"
+#include <QPointF>
 
 #include <QHash>
 #include <QMainWindow>
 #include <play_core/player.h>
 
 class QAction;
+class QDockWidget;
+class QToolBar;
 class QCloseEvent;
 class QComboBox;
 class QLabel;
@@ -24,13 +28,13 @@ class VideoWidget;
 }
 
 namespace review {
-class ReviewTimelineSlider;
+class ReviewTimeline;
 
 
 class ReviewWindow final : public QMainWindow {
     Q_OBJECT
 public:
-    explicit ReviewWindow(QWidget* parent = nullptr);
+    explicit ReviewWindow(QWidget* parent = nullptr, const QString& settingsFile = {});
     ~ReviewWindow() override;
 
     bool openVideo(const QString& path);
@@ -39,12 +43,18 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    bool eventFilter(QObject*, QEvent*) override;
 
 private:
     void buildUi();
     void bindPlayer();
     void retirePlayer();
-    bool startMedia();
+    bool startMedia(bool preserveRange = false);
+    void buildReviewTools();
+    void setPresentation(bool enabled);
+    void saveSettings();
+    void updateRange();
+    void navigate(qint64 target, bool resume);
     void resetPlayback();
     void updateControls();
     void updateTimeDisplay();
@@ -61,7 +71,6 @@ private:
     void seekNote();
     void selectAdjacentNote(int direction);
     void togglePlayback();
-    void seekFromSlider();
     void seekRelative(qint64 offsetMs);
     void stepFrame(int direction);
     void jumpToTime();
@@ -83,6 +92,22 @@ private:
     void writeRecovery();
     void removeRecovery();
 
+    ReviewPlaybackController playbackController_;
+    QString settingsFile_;
+    QDockWidget* notesDock_{nullptr};
+    QToolBar* viewToolbar_{nullptr};
+    QAction* followAction_{nullptr};
+    QAction* stopScrubAction_{nullptr};
+    QAction* presentationAction_{nullptr};
+    QAction* inAction_{nullptr};
+    QAction* outAction_{nullptr};
+    QLabel* rangeLabel_{nullptr};
+    QLabel* zoomLabel_{nullptr};
+    QByteArray defaultLayout_, presentationLayout_;
+    bool presentation_{false}, wasFullScreen_{false}, panningView_{false};
+    QPointF lastViewMouse_;
+    qint64 startupPosition_{0};
+    bool startupPending_{false};
     ReviewDocument document_;
     QString projectPath_;
     bool dirty_{false};
@@ -101,7 +126,7 @@ private:
     qint64 durationMs_{0};
     bool seekableVideo_{false};
     bool openFailed_{false};
-    ReviewTimelineSlider* positionSlider_{nullptr};
+    ReviewTimeline* positionSlider_{nullptr};
     QSlider* volumeSlider_{nullptr};
     QComboBox* speedCombo_{nullptr};
     QPushButton* playPauseButton_{nullptr};

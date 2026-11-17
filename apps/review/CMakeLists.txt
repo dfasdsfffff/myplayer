@@ -1,4 +1,14 @@
+set(REVIEW_WORKSPACE_SOURCES
+    review_timeline.cpp
+    review_timeline.h
+    review_playback_controller.cpp
+    review_playback_controller.h
+    review_settings.cpp
+    review_settings.h
+)
+
 qt_add_executable(myplayer_review WIN32
+    ${REVIEW_WORKSPACE_SOURCES}
     main.cpp
     review_window.cpp
     review_window.h
@@ -19,6 +29,18 @@ myplayer_enable_warnings(myplayer_review)
 myplayer_enable_sanitizers(myplayer_review)
 
 if(BUILD_TESTING)
+    qt_add_executable(review_workspace_tests
+        review_workspace_tests.cpp
+        ${REVIEW_WORKSPACE_SOURCES}
+        review_document.cpp
+    )
+    target_link_libraries(review_workspace_tests PRIVATE PlayerSDK::QtWidgets)
+    myplayer_enable_warnings(review_workspace_tests)
+    add_test(NAME review_workspace_tests COMMAND review_workspace_tests)
+    set_tests_properties(review_workspace_tests PROPERTIES
+        TIMEOUT 30
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SDL_AUDIODRIVER=dummy"
+    )
     qt_add_executable(review_document_tests
         review_document_tests.cpp
         review_document.cpp
@@ -30,6 +52,7 @@ if(BUILD_TESTING)
     add_test(NAME review_document_tests COMMAND review_document_tests)
 
     qt_add_executable(review_window_tests
+        ${REVIEW_WORKSPACE_SOURCES}
         review_window_tests.cpp
         review_window.cpp
         review_window.h

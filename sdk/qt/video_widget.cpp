@@ -12,6 +12,7 @@
 #include <QRegularExpression>
 #include <QVariant>
 #include <cmath>
+#include <algorithm>
 extern "C" {
 #include <libswscale/swscale.h>
 #include <ass/ass.h>
@@ -26,6 +27,7 @@ struct VideoWidget::Impl {
     SDL_Surface* softwareSurface{nullptr};
     QSize textureSize;
     Uint32 textureFormat{0};
+    SDL_YUV_CONVERSION_MODE textureConversion{SDL_YUV_CONVERSION_AUTOMATIC};
     bool videoReference{false};
     bool needsUpload{false};
 #ifdef Q_OS_WIN
@@ -48,6 +50,20 @@ struct VideoWidget::Impl {
     std::vector<SDL_Texture*> bitmapTextures;
     std::vector<SDL_Texture*> assTextures;
     QSize assSize;
+    bool fit{true}, mirrorH{false}, mirrorV{false};
+    double scale{1.0};
+    QPointF pan;
+    double fitScale(QSize size) const {
+        if (!frame || frame->width<=0 || frame->height<=0) return 1;
+        int w=size.width(), h=size.height();
+        if (videoRenderer) SDL_GetRendererOutputSize(videoRenderer,&w,&h);
+        const double sar=frame->sampleAspectRatio.num>0 && frame->sampleAspectRatio.den>0
+            ? double(frame->sampleAspectRatio.num)/frame->sampleAspectRatio.den : 1;
+        const double angle=std::isfinite(frame->rotationDegrees) ? frame->rotationDegrees : 0;
+        const double a=angle*3.14159265358979323846/180.;
+        return std::min(w/(std::abs(frame->width*sar*std::cos(a))+std::abs(frame->height*std::sin(a))),
+                        h/(std::abs(frame->width*sar*std::sin(a))+std::abs(frame->height*std::cos(a))));
+    }
     void clearTextures(std::vector<SDL_Texture*>& textures) {
         for (auto* item : textures) SDL_DestroyTexture(item);
         textures.clear();
@@ -151,10 +167,14 @@ struct VideoWidget::Impl {
         // that color space; ordinary YUV420P is uploaded directly as IYUV.
         const bool convert = yuv && f.colorSpace == play_core::ColorSpace::Bt2020;
         const Uint32 format = yuv && !convert ? SDL_PIXELFORMAT_IYUV : SDL_PIXELFORMAT_BGRA32;
-        if (!texture || textureSize != QSize(f.width,f.height) || textureFormat != format) {
+        // Native SDL drivers cache the YUV shader with the texture/draw state.
+        // A range/matrix change must invalidate that cache, not only reupload bytes.
+        const auto conversion=SDL_GetYUVConversionMode();
+        if (!texture || textureSize != QSize(f.width,f.height) || textureFormat != format
+            || (format==SDL_PIXELFORMAT_IYUV && textureConversion!=conversion)) {
             if (texture) SDL_DestroyTexture(texture);
             texture = SDL_CreateTexture(videoRenderer,format,SDL_TEXTUREACCESS_STREAMING,f.width,f.height);
-            textureSize = QSize(f.width,f.height); textureFormat = format;
+            textureSize = QSize(f.width,f.height); textureFormat = format; textureConversion=conversion;
             if (!texture) return false;
             SDL_SetTextureScaleMode(texture,SDL_ScaleModeLinear);
             needsUpload = true;
@@ -210,25 +230,30 @@ struct VideoWidget::Impl {
         const double cw = f.width*sar, ch = f.height;
         const double boundW = std::abs(cw*std::cos(radians))+std::abs(ch*std::sin(radians));
         const double boundH = std::abs(cw*std::sin(radians))+std::abs(ch*std::cos(radians));
-        const double scale = std::min(width/boundW,height/boundH);
-        SDL_Rect target{static_cast<int>(std::lround((width-cw*scale)/2)),static_cast<int>(std::lround((height-ch*scale)/2)),
+        const double scale = fit ? std::min(width/boundW,height/boundH) : this->scale;
+        const double pixelX=double(width)/size.width(), pixelY=double(height)/size.height();
+        const double maxX=std::max(0.,(boundW*scale-width)/2.)/pixelX;
+        const double maxY=std::max(0.,(boundH*scale-height)/2.)/pixelY;
+        pan=QPointF(std::clamp(pan.x(),-maxX,maxX),std::clamp(pan.y(),-maxY,maxY));
+        const double centerX=width/2.+pan.x()*pixelX, centerY=height/2.+pan.y()*pixelY;
+        SDL_Rect target{static_cast<int>(std::lround(centerX-cw*scale/2)),static_cast<int>(std::lround(centerY-ch*scale/2)),
             std::max(1,static_cast<int>(std::lround(cw*scale))),std::max(1,static_cast<int>(std::lround(ch*scale)))};
         SDL_SetRenderDrawColor(videoRenderer,0,0,0,255);
         if (SDL_RenderClear(videoRenderer) != 0) return false;
         // SDL2 conversion mode is global; this draw stays on the QObject GUI thread.
-        const int copied = SDL_RenderCopyEx(videoRenderer,texture,nullptr,&target,angle,nullptr,SDL_FLIP_NONE);
+        const int copied = SDL_RenderCopyEx(videoRenderer,texture,nullptr,&target,angle,nullptr,static_cast<SDL_RendererFlip>((mirrorH ? SDL_FLIP_HORIZONTAL : 0) | (mirrorV ? SDL_FLIP_VERTICAL : 0)));
         SDL_RenderFlush(videoRenderer);
         if (copied != 0) return false;
         if (!external && subtitle && position >= subtitle->startMs && position <= subtitle->endMs) {
             for (size_t i=0;i<subtitle->bitmaps.size();++i) {
                 const auto& b = subtitle->bitmaps[i];
                 if (b.width<=0 || b.height<=0 || b.stride<=0 || b.bgra.size()<static_cast<size_t>(b.stride)*b.height) continue;
-                const double dx=(b.x+b.width/2.)*sar-cw/2., dy=b.y+b.height/2.-ch/2.;
+                const double dx=((b.x+b.width/2.)*sar-cw/2.)*(mirrorH ? -1 : 1), dy=(b.y+b.height/2.-ch/2.)*(mirrorV ? -1 : 1);
                 const int bw=static_cast<int>(std::lround(b.width*sar*scale)), bh=static_cast<int>(std::lround(b.height*scale));
-                SDL_Rect dest{static_cast<int>(std::lround(width/2.+scale*(dx*std::cos(radians)-dy*std::sin(radians))-bw/2.)),
-                    static_cast<int>(std::lround(height/2.+scale*(dx*std::sin(radians)+dy*std::cos(radians))-bh/2.)),bw,bh};
+                SDL_Rect dest{static_cast<int>(std::lround(centerX+scale*(dx*std::cos(radians)-dy*std::sin(radians))-bw/2.)),
+                    static_cast<int>(std::lround(centerY+scale*(dx*std::sin(radians)+dy*std::cos(radians))-bh/2.)),bw,bh};
                 if (auto* bitmap=cachedBitmap(bitmapTextures,i,b.bgra.data(),b.width,b.height,b.stride))
-                    SDL_RenderCopyEx(videoRenderer,bitmap,nullptr,&dest,angle,nullptr,SDL_FLIP_NONE);
+                    SDL_RenderCopyEx(videoRenderer,bitmap,nullptr,&dest,angle,nullptr,static_cast<SDL_RendererFlip>((mirrorH ? SDL_FLIP_HORIZONTAL : 0) | (mirrorV ? SDL_FLIP_VERTICAL : 0)));
             }
         }
         auto* track = external ? external : embedded;
@@ -276,6 +301,33 @@ VideoWidget::VideoWidget(QWidget* parent) : QWidget(parent), impl_(std::make_uni
     }
 }
 VideoWidget::~VideoWidget() = default;
+double VideoWidget::viewScale() const { return impl_->fit ? impl_->fitScale(size()) : impl_->scale; }
+bool VideoWidget::isViewFit() const { return impl_->fit; }
+QPointF VideoWidget::viewPan() const { return impl_->pan; }
+bool VideoWidget::mirrorHorizontal() const { return impl_->mirrorH; }
+bool VideoWidget::mirrorVertical() const { return impl_->mirrorV; }
+void VideoWidget::fitView() {
+    impl_->fit=true; impl_->pan={}; present(); update(); emit viewChanged();
+}
+void VideoWidget::setViewScale(double scale) {
+    if (!std::isfinite(scale) || scale<=0) return;
+    impl_->fit=false; impl_->scale=std::clamp(scale,0.01,32.0); impl_->pan={};
+    present(); update(); emit viewChanged();
+}
+void VideoWidget::zoomView(double factor, QPointF anchor) {
+    if (!std::isfinite(factor) || factor<=0 || !std::isfinite(anchor.x()) || !std::isfinite(anchor.y())) return;
+    const double old=viewScale(), next=std::clamp(old*factor,0.01,32.0);
+    const QPointF relative=anchor-QPointF(width()/2.,height()/2.);
+    impl_->pan=relative-(relative-impl_->pan)*(next/old);
+    impl_->fit=false; impl_->scale=next; present(); update(); emit viewChanged();
+}
+void VideoWidget::panView(QPointF delta) {
+    if (!std::isfinite(delta.x()) || !std::isfinite(delta.y())) return;
+    impl_->pan+=delta; present(); update(); emit viewChanged();
+}
+void VideoWidget::setMirrors(bool horizontal, bool vertical) {
+    impl_->mirrorH=horizontal; impl_->mirrorV=vertical; present(); update(); emit viewChanged();
+}
 QtPlayer* VideoWidget::player() const { return impl_->player; }
 void VideoWidget::setVideoFrame(std::shared_ptr<const play_core::VideoFrame> frame) { impl_->setFrame(std::move(frame)); update(); present(); }
 void VideoWidget::setSubtitleFrame(std::shared_ptr<const play_core::SubtitleFrame> frame) { impl_->setSubtitle(std::move(frame)); update(); present(); }

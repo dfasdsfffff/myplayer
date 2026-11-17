@@ -1,4 +1,12 @@
 #include "review_window.h"
+#include "review_timeline.h"
+#include "review_settings.h"
+#include <QApplication>
+#include <QDockWidget>
+#include <QMouseEvent>
+#include <QWheelEvent>
+#include <QKeyEvent>
+#include <cmath>
 
 #include <player_sdk_qt/qt_player.h>
 #include <player_sdk_qt/video_widget.h>
@@ -26,15 +34,12 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
-#include <QPaintEvent>
-#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScreen>
 #include <QSignalBlocker>
 #include <QSlider>
-#include <QStyleOptionSlider>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStandardPaths>
@@ -55,7 +60,6 @@
 
 namespace review {
 namespace {
-constexpr int SliderSteps = 1000000;
 constexpr int MaxNotes = 10000;
 constexpr qsizetype MaxNoteText = 10000;
 constexpr qint64 MaxPositionMs = 9007199254740991LL;
@@ -63,12 +67,12 @@ constexpr qint64 MaxPositionMs = 9007199254740991LL;
 QColor noteCategoryColor(const QString& category)
 {
     if (category == QStringLiteral("问题"))
-        return QColor(QStringLiteral("#ff7b72"));
+        return QColor(QStringLiteral("#e66767"));
     if (category == QStringLiteral("建议"))
-        return QColor(QStringLiteral("#58a6ff"));
+        return QColor(QStringLiteral("#3987e5"));
     if (category == QStringLiteral("重点"))
-        return QColor(QStringLiteral("#f2cc60"));
-    return QColor(QStringLiteral("#a78bfa"));
+        return QColor(QStringLiteral("#c98500"));
+    return QColor(QStringLiteral("#9085e9"));
 }
 
 QString absolutePath(const QString& path)
@@ -222,61 +226,18 @@ private:
 };
 } // namespace
 
-class ReviewTimelineSlider final : public QSlider {
-public:
-    explicit ReviewTimelineSlider(QWidget* parent = nullptr)
-        : QSlider(Qt::Horizontal, parent)
-    {
-        setMinimumHeight(24);
-    }
-
-    void setReviewNotes(const QList<ReviewNote>& notes, qint64 durationMs)
-    {
-        markers_.clear();
-        markers_.reserve(notes.size());
-        for (const ReviewNote& note : notes)
-            markers_.push_back({note.positionMs, noteCategoryColor(note.category)});
-        durationMs_ = durationMs;
-        update();
-    }
-
-protected:
-    void paintEvent(QPaintEvent* event) override
-    {
-        QSlider::paintEvent(event);
-        if (durationMs_ <= 0 || markers_.isEmpty())
-            return;
-
-        QStyleOptionSlider option;
-        initStyleOption(&option);
-        const QRect groove = style()->subControlRect(
-            QStyle::CC_Slider, &option, QStyle::SC_SliderGroove, this);
-        if (!groove.isValid())
-            return;
-
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        for (const Marker& marker : markers_) {
-            const long double fraction = static_cast<long double>(
-                std::clamp<qint64>(marker.positionMs, 0, durationMs_)) / durationMs_;
-            const int x = groove.left() + qRound(static_cast<double>(fraction * groove.width()));
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(marker.color);
-            painter.drawRoundedRect(QRect(x - 2, groove.center().y() - 7, 4, 14), 2, 2);
+ReviewWindow::ReviewWindow(QWidget* parent, const QString& settingsFile)
+    : QMainWindow(parent), playbackController_([this](ReviewPlaybackController::Command command, qint64 target) {
+        if (!player_) return play_core::Request{};
+        play_core::Request request;
+        switch (command) {
+        case ReviewPlaybackController::Command::Pause: request=player_->setPaused(true); break;
+        case ReviewPlaybackController::Command::Seek: request=player_->seek(target); break;
+        case ReviewPlaybackController::Command::Play: request=player_->play(); break;
         }
-    }
-
-private:
-    struct Marker {
-        qint64 positionMs;
-        QColor color;
-    };
-    QList<Marker> markers_;
-    qint64 durationMs_{0};
-};
-
-ReviewWindow::ReviewWindow(QWidget* parent)
-    : QMainWindow(parent), undoStack_(new QUndoStack(this)), recoveryTimer_(new QTimer(this))
+        submit(request,tr("审片播放控制"));
+        return request;
+    }), settingsFile_(settingsFile), undoStack_(new QUndoStack(this)), recoveryTimer_(new QTimer(this))
 {
     setObjectName(QStringLiteral("reviewWindow"));
     recoveryTimer_->setInterval(2000);
@@ -284,6 +245,16 @@ ReviewWindow::ReviewWindow(QWidget* parent)
     connect(recoveryTimer_, &QTimer::timeout, this, &ReviewWindow::writeRecovery);
     connect(undoStack_, &QUndoStack::indexChanged, this, [this] { refreshDirtyState(); });
     buildUi();
+    buildReviewTools();
+    defaultLayout_=saveState(1);
+    const auto settings=ReviewSettings::load(settingsFile_);
+    settings.restoreWindow(this);
+    volumeSlider_->setValue(settings.volume);
+    const int speedIndex=speedCombo_->findData(settings.speed);
+    speedCombo_->setCurrentIndex(speedIndex>=0 ? speedIndex : speedCombo_->findData(1.0));
+    followAction_->setChecked(settings.follow);
+    stopScrubAction_->setChecked(settings.stopOnScrub);
+    qApp->installEventFilter(this);
     player_ = new player_sdk_qt::QtPlayer(this);
     player_->setObjectName(QStringLiteral("reviewPlayer"));
     bindPlayer();
@@ -294,6 +265,12 @@ ReviewWindow::ReviewWindow(QWidget* parent)
 
 ReviewWindow::~ReviewWindow()
 {
+    qApp->removeEventFilter(this);
+    recoveryTimer_->stop();
+    // Child widgets and QUndoStack may emit while QWidget tears them down,
+    // after this class's document and controller members have been destroyed.
+    for (auto* child : findChildren<QObject*>())
+        disconnect(child,nullptr,this,nullptr);
     retirePlayer();
 }
 
@@ -307,7 +284,7 @@ void ReviewWindow::buildUi()
     } else {
         resize(1280, 820);
     }
-    setMinimumSize(1000, 680);
+    setMinimumSize(800, 600);
     setStyleSheet(QStringLiteral(R"(
         QMainWindow, QWidget#reviewCentralWidget { background:#10171f; color:#cad5df; font-family:"Microsoft YaHei UI"; font-size:12px; }
         QWidget#reviewHeader { background:#181e25; }
@@ -337,6 +314,8 @@ void ReviewWindow::buildUi()
         QMenu::item { padding:7px 24px; }
         QToolBar { background:transparent; border:none; spacing:6px; }
         QStatusBar { background:#151d27; color:#9baabb; }
+        QDockWidget { color:#cad5df; }
+        QDockWidget::title { background:#19232e; padding:6px; }
         QSplitter::handle { background:#10171f; width:8px; }
     )"));
 
@@ -411,38 +390,40 @@ void ReviewWindow::buildUi()
 
     auto* playbackMenu = menuBar()->addMenu(tr("播放(&P)"));
     auto* toggleAction = playbackMenu->addAction(tr("播放/暂停"));
+    toggleAction->setObjectName(QStringLiteral("togglePlaybackAction"));
     toggleAction->setShortcut(QKeySequence(Qt::Key_Space));
     toggleAction->setShortcutContext(Qt::WindowShortcut);
     connect(toggleAction, &QAction::triggered, this, &ReviewWindow::togglePlayback);
     auto* backAction = playbackMenu->addAction(tr("后退 5 秒"));
-    backAction->setShortcut(QKeySequence(Qt::Key_Left));
+
     connect(backAction, &QAction::triggered, this, [this] { seekRelative(-5000); });
     auto* forwardAction = playbackMenu->addAction(tr("前进 5 秒"));
-    forwardAction->setShortcut(QKeySequence(Qt::Key_Right));
+
     connect(forwardAction, &QAction::triggered, this, [this] { seekRelative(5000); });
 
     playbackMenu->addSeparator();
     previousFrameAction_ = playbackMenu->addAction(tr("上一帧"));
     previousFrameAction_->setObjectName(QStringLiteral("previousFrameAction"));
-    previousFrameAction_->setShortcut(QKeySequence(Qt::Key_Comma));
+    previousFrameAction_->setShortcuts({QKeySequence(Qt::Key_Left),QKeySequence(Qt::Key_Comma)});
+    previousFrameAction_->setAutoRepeat(false);
     connect(previousFrameAction_, &QAction::triggered, this, [this] { stepFrame(-1); });
     nextFrameAction_ = playbackMenu->addAction(tr("下一帧"));
     nextFrameAction_->setObjectName(QStringLiteral("nextFrameAction"));
-    nextFrameAction_->setShortcut(QKeySequence(Qt::Key_Period));
+    nextFrameAction_->setShortcuts({QKeySequence(Qt::Key_Right),QKeySequence(Qt::Key_Period)});
+    nextFrameAction_->setAutoRepeat(false);
     connect(nextFrameAction_, &QAction::triggered, this, [this] { stepFrame(1); });
     startAction_ = playbackMenu->addAction(tr("转到开头"));
     startAction_->setObjectName(QStringLiteral("goToStartAction"));
     startAction_->setShortcut(QKeySequence(Qt::Key_Home));
     connect(startAction_, &QAction::triggered, this, [this] {
-        if (canSeek()) submit(player_->seek(0), tr("转到开头"));
+        if (canSeek()) navigate(0,state_==play_core::PlayerState::Playing);
     });
     endAction_ = playbackMenu->addAction(tr("转到结尾附近"));
     endAction_->setObjectName(QStringLiteral("goToEndAction"));
     endAction_->setShortcut(QKeySequence(Qt::Key_End));
     connect(endAction_, &QAction::triggered, this, [this] {
         if (canSeek() && durationMs_ > 0) {
-            if (submit(player_->setPaused(true), tr("暂停")))
-                submit(player_->seek(std::max<qint64>(0, durationMs_ - 1)), tr("转到结尾附近"));
+            navigate(std::max<qint64>(0, durationMs_ - 1),false);
         }
     });
     jumpAction_ = playbackMenu->addAction(tr("跳转到时间…"));
@@ -467,13 +448,15 @@ void ReviewWindow::buildUi()
     auto* fullScreenAction = viewMenu->addAction(tr("全屏"));
     fullScreenAction->setShortcut(QKeySequence(Qt::Key_F11));
     connect(fullScreenAction, &QAction::triggered, this, [this] {
+        if (presentation_) { setPresentation(false); return; }
         if (isFullScreen()) showNormal(); else showFullScreen();
     });
     auto* escapeFullScreen = new QAction(this);
     escapeFullScreen->setShortcut(QKeySequence(Qt::Key_Escape));
     addAction(escapeFullScreen);
     connect(escapeFullScreen, &QAction::triggered, this, [this] {
-        if (isFullScreen()) showNormal();
+        if (presentation_) setPresentation(false);
+        else if (isFullScreen()) showNormal();
     });
     auto* notesVisibleAction = viewMenu->addAction(tr("显示标注面板"));
     notesVisibleAction->setObjectName(QStringLiteral("notesVisibleAction"));
@@ -540,7 +523,7 @@ void ReviewWindow::buildUi()
     auto* playback = new QWidget;
     body->addWidget(playback);
     playback->setObjectName(QStringLiteral("reviewPlayerPanel"));
-    playback->setMinimumWidth(560);
+    playback->setMinimumWidth(400);
     auto* playbackLayout = new QVBoxLayout(playback);
     playbackLayout->setContentsMargins(0, 0, 0, 0);
     playbackLayout->setSpacing(10);
@@ -567,7 +550,8 @@ void ReviewWindow::buildUi()
     videoStack_->addWidget(videoPlaceholder_);
     video_ = new player_sdk_qt::VideoWidget(videoStack_);
     video_->setObjectName(QStringLiteral("reviewVideoWidget"));
-    video_->setMinimumSize(480, 270);
+    video_->setMinimumSize(320, 180);
+    video_->setFocusPolicy(Qt::StrongFocus);
     videoStack_->addWidget(video_);
     videoStack_->setCurrentWidget(videoPlaceholder_);
     playbackLayout->addWidget(videoStack_, 1);
@@ -577,11 +561,10 @@ void ReviewWindow::buildUi()
     auto* controlsLayout = new QVBoxLayout(playbackPanel);
     controlsLayout->setContentsMargins(14, 10, 14, 10);
     controlsLayout->setSpacing(8);
-    positionSlider_ = new ReviewTimelineSlider(playbackPanel);
+    positionSlider_ = new ReviewTimeline(playbackPanel);
     positionSlider_->setObjectName(QStringLiteral("positionSlider"));
     positionSlider_->setAccessibleName(tr("播放进度"));
     positionSlider_->setToolTip(tr("彩色标记表示问题、建议、重点和其他审片标注。"));
-    positionSlider_->setRange(0, SliderSteps);
     controlsLayout->addWidget(positionSlider_);
     auto* controls = new QHBoxLayout;
     playPauseButton_ = new QPushButton(tr("播放"), playbackPanel);
@@ -619,10 +602,14 @@ void ReviewWindow::buildUi()
     playbackLayout->addWidget(playbackPanel);
 
     auto* annotation = new QWidget;
-    body->addWidget(annotation);
+    notesDock_=new QDockWidget(tr("审片标注"),this);
+    notesDock_->setObjectName(QStringLiteral("reviewNotesDock"));
+    notesDock_->setWidget(annotation);
+    addDockWidget(Qt::RightDockWidgetArea,notesDock_);
     annotation->setObjectName(QStringLiteral("reviewNotesPanel"));
-    connect(notesVisibleAction, &QAction::toggled, annotation, &QWidget::setVisible);
-    annotation->setMinimumWidth(360);
+    connect(notesVisibleAction, &QAction::toggled, notesDock_, &QWidget::setVisible);
+    connect(notesDock_, &QDockWidget::visibilityChanged, notesVisibleAction, &QAction::setChecked);
+    annotation->setMinimumWidth(280);
     auto* annotationLayout = new QVBoxLayout(annotation);
     annotationLayout->setContentsMargins(14, 14, 14, 10);
     annotationLayout->setSpacing(10);
@@ -672,21 +659,20 @@ void ReviewWindow::buildUi()
     annotationLayout->addWidget(notesTable_, 1);
 
     body->setStretchFactor(0, 3);
-    body->setStretchFactor(1, 2);
-    body->setSizes({720, 480});
+    body->setSizes({720});
     rootLayout->addWidget(body, 1);
     statusLabel_ = new QLabel(central);
     statusLabel_->setObjectName(QStringLiteral("playbackStatusLabel"));
     statusLabel_->setWordWrap(true);
     statusLabel_->setContentsMargins(18, 3, 18, 3);
-    rootLayout->addWidget(statusLabel_);
+    statusBar()->addWidget(statusLabel_,1);
     errorLabel_ = new QLabel(central);
     errorLabel_->setObjectName(QStringLiteral("playbackErrorLabel"));
     errorLabel_->setWordWrap(true);
     errorLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     errorLabel_->setContentsMargins(18, 3, 18, 3);
     errorLabel_->hide();
-    rootLayout->addWidget(errorLabel_);
+    statusBar()->addPermanentWidget(errorLabel_);
     setCentralWidget(central);
     statusBar()->setObjectName(QStringLiteral("reviewStatusBar"));
 
@@ -697,12 +683,28 @@ void ReviewWindow::buildUi()
     });
     connect(noteSearch_, &QLineEdit::textChanged, this, [this] { rebuildNotes(selectedNote()); });
     connect(noteCategoryFilter_, &QComboBox::currentIndexChanged, this, [this] { rebuildNotes(selectedNote()); });
-    connect(positionSlider_, &QSlider::sliderReleased, this, &ReviewWindow::seekFromSlider);
-    connect(positionSlider_, &QSlider::valueChanged, this, [this] {
-        if (positionSlider_->isSliderDown())
-            updateTimeDisplay();
-        else
-            seekFromSlider();
+    connect(positionSlider_, &ReviewTimeline::scrubStarted, this, [this] {
+        if (canSeek()) playbackController_.beginScrub(state_==play_core::PlayerState::Playing);
+    });
+    connect(positionSlider_, &ReviewTimeline::scrubFinished, this, [this](qint64 target) {
+        if (canSeek()) playbackController_.endScrub(target,stopScrubAction_->isChecked());
+        updateTimeDisplay();
+    });
+    connect(positionSlider_, &ReviewTimeline::scrubCancelled, this, [this] {
+        if (canSeek()) playbackController_.pause(); else playbackController_.cancel();
+    });
+    connect(positionSlider_, &ReviewTimeline::previewChanged,this,&ReviewWindow::updateTimeDisplay);
+    connect(positionSlider_, &ReviewTimeline::noteActivated,this,[this](int index) {
+        if (index<0 || index>=document_.notes.size()) return;
+        bool visible=false;
+        for (int row=0; row<notesTable_->rowCount(); ++row) {
+            if (notesTable_->item(row,0)->data(Qt::UserRole).toInt()==index) {
+                notesTable_->selectRow(row); visible=true; break;
+            }
+        }
+        if (!visible) { notesTable_->clearSelection(); statusBar()->showMessage(tr("该标注被当前筛选隐藏；已定位到标注时间。"),5000); }
+        positionSlider_->setSelectedNote(index);
+        if (canSeek()) navigate(document_.notes[index].positionMs,false);
     });
     connect(volumeSlider_, &QSlider::valueChanged, this, [this](int value) {
         if (canControlMedia())
@@ -742,7 +744,7 @@ void ReviewWindow::bindPlayer()
                 QTimer::singleShot(0, this, [this, generation] {
                     if (generation == playerGeneration_ && state_ == play_core::PlayerState::Ended
                         && loopAction_->isChecked() && !openFailed_)
-                        startMedia();
+                        startMedia(true);
                 });
             }
             break;
@@ -770,6 +772,8 @@ void ReviewWindow::bindPlayer()
             else if (!info->seekable)
                 playbackError(tr("该视频不可定位，无法添加或定位标注。"));
         }
+        playbackController_.setDuration(mediaInfo_ && !mediaInfo_->live ? durationMs_ : 0);
+        updateRange();
         updateTimeDisplay();
         positionSlider_->setReviewNotes(document_.notes, durationMs_);
         updateControls();
@@ -779,12 +783,8 @@ void ReviewWindow::bindPlayer()
         if (generation != playerGeneration_)
             return;
         positionMs_ = std::max<qint64>(0, milliseconds);
-        if (!positionSlider_->isSliderDown()) {
-            const QSignalBlocker blocker(positionSlider_);
-            const long double fraction = durationMs_ > 0
-                ? static_cast<long double>(std::min(positionMs_, durationMs_)) / durationMs_ : 0;
-            positionSlider_->setValue(static_cast<int>(fraction * SliderSteps));
-        }
+        positionSlider_->setPosition(positionMs_);
+        playbackController_.positionChanged(positionMs_,state_==play_core::PlayerState::Playing);
         updateTimeDisplay();
     });
     connect(player_, &player_sdk_qt::QtPlayer::videoFrameChanged, this,
@@ -809,14 +809,21 @@ void ReviewWindow::bindPlayer()
         if (generation != playerGeneration_ || result.session != session_)
             return;
         const QString action = pendingOperations_.take(result.operation);
+        playbackController_.finished(result);
+        if (result.operation==openOperation_ && startupPending_) {
+            startupPending_=false;
+            if (result.status==play_core::OperationStatus::Succeeded) {
+                playbackController_.setDuration(mediaInfo_ && !mediaInfo_->live ? durationMs_ : 0);
+                if (startupPosition_>0 && canSeek())
+                    playbackController_.seek(std::min(startupPosition_,playbackController_.inPoint()),true);
+                else playbackController_.play(0);
+            }
+        }
         if (result.operation == stepOperation_) {
             stepOperation_ = 0;
             if (result.status == play_core::OperationStatus::Succeeded && result.actualPositionMs) {
                 positionMs_ = *result.actualPositionMs;
-                const QSignalBlocker blocker(positionSlider_);
-                const long double fraction = durationMs_ > 0
-                    ? static_cast<long double>(std::min(positionMs_, durationMs_)) / durationMs_ : 0;
-                positionSlider_->setValue(static_cast<int>(fraction * SliderSteps));
+                positionSlider_->setPosition(positionMs_);
                 updateTimeDisplay();
             }
             updateControls();
@@ -839,6 +846,8 @@ void ReviewWindow::bindPlayer()
 
 void ReviewWindow::retirePlayer()
 {
+    playbackController_.cancel();
+    startupPending_=false;
     ++playerGeneration_;
     if (player_) {
         disconnect(player_, nullptr, this, nullptr);
@@ -864,8 +873,8 @@ void ReviewWindow::resetPlayback()
     pendingOperations_.clear();
     {
         const QSignalBlocker blocker(positionSlider_);
-        positionSlider_->setSliderDown(false);
-        positionSlider_->setValue(0);
+        positionSlider_->cancelScrub();
+        positionSlider_->setPosition(0);
     }
     errorLabel_->clear();
     errorLabel_->hide();
@@ -876,11 +885,16 @@ void ReviewWindow::resetPlayback()
     updateControls();
 }
 
-bool ReviewWindow::startMedia()
+bool ReviewWindow::startMedia(bool preserveRange)
 {
+    const qint64 initial=preserveRange ? playbackController_.inPoint() : 0;
     if (session_ != 0 || state_ != play_core::PlayerState::Closed)
         retirePlayer();
     resetPlayback();
+    playbackController_.reset(preserveRange);
+    if (!preserveRange) { video_->fitView(); video_->setMirrors(false,false); }
+    startupPosition_=initial;
+    updateRange();
     const QFileInfo media(document_.mediaPath);
     if (!media.isFile() || !media.isReadable()) {
         statusLabel_->setText(tr("媒体缺失或不可读：%1。可重新关联视频，标注仍可编辑、保存和导出。")
@@ -917,7 +931,7 @@ bool ReviewWindow::startMedia()
         return false;
     }
     videoStack_->setCurrentWidget(video_);
-    submit(player_->play(), tr("播放"));
+    startupPending_=true;
     return true;
 }
 
@@ -1026,6 +1040,12 @@ bool ReviewWindow::canSeek() const
 void ReviewWindow::updateControls()
 {
     const bool hasDocument = !document_.mediaPath.isEmpty();
+    const bool canRange=canSeek() && durationMs_>0 && mediaInfo_ && !mediaInfo_->live;
+    if (inAction_) inAction_->setEnabled(canRange);
+    if (outAction_) outAction_->setEnabled(canRange);
+    for (const char* name : {"resetInPointAction","resetOutPointAction"})
+        if (auto* action=findChild<QAction*>(QString::fromLatin1(name))) action->setEnabled(canRange);
+    positionSlider_->setSelectedNote(selectedNote());
     const bool selected = selectedNote() >= 0;
     const bool replay = player_ && session_ && state_ == play_core::PlayerState::Ended && !openFailed_;
     playPauseButton_->setEnabled(canControlMedia() || replay);
@@ -1067,12 +1087,12 @@ void ReviewWindow::updateControls()
 
 qint64 ReviewWindow::sliderPositionMs() const
 {
-    return static_cast<qint64>(static_cast<long double>(durationMs_) * positionSlider_->value() / SliderSteps);
+    return positionSlider_->position();
 }
 
 void ReviewWindow::updateTimeDisplay()
 {
-    const qint64 shown = positionSlider_->isSliderDown() ? sliderPositionMs() : positionMs_;
+    const qint64 shown = positionSlider_->isScrubbing() ? sliderPositionMs() : positionMs_;
     timeLabel_->setText(tr("%1 / %2").arg(formatTime(shown),
                                          durationMs_ > 0 ? formatTime(durationMs_) : tr("未知时长")));
 }
@@ -1135,7 +1155,7 @@ void ReviewWindow::rebuildNotes(int selected)
         time->setData(Qt::UserRole, index);
         notesTable_->setItem(row, 0, time);
         auto* categoryItem = new QTableWidgetItem(note.category);
-        categoryItem->setForeground(noteCategoryColor(note.category));
+        categoryItem->setData(Qt::DecorationRole,noteCategoryColor(note.category));
         notesTable_->setItem(row, 1, categoryItem);
         notesTable_->setItem(row, 2, new QTableWidgetItem(note.text));
         if (index == selected)
@@ -1266,9 +1286,7 @@ void ReviewWindow::seekNote()
         return;
     errorLabel_->clear();
     errorLabel_->hide();
-    if (!submit(player_->setPaused(true), tr("暂停")))
-        return;
-    submit(player_->seek(document_.notes.at(index).positionMs), tr("定位标注"));
+    navigate(document_.notes.at(index).positionMs,false);
 }
 
 void ReviewWindow::selectAdjacentNote(int direction)
@@ -1288,29 +1306,17 @@ void ReviewWindow::selectAdjacentNote(int direction)
 void ReviewWindow::togglePlayback()
 {
     if (player_ && state_ == play_core::PlayerState::Ended) {
-        startMedia();
+        startMedia(true);
         return;
     }
     if (!canControlMedia())
         return;
     errorLabel_->clear();
     errorLabel_->hide();
-    if (state_ == play_core::PlayerState::Playing)
-        submit(player_->setPaused(true), tr("暂停"));
-    else if (state_ == play_core::PlayerState::Paused)
-        submit(player_->setPaused(false), tr("恢复播放"));
-    else
-        submit(player_->play(), tr("播放"));
-}
-
-void ReviewWindow::seekFromSlider()
-{
-    if (!canSeek() || durationMs_ <= 0)
-        return;
-    errorLabel_->clear();
-    errorLabel_->hide();
-    submit(player_->seek(sliderPositionMs()), tr("定位"));
-    updateTimeDisplay();
+    startupPending_=false;
+    if (state_ == play_core::PlayerState::Playing || playbackController_.busy())
+        playbackController_.pause();
+    else playbackController_.play(positionMs_);
 }
 
 void ReviewWindow::seekRelative(qint64 offsetMs)
@@ -1319,13 +1325,15 @@ void ReviewWindow::seekRelative(qint64 offsetMs)
         return;
     const qint64 target = std::clamp(positionMs_ + offsetMs, qint64{0},
                                      durationMs_ > 0 ? durationMs_ : MaxPositionMs);
-    submit(player_->seek(target), tr("相对时间跳转"));
+    navigate(target,state_==play_core::PlayerState::Playing);
 }
 
 void ReviewWindow::stepFrame(int direction)
 {
     if (!canSeek() || stepOperation_ || !mediaInfo_ || mediaInfo_->live)
         return;
+    startupPending_=false;
+    playbackController_.cancel();
     const auto request = player_->stepFrame(direction);
     if (submit(request, direction < 0 ? tr("上一帧") : tr("下一帧"))) {
         stepOperation_ = request.operation;
@@ -1350,8 +1358,7 @@ void ReviewWindow::jumpToTime()
         showError(tr("无法跳转"), tr("时间格式无效或超出视频范围。请使用 小时:分钟:秒.毫秒。"));
         return;
     }
-    if (submit(player_->setPaused(true), tr("暂停")))
-        submit(player_->seek(target), tr("跳转到时间"));
+    navigate(target,false);
 }
 
 void ReviewWindow::exportFrame()
@@ -1510,7 +1517,161 @@ void ReviewWindow::closeEvent(QCloseEvent* event)
         return;
     }
     removeRecovery();
+    saveSettings();
     event->accept();
 }
 
 } // namespace review
+
+namespace review {
+void ReviewWindow::buildReviewTools()
+{
+    viewToolbar_=addToolBar(tr("文件与视图"));
+    viewToolbar_->setObjectName(QStringLiteral("reviewViewToolbar"));
+    viewToolbar_->addAction(findChild<QAction*>(QStringLiteral("openVideoAction")));
+    viewToolbar_->addActions({saveAction_,undoAction_,redoAction_});
+    auto* viewMenu=menuBar()->addMenu(tr("画面"));
+    auto addView=[&](const QString& text, const char* name, const std::function<void()>& callback) {
+        auto* action=viewMenu->addAction(text); action->setObjectName(QString::fromLatin1(name));
+        connect(action,&QAction::triggered,this,callback); viewToolbar_->addAction(action); return action;
+    };
+    addView(tr("适应窗口"),"fitViewAction",[this]{video_->fitView();});
+    addView(tr("1:1"),"actualSizeAction",[this]{video_->setViewScale(1);});
+    addView(tr("缩小"),"zoomOutAction",[this]{video_->zoomView(1/1.25,video_->rect().center());});
+    addView(tr("放大"),"zoomInAction",[this]{video_->zoomView(1.25,video_->rect().center());});
+    auto* horizontal=addView(tr("水平镜像"),"mirrorHorizontalAction",[this]{video_->setMirrors(!video_->mirrorHorizontal(),video_->mirrorVertical());});
+    auto* vertical=addView(tr("垂直镜像"),"mirrorVerticalAction",[this]{video_->setMirrors(video_->mirrorHorizontal(),!video_->mirrorVertical());});
+    horizontal->setCheckable(true); vertical->setCheckable(true);
+    zoomLabel_=new QLabel(viewToolbar_); zoomLabel_->setMinimumWidth(70); viewToolbar_->addWidget(zoomLabel_);
+    connect(video_,&player_sdk_qt::VideoWidget::viewChanged,this,[this,horizontal,vertical]{
+        zoomLabel_->setText(video_->isViewFit() ? tr("适应") : QString::number(video_->viewScale()*100,'f',0)+"%");
+        horizontal->setChecked(video_->mirrorHorizontal()); vertical->setChecked(video_->mirrorVertical());
+    });
+    video_->fitView();
+    auto* timelineMenu=menuBar()->addMenu(tr("时间线"));
+    auto* all=timelineMenu->addAction(tr("显示全片"));
+    connect(all,&QAction::triggered,positionSlider_,&ReviewTimeline::frameAll);
+    followAction_=timelineMenu->addAction(tr("跟随播放头")); followAction_->setObjectName(QStringLiteral("followTimelineAction")); followAction_->setCheckable(true); followAction_->setChecked(true);
+    connect(followAction_,&QAction::toggled,positionSlider_,&ReviewTimeline::setFollow);
+    stopScrubAction_=timelineMenu->addAction(tr("拖动后保持暂停")); stopScrubAction_->setObjectName(QStringLiteral("stopOnScrubAction")); stopScrubAction_->setCheckable(true);
+    timelineMenu->addSeparator();
+    auto rangeAction=[&](const QString& text,const char* name,QKeySequence shortcut,const std::function<void()>& fn) {
+        auto* action=timelineMenu->addAction(text); action->setObjectName(QString::fromLatin1(name));
+        action->setShortcut(shortcut); action->setAutoRepeat(false);
+        connect(action,&QAction::triggered,this,fn); return action;
+    };
+    inAction_=rangeAction(tr("I 入点"),"setInPointAction",QKeySequence(Qt::Key_I),[this]{
+        if (!canSeek()) return;
+        if (!playbackController_.setRange(positionMs_,playbackController_.outPoint()))
+            statusBar()->showMessage(tr("入点必须早于出点。"),4000);
+        updateRange();
+    });
+    outAction_=rangeAction(tr("O 出点"),"setOutPointAction",QKeySequence(Qt::Key_O),[this]{
+        if (!canSeek()) return;
+        if (!playbackController_.setRange(playbackController_.inPoint(),positionMs_))
+            statusBar()->showMessage(tr("出点必须晚于入点。"),4000);
+        updateRange();
+    });
+    rangeAction(tr("重置入点"),"resetInPointAction",QKeySequence(Qt::SHIFT|Qt::Key_I),[this]{
+        playbackController_.setRange(0,playbackController_.outPoint()); updateRange();
+    });
+    rangeAction(tr("重置出点"),"resetOutPointAction",QKeySequence(Qt::SHIFT|Qt::Key_O),[this]{
+        playbackController_.setRange(playbackController_.inPoint(),durationMs_); updateRange();
+    });
+    auto* navigation=findChild<QToolBar*>(QStringLiteral("reviewNavigationToolbar"));
+    navigation->insertAction(previousFrameAction_,inAction_);
+    navigation->insertAction(previousFrameAction_,outAction_);
+    navigation->insertSeparator(previousFrameAction_);
+    rangeLabel_=new QLabel; rangeLabel_->setObjectName(QStringLiteral("reviewRangeLabel"));
+    rangeLabel_->setToolTip(tr("毫秒区间，仅本次媒体会话；不写入工程。非帧精确、非无缝，可能短暂越过边界。"));
+    statusBar()->addPermanentWidget(rangeLabel_);
+    connect(loopAction_,&QAction::toggled,this,[this](bool checked){playbackController_.setLoop(checked);});
+    auto* workspace=menuBar()->addMenu(tr("工作区")); workspace->addAction(viewToolbar_->toggleViewAction());
+    auto* reset=workspace->addAction(tr("重置工作区")); reset->setObjectName(QStringLiteral("resetWorkspaceAction"));
+    connect(reset,&QAction::triggered,this,[this]{
+        if (presentation_) setPresentation(false);
+        restoreState(defaultLayout_,1); notesDock_->show(); viewToolbar_->show();
+        video_->fitView(); video_->setMirrors(false,false); positionSlider_->frameAll();
+    });
+    presentationAction_=workspace->addAction(tr("演示模式"));
+    presentationAction_->setObjectName(QStringLiteral("presentationAction"));
+    presentationAction_->setCheckable(true); presentationAction_->setShortcut(QKeySequence(Qt::CTRL|Qt::Key_P));
+    connect(presentationAction_,&QAction::toggled,this,&ReviewWindow::setPresentation);
+}
+void ReviewWindow::setPresentation(bool enabled)
+{
+    if (presentation_==enabled) return;
+    presentation_=enabled;
+    const QSignalBlocker blocker(presentationAction_); presentationAction_->setChecked(enabled);
+    if (enabled) {
+        presentationLayout_=saveState(1); wasFullScreen_=isFullScreen();
+        notesDock_->hide(); viewToolbar_->hide(); menuBar()->hide(); statusBar()->hide();
+        for (const char* name : {"reviewHeader","mediaHeader","playbackPanel"})
+            if (auto* widget=findChild<QWidget*>(QString::fromLatin1(name))) widget->hide();
+        showFullScreen(); video_->setFocus();
+    } else {
+        if (!wasFullScreen_) showNormal();
+        restoreState(presentationLayout_,1); menuBar()->show(); statusBar()->show();
+        for (const char* name : {"reviewHeader","mediaHeader","playbackPanel"})
+            if (auto* widget=findChild<QWidget*>(QString::fromLatin1(name))) widget->show();
+    }
+}
+void ReviewWindow::saveSettings()
+{
+    if (presentation_) setPresentation(false);
+    if (isFullScreen()) showNormal();
+    ReviewSettings settings;
+    settings.geometry=saveGeometry(); settings.layout=saveState(1);
+    settings.volume=volumeSlider_->value(); settings.speed=speedCombo_->currentData().toDouble();
+    settings.follow=followAction_->isChecked(); settings.stopOnScrub=stopScrubAction_->isChecked();
+    settings.save(settingsFile_);
+}
+void ReviewWindow::updateRange()
+{
+    positionSlider_->setPlaybackRange(playbackController_.inPoint(),playbackController_.outPoint());
+    if (rangeLabel_) rangeLabel_->setText(tr("会话区间 %1 → %2").arg(formatTime(playbackController_.inPoint()),formatTime(playbackController_.outPoint())));
+}
+void ReviewWindow::navigate(qint64 target, bool resume)
+{
+    if (!canSeek()) return;
+    startupPending_=false; playbackController_.seek(target,resume);
+}
+bool ReviewWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    auto* widget=qobject_cast<QWidget*>(watched);
+    if (!widget || (widget!=this && !isAncestorOf(widget))) return QMainWindow::eventFilter(watched,event);
+    if (event->type()==QEvent::ShortcutOverride) {
+        auto* key=static_cast<QKeyEvent*>(event);
+        const bool mediaFocus=widget==video_ || widget==positionSlider_;
+        const int k=key->key();
+        const bool mediaKey=k==Qt::Key_Space || k==Qt::Key_Left || k==Qt::Key_Right || k==Qt::Key_Comma
+            || k==Qt::Key_Period || k==Qt::Key_Home || k==Qt::Key_End || k==Qt::Key_I || k==Qt::Key_O
+            || k==Qt::Key_J || k==Qt::Key_L;
+        if ((!mediaFocus && mediaKey) || qApp->activeModalWidget()) { key->accept(); return true; }
+    }
+    if (watched==video_) {
+        if (event->type()==QEvent::Wheel) {
+            auto* e=static_cast<QWheelEvent*>(event); video_->zoomView(std::pow(1.2,e->angleDelta().y()/120.),e->position()); return true;
+        }
+        if (event->type()==QEvent::MouseButtonDblClick) { video_->fitView(); return true; }
+        if (event->type()==QEvent::MouseButtonPress) {
+            auto* e=static_cast<QMouseEvent*>(event); video_->setFocus(Qt::MouseFocusReason);
+            if (e->button()==Qt::MiddleButton) { panningView_=true; lastViewMouse_=e->position(); return true; }
+        }
+        if (event->type()==QEvent::MouseMove && panningView_) {
+            auto* e=static_cast<QMouseEvent*>(event); video_->panView(e->position()-lastViewMouse_); lastViewMouse_=e->position(); return true;
+        }
+        if (event->type()==QEvent::MouseButtonRelease || event->type()==QEvent::FocusOut) panningView_=false;
+        if (event->type()==QEvent::KeyPress) {
+            auto* e=static_cast<QKeyEvent*>(event);
+            if (e->key()==Qt::Key_Backspace) video_->fitView();
+            else if (e->key()==Qt::Key_0) video_->setViewScale(1);
+            else if (e->key()==Qt::Key_Equal || e->key()==Qt::Key_Plus) video_->zoomView(1.25,video_->rect().center());
+            else if (e->key()==Qt::Key_Minus) video_->zoomView(1/1.25,video_->rect().center());
+            else return QMainWindow::eventFilter(watched,event);
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(watched,event);
+}
+}
