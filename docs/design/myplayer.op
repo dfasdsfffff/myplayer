@@ -3,21 +3,4608 @@
   "children": [
     {
       "type": "frame",
-      "id": "n10",
-      "name": "Frame",
+      "id": "n1",
+      "name": "MyPlayer 播放器 · 主界面",
       "x": 0.0,
       "y": 0.0,
-      "width": 1200.0,
-      "height": 800.0,
+      "width": 1440.0,
+      "height": 900.0,
+      "layout": "vertical",
+      "clipContent": true,
       "fill": [
         {
           "type": "solid",
-          "color": "#FFFFFF"
+          "color": "#10171F"
         }
       ],
-      "children": []
+      "children": [
+        {
+          "type": "frame",
+          "id": "n2",
+          "name": "标题栏",
+          "width": "fill_container",
+          "height": 56.0,
+          "layout": "horizontal",
+          "gap": 10.0,
+          "padding": [
+            0.0,
+            18.0
+          ],
+          "alignItems": "center",
+          "fill": [
+            {
+              "type": "solid",
+              "color": "#181E25"
+            }
+          ],
+          "stroke": {
+            "thickness": {
+              "bottom": 1.0
+            },
+            "fill": [
+              {
+                "type": "solid",
+                "color": "#232C36"
+              }
+            ]
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "n3",
+              "name": "应用标识",
+              "width": 28.0,
+              "height": 28.0,
+              "layout": "horizontal",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": 8.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#56D6A0"
+                }
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n4",
+                  "name": "标识字母",
+                  "content": "M",
+                  "fontSize": 16.0,
+                  "fontWeight": 700,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#10271D"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "n5",
+              "name": "应用名",
+              "content": "MyPlayer",
+              "fontSize": 15.0,
+              "fontWeight": 700,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#EDF2F7"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n6",
+              "name": "标题分隔",
+              "width": 1.0,
+              "height": 22.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#303B48"
+                }
+              ],
+              "children": []
+            },
+            {
+              "type": "icon_font",
+              "id": "n7",
+              "name": "媒体类型图标",
+              "iconFontName": "file-video",
+              "iconFontFamily": "lucide",
+              "width": 14.0,
+              "height": 14.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#6FE0AF"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "n8",
+              "name": "影片名",
+              "content": "Summer Field · 1080p.mp4",
+              "fontSize": 12.0,
+              "fontWeight": 500,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#9BAABB"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n9",
+              "name": "分辨率胶囊",
+              "width": "fit_content",
+              "height": 19.0,
+              "layout": "horizontal",
+              "gap": 4.0,
+              "padding": [
+                0.0,
+                7.0
+              ],
+              "alignItems": "center",
+              "cornerRadius": 4.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#222D39"
+                }
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n10",
+                  "name": "分辨率胶囊-t",
+                  "content": "1920×1080",
+                  "fontSize": 9.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#9BAABB"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n11",
+              "name": "编码胶囊",
+              "width": "fit_content",
+              "height": 19.0,
+              "layout": "horizontal",
+              "gap": 4.0,
+              "padding": [
+                0.0,
+                7.0
+              ],
+              "alignItems": "center",
+              "cornerRadius": 4.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#222D39"
+                }
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n12",
+                  "name": "编码胶囊-t",
+                  "content": "H.264",
+                  "fontSize": 9.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#9BAABB"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n13",
+              "name": "spacer",
+              "width": "fill_container",
+              "height": 1.0,
+              "children": []
+            },
+            {
+              "type": "frame",
+              "id": "n14",
+              "name": "菜单按钮",
+              "width": 30.0,
+              "height": 30.0,
+              "layout": "horizontal",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": 5.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "transparent"
+                }
+              ],
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "n15",
+                  "name": "菜单按钮-i",
+                  "iconFontName": "menu",
+                  "iconFontFamily": "lucide",
+                  "width": 15.0,
+                  "height": 15.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#9BAABB"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n16",
+              "name": "设置按钮",
+              "width": 30.0,
+              "height": 30.0,
+              "layout": "horizontal",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": 5.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "transparent"
+                }
+              ],
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "n17",
+                  "name": "设置按钮-i",
+                  "iconFontName": "settings",
+                  "iconFontFamily": "lucide",
+                  "width": 15.0,
+                  "height": 15.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#9BAABB"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n18",
+              "name": "全屏按钮",
+              "width": 30.0,
+              "height": 30.0,
+              "layout": "horizontal",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": 5.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "transparent"
+                }
+              ],
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "n19",
+                  "name": "全屏按钮-i",
+                  "iconFontName": "maximize",
+                  "iconFontFamily": "lucide",
+                  "width": 15.0,
+                  "height": 15.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#9BAABB"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n20",
+              "name": "窗口按钮分隔",
+              "width": 1.0,
+              "height": 18.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#2A3542"
+                }
+              ],
+              "children": []
+            },
+            {
+              "type": "frame",
+              "id": "n21",
+              "name": "最小化按钮",
+              "width": 30.0,
+              "height": 30.0,
+              "layout": "horizontal",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": 5.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "transparent"
+                }
+              ],
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "n22",
+                  "name": "最小化按钮-i",
+                  "iconFontName": "minus",
+                  "iconFontFamily": "lucide",
+                  "width": 15.0,
+                  "height": 15.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#9BAABB"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n23",
+              "name": "最大化按钮",
+              "width": 30.0,
+              "height": 30.0,
+              "layout": "horizontal",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": 5.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "transparent"
+                }
+              ],
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "n24",
+                  "name": "最大化按钮-i",
+                  "iconFontName": "square",
+                  "iconFontFamily": "lucide",
+                  "width": 15.0,
+                  "height": 15.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#9BAABB"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n25",
+              "name": "关闭按钮",
+              "width": 30.0,
+              "height": 30.0,
+              "layout": "horizontal",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": 5.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#242C35"
+                }
+              ],
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "n26",
+                  "name": "关闭图标",
+                  "iconFontName": "x",
+                  "iconFontFamily": "lucide",
+                  "width": 15.0,
+                  "height": 15.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#9BAABB"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "n27",
+          "name": "中部分区",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "horizontal",
+          "gap": 0.0,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "n28",
+              "name": "画面区",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "none",
+              "clipContent": true,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#10171F"
+                }
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n29",
+                  "name": "状态浮层",
+                  "x": 20.0,
+                  "y": 70.0,
+                  "width": "fit_content",
+                  "height": 24.0,
+                  "layout": "horizontal",
+                  "gap": 6.0,
+                  "padding": [
+                    0.0,
+                    8.0
+                  ],
+                  "alignItems": "center",
+                  "cornerRadius": 4.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#10171FE6"
+                    }
+                  ],
+                  "stroke": {
+                    "thickness": 1.0,
+                    "fill": [
+                      {
+                        "type": "solid",
+                        "color": "#2C3947"
+                      }
+                    ]
+                  },
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n30",
+                      "name": "播放状态点",
+                      "width": 6.0,
+                      "height": 6.0,
+                      "cornerRadius": 3.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "text",
+                      "id": "n31",
+                      "name": "状态浮层文字",
+                      "content": "正在播放 · 第 3 项",
+                      "fontSize": 10.0,
+                      "fontWeight": 600,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#C9D6E1"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n32",
+                  "name": "清晰度浮层",
+                  "x": 1000.0,
+                  "y": 70.0,
+                  "width": "fit_content",
+                  "height": 24.0,
+                  "layout": "horizontal",
+                  "gap": 5.0,
+                  "padding": [
+                    0.0,
+                    8.0
+                  ],
+                  "alignItems": "center",
+                  "cornerRadius": 4.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#10171FE6"
+                    }
+                  ],
+                  "stroke": {
+                    "thickness": 1.0,
+                    "fill": [
+                      {
+                        "type": "solid",
+                        "color": "#2C3947"
+                      }
+                    ]
+                  },
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n33",
+                      "name": "清晰度图标",
+                      "iconFontName": "monitor-play",
+                      "iconFontFamily": "lucide",
+                      "width": 12.0,
+                      "height": 12.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#8395A7"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n34",
+                      "name": "清晰度文字",
+                      "content": "1920×1080 · 30 fps",
+                      "fontSize": 10.0,
+                      "fontWeight": 500,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#C9D6E1"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "image",
+                  "id": "n316",
+                  "name": "影片画面",
+                  "x": 0.0,
+                  "y": 0.0,
+                  "src": "op-image:0eb2b9663b893c33",
+                  "width": 1140.0,
+                  "height": 746.0
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n37",
+              "name": "播放列表",
+              "width": 300.0,
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 10.0,
+              "padding": [
+                14.0,
+                12.0
+              ],
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#171F29"
+                }
+              ],
+              "stroke": {
+                "thickness": {
+                  "left": 1.0
+                },
+                "fill": [
+                  {
+                    "type": "solid",
+                    "color": "#2B3643"
+                  }
+                ]
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n38",
+                  "name": "列表标题行",
+                  "width": "fill_container",
+                  "height": 22.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "n39",
+                      "name": "列表标题",
+                      "content": "播放列表",
+                      "fontSize": 14.0,
+                      "fontWeight": 700,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#E6EDF4"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n40",
+                      "name": "列表计数",
+                      "width": "fit_content",
+                      "height": 18.0,
+                      "layout": "horizontal",
+                      "gap": 4.0,
+                      "padding": [
+                        0.0,
+                        7.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 4.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#233C31"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n41",
+                          "name": "列表计数-t",
+                          "content": "12",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#78E1B2"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n42",
+                      "name": "spacer",
+                      "width": "fill_container",
+                      "height": 1.0,
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n43",
+                      "name": "收起列表",
+                      "width": 22.0,
+                      "height": 22.0,
+                      "layout": "horizontal",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "n44",
+                          "name": "收起列表-i",
+                          "iconFontName": "chevron-right",
+                          "iconFontFamily": "lucide",
+                          "width": 15.0,
+                          "height": 15.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#9BAABB"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n45",
+                  "name": "列表内容",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n46",
+                      "name": "列表项-01",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n47",
+                          "name": "序号-01",
+                          "content": "01",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n48",
+                          "name": "名称-01",
+                          "width": "fill_container",
+                          "content": "Big Buck Bunny · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n49",
+                          "name": "时长-01",
+                          "content": "10:34",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n50",
+                      "name": "列表项-02",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n51",
+                          "name": "序号-02",
+                          "content": "02",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n52",
+                          "name": "名称-02",
+                          "width": "fill_container",
+                          "content": "Sintel · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n53",
+                          "name": "时长-02",
+                          "content": "14:48",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n54",
+                      "name": "列表项-03",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#233C31"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#3E7D62"
+                          }
+                        ]
+                      },
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "n55",
+                          "name": "当前播放指示",
+                          "width": 2.0,
+                          "height": 22.0,
+                          "cornerRadius": 1.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#56D6A0"
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "type": "text",
+                          "id": "n56",
+                          "name": "序号-03",
+                          "content": "03",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#8AF0C2"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n57",
+                          "name": "名称-03",
+                          "width": "fill_container",
+                          "content": "Summer Field · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 600,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#EDF2F7"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n58",
+                          "name": "时长-03",
+                          "content": "10:53",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#9BD9BC"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n59",
+                      "name": "列表项-04",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n60",
+                          "name": "序号-04",
+                          "content": "04",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n61",
+                          "name": "名称-04",
+                          "width": "fill_container",
+                          "content": "Tears of Steel · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n62",
+                          "name": "时长-04",
+                          "content": "12:14",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n63",
+                      "name": "列表项-05",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n64",
+                          "name": "序号-05",
+                          "content": "05",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n65",
+                          "name": "名称-05",
+                          "width": "fill_container",
+                          "content": "Cosmos Laundromat · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n66",
+                          "name": "时长-05",
+                          "content": "12:10",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n67",
+                      "name": "列表项-06",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n68",
+                          "name": "序号-06",
+                          "content": "06",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n69",
+                          "name": "名称-06",
+                          "width": "fill_container",
+                          "content": "Agent 327 · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n70",
+                          "name": "时长-06",
+                          "content": "03:51",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n71",
+                      "name": "列表项-07",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n72",
+                          "name": "序号-07",
+                          "content": "07",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n73",
+                          "name": "名称-07",
+                          "width": "fill_container",
+                          "content": "Caminandes 3 · 720p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n74",
+                          "name": "时长-07",
+                          "content": "02:30",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n75",
+                      "name": "列表项-08",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n76",
+                          "name": "序号-08",
+                          "content": "08",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n77",
+                          "name": "名称-08",
+                          "width": "fill_container",
+                          "content": "Spring · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n78",
+                          "name": "时长-08",
+                          "content": "07:44",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n79",
+                      "name": "列表项-09",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n80",
+                          "name": "序号-09",
+                          "content": "09",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n81",
+                          "name": "名称-09",
+                          "width": "fill_container",
+                          "content": "Coffee Run · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n82",
+                          "name": "时长-09",
+                          "content": "04:12",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n83",
+                      "name": "列表项-10",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n84",
+                          "name": "序号-10",
+                          "content": "10",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n85",
+                          "name": "名称-10",
+                          "width": "fill_container",
+                          "content": "Sprite Fright · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n86",
+                          "name": "时长-10",
+                          "content": "10:28",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n87",
+                      "name": "列表项-11",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n88",
+                          "name": "序号-11",
+                          "content": "11",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n89",
+                          "name": "名称-11",
+                          "width": "fill_container",
+                          "content": "Charge · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n90",
+                          "name": "时长-11",
+                          "content": "02:58",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n91",
+                      "name": "列表项-12",
+                      "width": "fill_container",
+                      "height": 50.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "transparent"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n92",
+                          "name": "序号-12",
+                          "content": "12",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#4E5F70"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n93",
+                          "name": "名称-12",
+                          "width": "fill_container",
+                          "content": "Wing It · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "textGrowth": "fixed-width",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n94",
+                          "name": "时长-12",
+                          "content": "03:08",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#6C7E8F"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n95",
+                      "name": "spacer",
+                      "width": "fill_container",
+                      "height": 1.0,
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n96",
+                  "name": "列表底注",
+                  "width": "fill_container",
+                  "height": 18.0,
+                  "layout": "horizontal",
+                  "gap": 6.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n97",
+                      "name": "底注图标",
+                      "iconFontName": "keyboard",
+                      "iconFontFamily": "lucide",
+                      "width": 11.0,
+                      "height": 11.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#4E5F70"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n98",
+                      "name": "底注文字",
+                      "content": "F6 显示 / 隐藏 · 拖放文件可添加",
+                      "fontSize": 10.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#5E7183"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "n99",
+          "name": "控制栏",
+          "width": "fill_container",
+          "height": 72.0,
+          "layout": "vertical",
+          "gap": 5.0,
+          "padding": [
+            7.0,
+            18.0
+          ],
+          "fill": [
+            {
+              "type": "solid",
+              "color": "#181E25"
+            }
+          ],
+          "stroke": {
+            "thickness": {
+              "top": 1.0
+            },
+            "fill": [
+              {
+                "type": "solid",
+                "color": "#232C36"
+              }
+            ]
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "n100",
+              "name": "进度行",
+              "width": "fill_container",
+              "height": 18.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n101",
+                  "name": "已播时间",
+                  "width": 58.0,
+                  "content": "00:04:12",
+                  "fontFamily": "Consolas",
+                  "fontSize": 11.0,
+                  "fontWeight": 600,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#CAD5DF"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n102",
+                  "name": "进度轨道",
+                  "width": 1268.0,
+                  "height": 16.0,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n103",
+                      "name": "轨道底",
+                      "x": 0.0,
+                      "y": 6.0,
+                      "width": 1268.0,
+                      "height": 6.0,
+                      "cornerRadius": 3.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#2B3743"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n104",
+                      "name": "缓冲进度",
+                      "x": 0.0,
+                      "y": 6.0,
+                      "width": 660.0,
+                      "height": 6.0,
+                      "cornerRadius": 3.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#4A5B6A"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n105",
+                      "name": "已播进度",
+                      "x": 0.0,
+                      "y": 6.0,
+                      "width": 507.0,
+                      "height": 6.0,
+                      "cornerRadius": 3.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n106",
+                      "name": "进度滑块",
+                      "x": 501.0,
+                      "y": 3.0,
+                      "width": 12.0,
+                      "height": 12.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#EAF6F0"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 2.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#56D6A0"
+                          }
+                        ]
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "n107",
+                  "name": "总时长",
+                  "width": 58.0,
+                  "content": "00:10:34",
+                  "fontFamily": "Consolas",
+                  "fontSize": 11.0,
+                  "fontWeight": 500,
+                  "textAlign": "right",
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#8395A7"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n108",
+              "name": "控件行",
+              "width": "fill_container",
+              "height": 34.0,
+              "layout": "horizontal",
+              "gap": 8.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n109",
+                  "name": "播放暂停按钮",
+                  "width": 34.0,
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "cornerRadius": 17.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#56D6A0"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n110",
+                      "name": "播放图标",
+                      "iconFontName": "pause",
+                      "iconFontFamily": "lucide",
+                      "width": 15.0,
+                      "height": 15.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#10271D"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n111",
+                  "name": "停止按钮",
+                  "width": 28.0,
+                  "height": 28.0,
+                  "layout": "horizontal",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#1E2732"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n112",
+                      "name": "停止按钮-i",
+                      "iconFontName": "square",
+                      "iconFontFamily": "lucide",
+                      "width": 15.0,
+                      "height": 15.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#C2CED9"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n113",
+                  "name": "上一项按钮",
+                  "width": 28.0,
+                  "height": 28.0,
+                  "layout": "horizontal",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#1E2732"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n114",
+                      "name": "上一项按钮-i",
+                      "iconFontName": "skip-back",
+                      "iconFontFamily": "lucide",
+                      "width": 15.0,
+                      "height": 15.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#C2CED9"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n115",
+                  "name": "下一项按钮",
+                  "width": 28.0,
+                  "height": 28.0,
+                  "layout": "horizontal",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#1E2732"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n116",
+                      "name": "下一项按钮-i",
+                      "iconFontName": "skip-forward",
+                      "iconFontFamily": "lucide",
+                      "width": 15.0,
+                      "height": 15.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#C2CED9"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n117",
+                  "name": "控件分隔",
+                  "width": 1.0,
+                  "height": 18.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#2A3542"
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "type": "frame",
+                  "id": "n118",
+                  "name": "循环模式控件",
+                  "width": "fit_content",
+                  "height": 28.0,
+                  "layout": "horizontal",
+                  "gap": 6.0,
+                  "padding": [
+                    0.0,
+                    9.0
+                  ],
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#1E2732"
+                    }
+                  ],
+                  "stroke": {
+                    "thickness": 1.0,
+                    "fill": [
+                      {
+                        "type": "solid",
+                        "color": "#303B48"
+                      }
+                    ]
+                  },
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n119",
+                      "name": "循环模式图标",
+                      "iconFontName": "repeat",
+                      "iconFontFamily": "lucide",
+                      "width": 13.0,
+                      "height": 13.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#78E1B2"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n120",
+                      "name": "循环模式值",
+                      "content": "列表循环",
+                      "fontSize": 10.0,
+                      "fontWeight": 500,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#CAD5DF"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon_font",
+                      "id": "n121",
+                      "name": "循环下拉",
+                      "iconFontName": "chevron-down",
+                      "iconFontFamily": "lucide",
+                      "width": 11.0,
+                      "height": 11.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#9BAABB"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n122",
+                  "name": "倍速控件",
+                  "width": 78.0,
+                  "height": 28.0,
+                  "layout": "horizontal",
+                  "gap": 5.0,
+                  "padding": [
+                    0.0,
+                    9.0
+                  ],
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#1E2732"
+                    }
+                  ],
+                  "stroke": {
+                    "thickness": 1.0,
+                    "fill": [
+                      {
+                        "type": "solid",
+                        "color": "#303B48"
+                      }
+                    ]
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "n123",
+                      "name": "倍速值",
+                      "content": "1.0×",
+                      "fontSize": 10.0,
+                      "fontWeight": 500,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#CAD5DF"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n124",
+                      "name": "spacer",
+                      "width": "fill_container",
+                      "height": 1.0,
+                      "children": []
+                    },
+                    {
+                      "type": "icon_font",
+                      "id": "n125",
+                      "name": "倍速下拉",
+                      "iconFontName": "chevron-down",
+                      "iconFontFamily": "lucide",
+                      "width": 11.0,
+                      "height": 11.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#9BAABB"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n126",
+                  "name": "spacer",
+                  "width": "fill_container",
+                  "height": 1.0,
+                  "children": []
+                },
+                {
+                  "type": "frame",
+                  "id": "n127",
+                  "name": "音量图标按钮",
+                  "width": 22.0,
+                  "height": 22.0,
+                  "layout": "horizontal",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "transparent"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n128",
+                      "name": "音量图标按钮-i",
+                      "iconFontName": "volume-2",
+                      "iconFontFamily": "lucide",
+                      "width": 15.0,
+                      "height": 15.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#9BAABB"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n129",
+                  "name": "音量轨道",
+                  "width": 84.0,
+                  "height": 16.0,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n130",
+                      "name": "音量底槽",
+                      "x": 0.0,
+                      "y": 6.0,
+                      "width": 84.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#2B3743"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n131",
+                      "name": "音量已调",
+                      "x": 0.0,
+                      "y": 6.0,
+                      "width": 67.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n132",
+                      "name": "音量滑块",
+                      "x": 63.0,
+                      "y": 3.0,
+                      "width": 9.0,
+                      "height": 9.0,
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#EAF6F0"
+                        }
+                      ],
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "n133",
+                  "name": "音量值",
+                  "content": "80%",
+                  "fontFamily": "Consolas",
+                  "fontSize": 10.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#8395A7"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n134",
+                  "name": "控件分隔二",
+                  "width": 1.0,
+                  "height": 18.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#2A3542"
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "type": "frame",
+                  "id": "n135",
+                  "name": "设置按钮二",
+                  "width": 28.0,
+                  "height": 28.0,
+                  "layout": "horizontal",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#1E2732"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n136",
+                      "name": "设置按钮二-i",
+                      "iconFontName": "settings",
+                      "iconFontFamily": "lucide",
+                      "width": 15.0,
+                      "height": 15.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#C2CED9"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n137",
+                  "name": "播放列表按钮",
+                  "width": 28.0,
+                  "height": 28.0,
+                  "layout": "horizontal",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#233C31"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n138",
+                      "name": "播放列表按钮-i",
+                      "iconFontName": "list",
+                      "iconFontFamily": "lucide",
+                      "width": 15.0,
+                      "height": 15.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#78E1B2"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n139",
+                  "name": "全屏按钮二",
+                  "width": 28.0,
+                  "height": 28.0,
+                  "layout": "horizontal",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#1E2732"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "n140",
+                      "name": "全屏按钮二-i",
+                      "iconFontName": "maximize",
+                      "iconFontFamily": "lucide",
+                      "width": 15.0,
+                      "height": 15.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#C2CED9"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "n141",
+          "name": "状态栏",
+          "width": "fill_container",
+          "height": 26.0,
+          "layout": "horizontal",
+          "gap": 9.0,
+          "padding": [
+            0.0,
+            18.0
+          ],
+          "alignItems": "center",
+          "fill": [
+            {
+              "type": "solid",
+              "color": "#151D27"
+            }
+          ],
+          "stroke": {
+            "thickness": {
+              "top": 1.0
+            },
+            "fill": [
+              {
+                "type": "solid",
+                "color": "#232C36"
+              }
+            ]
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "n142",
+              "name": "状态指示",
+              "width": 6.0,
+              "height": 6.0,
+              "cornerRadius": 3.0,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#56D6A0"
+                }
+              ],
+              "children": []
+            },
+            {
+              "type": "text",
+              "id": "n143",
+              "name": "状态文字",
+              "content": "正在播放",
+              "fontSize": 10.0,
+              "fontWeight": 600,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#8AB29D"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "n144",
+              "name": "分隔一",
+              "content": "│",
+              "fontSize": 10.0,
+              "fontWeight": 400,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#33414F"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "n145",
+              "name": "解码信息",
+              "content": "解码 H.264 / AAC · 硬件加速 开启",
+              "fontSize": 10.0,
+              "fontWeight": 400,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#8395A7"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n146",
+              "name": "spacer",
+              "width": "fill_container",
+              "height": 1.0,
+              "children": []
+            },
+            {
+              "type": "text",
+              "id": "n147",
+              "name": "快捷键提示",
+              "content": "Space 播放 / 暂停   F6 播放列表   Enter 全屏   Ctrl+O 打开文件",
+              "fontSize": 10.0,
+              "fontWeight": 400,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#4E5F70"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "n148",
+      "name": "视觉规范 · 令牌与状态",
+      "x": 1520.0,
+      "y": 0.0,
+      "width": 560.0,
+      "height": 900.0,
+      "layout": "vertical",
+      "gap": 14.0,
+      "padding": [
+        22.0,
+        22.0
+      ],
+      "fill": [
+        {
+          "type": "solid",
+          "color": "#10171F"
+        }
+      ],
+      "stroke": {
+        "thickness": 1.0,
+        "fill": [
+          {
+            "type": "solid",
+            "color": "#2B3643"
+          }
+        ]
+      },
+      "children": [
+        {
+          "type": "text",
+          "id": "n149",
+          "name": "规范标题",
+          "content": "视觉规范 · MyPlayer",
+          "fontSize": 18.0,
+          "fontWeight": 700,
+          "fill": [
+            {
+              "type": "solid",
+              "color": "#EDF2F7"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "n150",
+          "name": "规范副标题",
+          "width": "fill_container",
+          "content": "基于 MyPlayer Monitor 监控端同一套深色令牌，绿色为唯一点缀色。",
+          "fontSize": 11.0,
+          "fontWeight": 400,
+          "lineHeight": 1.5,
+          "textGrowth": "fixed-width",
+          "fill": [
+            {
+              "type": "solid",
+              "color": "#8395A7"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "n151",
+          "name": "色板组",
+          "width": "fill_container",
+          "height": "fit_content",
+          "layout": "vertical",
+          "gap": 8.0,
+          "children": [
+            {
+              "type": "text",
+              "id": "n152",
+              "name": "色板标题",
+              "content": "颜色令牌",
+              "fontSize": 12.0,
+              "fontWeight": 700,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#E4EDF5"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n153",
+              "name": "色卡行",
+              "width": "fill_container",
+              "height": 34.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n154",
+                  "name": "色卡-背景 base",
+                  "width": "fill_container",
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n155",
+                      "name": "色块-背景 base",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#10171F"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#2C3947"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n156",
+                      "name": "色卡文字-背景 base",
+                      "width": "fill_container",
+                      "height": 32.0,
+                      "layout": "vertical",
+                      "gap": 2.0,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n157",
+                          "name": "色名-背景 base",
+                          "content": "背景 base",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#CAD5DF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n158",
+                          "name": "色值-背景 base",
+                          "content": "#10171F",
+                          "fontFamily": "Consolas",
+                          "fontSize": 9.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5E7183"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n159",
+                  "name": "色卡-面板 panel",
+                  "width": "fill_container",
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n160",
+                      "name": "色块-面板 panel",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#171F29"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#2C3947"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n161",
+                      "name": "色卡文字-面板 panel",
+                      "width": "fill_container",
+                      "height": 32.0,
+                      "layout": "vertical",
+                      "gap": 2.0,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n162",
+                          "name": "色名-面板 panel",
+                          "content": "面板 panel",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#CAD5DF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n163",
+                          "name": "色值-面板 panel",
+                          "content": "#171F29",
+                          "fontFamily": "Consolas",
+                          "fontSize": 9.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5E7183"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n164",
+              "name": "色卡行",
+              "width": "fill_container",
+              "height": 34.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n165",
+                  "name": "色卡-顶栏 header",
+                  "width": "fill_container",
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n166",
+                      "name": "色块-顶栏 header",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#181E25"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#2C3947"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n167",
+                      "name": "色卡文字-顶栏 header",
+                      "width": "fill_container",
+                      "height": 32.0,
+                      "layout": "vertical",
+                      "gap": 2.0,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n168",
+                          "name": "色名-顶栏 header",
+                          "content": "顶栏 header",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#CAD5DF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n169",
+                          "name": "色值-顶栏 header",
+                          "content": "#181E25",
+                          "fontFamily": "Consolas",
+                          "fontSize": 9.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5E7183"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n170",
+                  "name": "色卡-描边 border",
+                  "width": "fill_container",
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n171",
+                      "name": "色块-描边 border",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#2B3643"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#2C3947"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n172",
+                      "name": "色卡文字-描边 border",
+                      "width": "fill_container",
+                      "height": 32.0,
+                      "layout": "vertical",
+                      "gap": 2.0,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n173",
+                          "name": "色名-描边 border",
+                          "content": "描边 border",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#CAD5DF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n174",
+                          "name": "色值-描边 border",
+                          "content": "#2B3643",
+                          "fontFamily": "Consolas",
+                          "fontSize": 9.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5E7183"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n175",
+              "name": "色卡行",
+              "width": "fill_container",
+              "height": 34.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n176",
+                  "name": "色卡-点缀 accent",
+                  "width": "fill_container",
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n177",
+                      "name": "色块-点缀 accent",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#2C3947"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n178",
+                      "name": "色卡文字-点缀 accent",
+                      "width": "fill_container",
+                      "height": 32.0,
+                      "layout": "vertical",
+                      "gap": 2.0,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n179",
+                          "name": "色名-点缀 accent",
+                          "content": "点缀 accent",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#CAD5DF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n180",
+                          "name": "色值-点缀 accent",
+                          "content": "#56D6A0",
+                          "fontFamily": "Consolas",
+                          "fontSize": 9.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5E7183"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n181",
+                  "name": "色卡-点缀浅 accent-soft",
+                  "width": "fill_container",
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n182",
+                      "name": "色块-点缀浅 accent-soft",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#233C31"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#2C3947"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n183",
+                      "name": "色卡文字-点缀浅 accent-soft",
+                      "width": "fill_container",
+                      "height": 32.0,
+                      "layout": "vertical",
+                      "gap": 2.0,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n184",
+                          "name": "色名-点缀浅 accent-soft",
+                          "content": "点缀浅 accent-soft",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#CAD5DF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n185",
+                          "name": "色值-点缀浅 accent-soft",
+                          "content": "#233C31",
+                          "fontFamily": "Consolas",
+                          "fontSize": 9.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5E7183"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n186",
+              "name": "色卡行",
+              "width": "fill_container",
+              "height": 34.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n187",
+                  "name": "色卡-主文字 text",
+                  "width": "fill_container",
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n188",
+                      "name": "色块-主文字 text",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#EDF2F7"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#2C3947"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n189",
+                      "name": "色卡文字-主文字 text",
+                      "width": "fill_container",
+                      "height": 32.0,
+                      "layout": "vertical",
+                      "gap": 2.0,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n190",
+                          "name": "色名-主文字 text",
+                          "content": "主文字 text",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#CAD5DF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n191",
+                          "name": "色值-主文字 text",
+                          "content": "#EDF2F7",
+                          "fontFamily": "Consolas",
+                          "fontSize": 9.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5E7183"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n192",
+                  "name": "色卡-次文字 muted",
+                  "width": "fill_container",
+                  "height": 34.0,
+                  "layout": "horizontal",
+                  "gap": 8.0,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n193",
+                      "name": "色块-次文字 muted",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "cornerRadius": 6.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#9BAABB"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#2C3947"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n194",
+                      "name": "色卡文字-次文字 muted",
+                      "width": "fill_container",
+                      "height": 32.0,
+                      "layout": "vertical",
+                      "gap": 2.0,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n195",
+                          "name": "色名-次文字 muted",
+                          "content": "次文字 muted",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#CAD5DF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n196",
+                          "name": "色值-次文字 muted",
+                          "content": "#9BAABB",
+                          "fontFamily": "Consolas",
+                          "fontSize": 9.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5E7183"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "n197",
+          "name": "按钮状态组",
+          "width": "fill_container",
+          "height": "fit_content",
+          "layout": "vertical",
+          "gap": 10.0,
+          "children": [
+            {
+              "type": "text",
+              "id": "n198",
+              "name": "按钮标题",
+              "content": "控件状态",
+              "fontSize": 12.0,
+              "fontWeight": 700,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#E4EDF5"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n199",
+              "name": "播放按钮四态",
+              "width": "fill_container",
+              "height": 40.0,
+              "layout": "horizontal",
+              "gap": 12.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n200",
+                  "name": "主按钮-默认",
+                  "width": "fit_content",
+                  "height": 40.0,
+                  "layout": "vertical",
+                  "gap": 4.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n201",
+                      "name": "主按钮底默认",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "layout": "horizontal",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 17.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "n202",
+                          "name": "主按钮图标默认",
+                          "iconFontName": "play",
+                          "iconFontFamily": "lucide",
+                          "width": 15.0,
+                          "height": 15.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#10271D"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n203",
+                      "name": "主按钮标注默认",
+                      "content": "默认",
+                      "fontSize": 9.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#5E7183"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n204",
+                  "name": "主按钮-悬停",
+                  "width": "fit_content",
+                  "height": 40.0,
+                  "layout": "vertical",
+                  "gap": 4.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n205",
+                      "name": "主按钮底悬停",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "layout": "horizontal",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 17.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#6FE3B2"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "n206",
+                          "name": "主按钮图标悬停",
+                          "iconFontName": "play",
+                          "iconFontFamily": "lucide",
+                          "width": 15.0,
+                          "height": 15.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#10271D"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n207",
+                      "name": "主按钮标注悬停",
+                      "content": "悬停",
+                      "fontSize": 9.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#5E7183"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n208",
+                  "name": "主按钮-按下",
+                  "width": "fit_content",
+                  "height": 40.0,
+                  "layout": "vertical",
+                  "gap": 4.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n209",
+                      "name": "主按钮底按下",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "layout": "horizontal",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 17.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#3FB98A"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "n210",
+                          "name": "主按钮图标按下",
+                          "iconFontName": "play",
+                          "iconFontFamily": "lucide",
+                          "width": 15.0,
+                          "height": 15.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#0B1F16"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n211",
+                      "name": "主按钮标注按下",
+                      "content": "按下",
+                      "fontSize": 9.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#5E7183"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n212",
+                  "name": "主按钮-禁用",
+                  "width": "fit_content",
+                  "height": 40.0,
+                  "layout": "vertical",
+                  "gap": 4.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n213",
+                      "name": "主按钮底禁用",
+                      "width": 34.0,
+                      "height": 34.0,
+                      "layout": "horizontal",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 17.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#22303A"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "n214",
+                          "name": "主按钮图标禁用",
+                          "iconFontName": "play",
+                          "iconFontFamily": "lucide",
+                          "width": 15.0,
+                          "height": 15.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#5A6B7A"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n215",
+                      "name": "主按钮标注禁用",
+                      "content": "禁用",
+                      "fontSize": 9.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#5E7183"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n216",
+                  "name": "图标按钮-常态",
+                  "width": "fit_content",
+                  "height": 40.0,
+                  "layout": "vertical",
+                  "gap": 4.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n217",
+                      "name": "图标底常态",
+                      "width": 28.0,
+                      "height": 28.0,
+                      "layout": "horizontal",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#1E2732"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "n218",
+                          "name": "图标常态",
+                          "iconFontName": "settings",
+                          "iconFontFamily": "lucide",
+                          "width": 14.0,
+                          "height": 14.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#C2CED9"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n219",
+                      "name": "图标标注常态",
+                      "content": "图标默认",
+                      "fontSize": 9.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#5E7183"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n220",
+                  "name": "图标按钮-悬停",
+                  "width": "fit_content",
+                  "height": 40.0,
+                  "layout": "vertical",
+                  "gap": 4.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n221",
+                      "name": "图标底悬停",
+                      "width": 28.0,
+                      "height": 28.0,
+                      "layout": "horizontal",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#2C3A47"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "n222",
+                          "name": "图标悬停",
+                          "iconFontName": "settings",
+                          "iconFontFamily": "lucide",
+                          "width": 14.0,
+                          "height": 14.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#EAF6F0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n223",
+                      "name": "图标标注悬停",
+                      "content": "图标悬停",
+                      "fontSize": 9.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#5E7183"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n224",
+                  "name": "图标按钮-选中",
+                  "width": "fit_content",
+                  "height": 40.0,
+                  "layout": "vertical",
+                  "gap": 4.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n225",
+                      "name": "图标底选中",
+                      "width": 28.0,
+                      "height": 28.0,
+                      "layout": "horizontal",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#233C31"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#3E7D62"
+                          }
+                        ]
+                      },
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "n226",
+                          "name": "图标选中",
+                          "iconFontName": "list",
+                          "iconFontFamily": "lucide",
+                          "width": 14.0,
+                          "height": 14.0,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#78E1B2"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n227",
+                      "name": "图标标注选中",
+                      "content": "选中态",
+                      "fontSize": 9.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#5E7183"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "n228",
+          "name": "进度条组",
+          "width": "fill_container",
+          "height": "fit_content",
+          "layout": "vertical",
+          "gap": 8.0,
+          "children": [
+            {
+              "type": "text",
+              "id": "n229",
+              "name": "进度条标题",
+              "content": "进度条",
+              "fontSize": 12.0,
+              "fontWeight": 700,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#E4EDF5"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n230",
+              "name": "进度条示例",
+              "width": "fill_container",
+              "height": "fit_content",
+              "layout": "vertical",
+              "gap": 6.0,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n231",
+                  "name": "进度-默认",
+                  "width": "fill_container",
+                  "height": 20.0,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "id": "n317",
+                      "name": "进度-默认-已播",
+                      "x": 0.0,
+                      "y": 8.0,
+                      "width": 206.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "n318",
+                      "name": "进度-默认-缓冲",
+                      "x": 206.0,
+                      "y": 8.0,
+                      "width": 129.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#41525F"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "n319",
+                      "name": "进度-默认-未播",
+                      "x": 335.0,
+                      "y": 8.0,
+                      "width": 181.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#2B3743"
+                        }
+                      ],
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n235",
+                  "name": "进度-悬停",
+                  "width": "fill_container",
+                  "height": 20.0,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n239",
+                      "name": "进度-悬停-滑",
+                      "x": 200.0,
+                      "y": 4.0,
+                      "width": 11.0,
+                      "height": 11.0,
+                      "cornerRadius": 5.5,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#EAF6F0"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 2.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#56D6A0"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "n320",
+                      "name": "进度-悬停-已播",
+                      "x": 0.0,
+                      "y": 8.0,
+                      "width": 206.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "n321",
+                      "name": "进度-悬停-缓冲",
+                      "x": 206.0,
+                      "y": 8.0,
+                      "width": 129.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#41525F"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "n322",
+                      "name": "进度-悬停-未播",
+                      "x": 335.0,
+                      "y": 8.0,
+                      "width": 181.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#2B3743"
+                        }
+                      ],
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n240",
+                  "name": "进度-拖动",
+                  "width": "fill_container",
+                  "height": 20.0,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n244",
+                      "name": "进度-拖动-滑",
+                      "x": 198.0,
+                      "y": 2.0,
+                      "width": 15.0,
+                      "height": 15.0,
+                      "cornerRadius": 7.5,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#EAF6F0"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 2.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#56D6A0"
+                          }
+                        ]
+                      },
+                      "children": []
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "n323",
+                      "name": "进度-拖动-已播",
+                      "x": 0.0,
+                      "y": 8.0,
+                      "width": 206.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "n324",
+                      "name": "进度-拖动-缓冲",
+                      "x": 206.0,
+                      "y": 8.0,
+                      "width": 129.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#41525F"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "n325",
+                      "name": "进度-拖动-未播",
+                      "x": 335.0,
+                      "y": 8.0,
+                      "width": 181.0,
+                      "height": 4.0,
+                      "cornerRadius": 2.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#2B3743"
+                        }
+                      ],
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "n245",
+              "name": "进度说明",
+              "width": "fill_container",
+              "content": "默认 4px 高、悬停显示 11px 滑块、拖动时滑块增至 15px 并加深描边。",
+              "fontSize": 9.0,
+              "fontWeight": 400,
+              "lineHeight": 1.5,
+              "textGrowth": "fixed-width",
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#5E7183"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "n246",
+          "name": "列表行组",
+          "width": "fill_container",
+          "height": "fit_content",
+          "layout": "vertical",
+          "gap": 8.0,
+          "children": [
+            {
+              "type": "text",
+              "id": "n247",
+              "name": "列表行标题",
+              "content": "播放列表行",
+              "fontSize": 12.0,
+              "fontWeight": 700,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#E4EDF5"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n248",
+              "name": "列表行示例",
+              "width": "fill_container",
+              "height": "fit_content",
+              "layout": "vertical",
+              "gap": 4.0,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "n249",
+                  "name": "列表行-默认",
+                  "width": "fill_container",
+                  "height": 44.0,
+                  "layout": "horizontal",
+                  "gap": 9.0,
+                  "padding": [
+                    0.0,
+                    9.0
+                  ],
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "transparent"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "n250",
+                      "name": "列表行-默认-序号",
+                      "content": "04",
+                      "fontFamily": "Consolas",
+                      "fontSize": 10.0,
+                      "fontWeight": 600,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#4E5F70"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n251",
+                      "name": "列表行-默认-名称",
+                      "content": "Tears of Steel · 1080p.mp4",
+                      "fontSize": 11.0,
+                      "fontWeight": 400,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#C2CED9"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n252",
+                      "name": "spacer",
+                      "width": "fill_container",
+                      "height": 1.0,
+                      "children": []
+                    },
+                    {
+                      "type": "text",
+                      "id": "n253",
+                      "name": "列表行-默认-时长",
+                      "content": "12:14",
+                      "fontFamily": "Consolas",
+                      "fontSize": 10.0,
+                      "fontWeight": 500,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#6C7E8F"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n254",
+                  "name": "列表行-悬停包裹",
+                  "width": "fill_container",
+                  "height": "fit_content",
+                  "layout": "vertical",
+                  "gap": 0.0,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n255",
+                      "name": "列表行-悬停",
+                      "width": "fill_container",
+                      "height": 44.0,
+                      "layout": "horizontal",
+                      "gap": 9.0,
+                      "padding": [
+                        0.0,
+                        9.0
+                      ],
+                      "alignItems": "center",
+                      "cornerRadius": 5.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#222D39"
+                        }
+                      ],
+                      "stroke": {
+                        "thickness": 1.0,
+                        "fill": [
+                          {
+                            "type": "solid",
+                            "color": "#33414F"
+                          }
+                        ]
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n256",
+                          "name": "悬停序号",
+                          "content": "05",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 600,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#7A8C9C"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "n257",
+                          "name": "悬停名称",
+                          "content": "Cosmos Laundromat · 1080p.mp4",
+                          "fontSize": 11.0,
+                          "fontWeight": 400,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#EDF2F7"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "n258",
+                          "name": "spacer",
+                          "width": "fill_container",
+                          "height": 1.0,
+                          "children": []
+                        },
+                        {
+                          "type": "text",
+                          "id": "n259",
+                          "name": "悬停时长",
+                          "content": "12:10",
+                          "fontFamily": "Consolas",
+                          "fontSize": 10.0,
+                          "fontWeight": 500,
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#8395A7"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n260",
+                  "name": "列表行-当前",
+                  "width": "fill_container",
+                  "height": 44.0,
+                  "layout": "horizontal",
+                  "gap": 9.0,
+                  "padding": [
+                    0.0,
+                    9.0
+                  ],
+                  "alignItems": "center",
+                  "cornerRadius": 5.0,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#233C31"
+                    }
+                  ],
+                  "stroke": {
+                    "thickness": 1.0,
+                    "fill": [
+                      {
+                        "type": "solid",
+                        "color": "#3E7D62"
+                      }
+                    ]
+                  },
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n261",
+                      "name": "列表行-当前-指示",
+                      "width": 2.0,
+                      "height": 22.0,
+                      "cornerRadius": 1.0,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#56D6A0"
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "type": "text",
+                      "id": "n262",
+                      "name": "列表行-当前-序号",
+                      "content": "03",
+                      "fontFamily": "Consolas",
+                      "fontSize": 10.0,
+                      "fontWeight": 600,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#8AF0C2"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n263",
+                      "name": "列表行-当前-名称",
+                      "content": "Summer Field · 1080p.mp4",
+                      "fontSize": 11.0,
+                      "fontWeight": 600,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#EDF2F7"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n264",
+                      "name": "spacer",
+                      "width": "fill_container",
+                      "height": 1.0,
+                      "children": []
+                    },
+                    {
+                      "type": "text",
+                      "id": "n265",
+                      "name": "列表行-当前-时长",
+                      "content": "18:53",
+                      "fontFamily": "Consolas",
+                      "fontSize": 10.0,
+                      "fontWeight": 500,
+                      "fill": [
+                        {
+                          "type": "solid",
+                          "color": "#9BD9BC"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "n266",
+          "name": "字号组",
+          "width": "fill_container",
+          "height": "fit_content",
+          "layout": "vertical",
+          "gap": 6.0,
+          "children": [
+            {
+              "type": "text",
+              "id": "n267",
+              "name": "字号标题",
+              "content": "字号与尺寸",
+              "fontSize": 12.0,
+              "fontWeight": 700,
+              "fill": [
+                {
+                  "type": "solid",
+                  "color": "#E4EDF5"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n268",
+              "name": "字号行-标题栏片名",
+              "width": "fill_container",
+              "height": 24.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n269",
+                  "name": "字号名-标题栏片名",
+                  "content": "标题栏片名",
+                  "fontSize": 11.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#CAD5DF"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n270",
+                  "name": "spacer",
+                  "width": "fill_container",
+                  "height": 1.0,
+                  "children": []
+                },
+                {
+                  "type": "text",
+                  "id": "n271",
+                  "name": "字号值-标题栏片名",
+                  "content": "12 / 500",
+                  "fontFamily": "Consolas",
+                  "fontSize": 9.0,
+                  "fontWeight": 400,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#5E7183"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n272",
+              "name": "字号行-面板标题",
+              "width": "fill_container",
+              "height": 24.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n273",
+                  "name": "字号名-面板标题",
+                  "content": "面板标题",
+                  "fontSize": 11.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#CAD5DF"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n274",
+                  "name": "spacer",
+                  "width": "fill_container",
+                  "height": 1.0,
+                  "children": []
+                },
+                {
+                  "type": "text",
+                  "id": "n275",
+                  "name": "字号值-面板标题",
+                  "content": "14 / 700",
+                  "fontFamily": "Consolas",
+                  "fontSize": 9.0,
+                  "fontWeight": 400,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#5E7183"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n276",
+              "name": "字号行-列表项名称",
+              "width": "fill_container",
+              "height": 24.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n277",
+                  "name": "字号名-列表项名称",
+                  "content": "列表项名称",
+                  "fontSize": 11.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#CAD5DF"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n278",
+                  "name": "spacer",
+                  "width": "fill_container",
+                  "height": 1.0,
+                  "children": []
+                },
+                {
+                  "type": "text",
+                  "id": "n279",
+                  "name": "字号值-列表项名称",
+                  "content": "11 / 400",
+                  "fontFamily": "Consolas",
+                  "fontSize": 9.0,
+                  "fontWeight": 400,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#5E7183"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n280",
+              "name": "字号行-时间码",
+              "width": "fill_container",
+              "height": 24.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n281",
+                  "name": "字号名-时间码",
+                  "content": "时间码",
+                  "fontSize": 11.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#CAD5DF"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n282",
+                  "name": "spacer",
+                  "width": "fill_container",
+                  "height": 1.0,
+                  "children": []
+                },
+                {
+                  "type": "text",
+                  "id": "n283",
+                  "name": "字号值-时间码",
+                  "content": "11 / 600 · Consolas",
+                  "fontFamily": "Consolas",
+                  "fontSize": 9.0,
+                  "fontWeight": 400,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#5E7183"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n284",
+              "name": "字号行-胶囊与注脚",
+              "width": "fill_container",
+              "height": 24.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n285",
+                  "name": "字号名-胶囊与注脚",
+                  "content": "胶囊与注脚",
+                  "fontSize": 11.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#CAD5DF"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n286",
+                  "name": "spacer",
+                  "width": "fill_container",
+                  "height": 1.0,
+                  "children": []
+                },
+                {
+                  "type": "text",
+                  "id": "n287",
+                  "name": "字号值-胶囊与注脚",
+                  "content": "9–10 / 500",
+                  "fontFamily": "Consolas",
+                  "fontSize": 9.0,
+                  "fontWeight": 400,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#5E7183"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n288",
+              "name": "尺寸行",
+              "width": "fill_container",
+              "height": 24.0,
+              "layout": "horizontal",
+              "gap": 10.0,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n289",
+                  "name": "尺寸名",
+                  "content": "圆角 / 间距",
+                  "fontSize": 11.0,
+                  "fontWeight": 500,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#CAD5DF"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "n290",
+                  "name": "spacer",
+                  "width": "fill_container",
+                  "height": 1.0,
+                  "children": []
+                },
+                {
+                  "type": "text",
+                  "id": "n291",
+                  "name": "尺寸值",
+                  "content": "卡片 8 · 控件 5 · 胶囊 4 · 行内 6–12",
+                  "fontFamily": "Consolas",
+                  "fontSize": 9.0,
+                  "fontWeight": 400,
+                  "fill": [
+                    {
+                      "type": "solid",
+                      "color": "#5E7183"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
+  "formatVersion": "1.2",
+  "images": {
+    "0eb2b9663b893c33": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTQwIiBoZWlnaHQ9Ijc0NiIgdmlld0JveD0iMCAwIDExNDAgNzQ2Ij4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ic2t5IiB4MT0iMCIgeTE9IjAiIHgyPSIwLjA0IiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzEwMUIyNiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuMyIgc3RvcC1jb2xvcj0iIzI2Mzg0NiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuNTIiIHN0b3AtY29sb3I9IiM0ODU3NUEiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjY4IiBzdG9wLWNvbG9yPSIjODY2RjUzIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC44MiIgc3RvcC1jb2xvcj0iI0MwOEE1NSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuOTMiIHN0b3AtY29sb3I9IiNERkE3NkIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjRjJDQjkzIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPHJhZGlhbEdyYWRpZW50IGlkPSJoYWxvIiBjeD0iMC41IiBjeT0iMC41IiByPSIwLjUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNGRkYyRDgiIHN0b3Atb3BhY2l0eT0iMC45NSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuMjIiIHN0b3AtY29sb3I9IiNGRkRDQTYiIHN0b3Atb3BhY2l0eT0iMC41Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0YwQTg2MyIgc3RvcC1vcGFjaXR5PSIwIi8+CiAgICA8L3JhZGlhbEdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJmaWVsZCIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNDOTlBNTkiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjIyIiBzdG9wLWNvbG9yPSIjQjA4MDNGIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC42MiIgc3RvcC1jb2xvcj0iIzdDNUEyRSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM0MDJGMUIiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InRyZWVsaW5lIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0YyQ0I5MyIgc3RvcC1vcGFjaXR5PSIwLjMyIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0YyQ0I5MyIgc3RvcC1vcGFjaXR5PSIwIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJmYWRlIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI0MUMxMSIgc3RvcC1vcGFjaXR5PSIwIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC4zNSIgc3RvcC1jb2xvcj0iIzFFMTcwRSIgc3RvcC1vcGFjaXR5PSIwLjM1Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzEyMEYwOSIgc3RvcC1vcGFjaXR5PSIwLjkiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8cmFkaWFsR3JhZGllbnQgaWQ9InZpZyIgY3g9IjAuNSIgY3k9IjAuNDUiIHI9IjAuODIiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuNDQiIHN0b3AtY29sb3I9IiMwMDAwMDAiIHN0b3Atb3BhY2l0eT0iMCIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuNzYiIHN0b3AtY29sb3I9IiMwMDAwMDAiIHN0b3Atb3BhY2l0eT0iMC4xNiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwMzA2MEEiIHN0b3Atb3BhY2l0eT0iMC42NiIvPgogICAgPC9yYWRpYWxHcmFkaWVudD4KICA8L2RlZnM+CgogIDxyZWN0IHdpZHRoPSIxMTQwIiBoZWlnaHQ9Ijc0NiIgZmlsbD0idXJsKCNza3kpIi8+CiAgPGVsbGlwc2UgY3g9IjgwNiIgY3k9IjQ1MiIgcng9IjUyMCIgcnk9IjMwMCIgZmlsbD0idXJsKCNoYWxvKSIvPgoKICA8cGF0aCBkPSJNMCA0MDIgQzgwIDM4NCAxNDAgMzk2IDIwOCAzODAgQzI4MiAzNjIgMzMwIDM4OCAzOTggMzgwIEM0NjYgMzcyIDUwOCAzNDggNTgwIDM2MiBDNjQ2IDM3NSA2OTQgMzU2IDc1OCAzNzAgQzgyNCAzODQgODc4IDM1OCA5NDQgMzcyIEMxMDE2IDM4NiAxMDcyIDM2NiAxMTQwIDM3NiBMMTE0MCA0NzYgTDAgNDc2IFoiIGZpbGw9IiM1OTY2NUYiIG9wYWNpdHk9IjAuNDIiLz4KICA8cGF0aCBkPSJNMCA0MzIgQzk2IDQxOCAxNjggNDM4IDI1NCA0MjggQzM0NCA0MTggNDEyIDQ0MCA0OTggNDMyIEM1ODIgNDI0IDY0NiA0NDQgNzMyIDQzNCBDODE2IDQyNCA4ODQgNDQyIDk3MCA0MzIgQzEwNDQgNDIzIDEwOTYgNDM0IDExNDAgNDI4IEwxMTQwIDQ4MCBMMCA0ODAgWiIgZmlsbD0iIzQ3NTQ0QiIgb3BhY2l0eT0iMC42MiIvPgogIDxwYXRoIGQ9Ik0wIDQ1MiBDMTIwIDQ0MiAxOTYgNDU4IDI4OCA0NTAgQzM4NCA0NDIgNDU2IDQ2MCA1NDggNDUyIEM2NDAgNDQ0IDcwNiA0NjIgNzk2IDQ1NCBDODgwIDQ0NyA5NDAgNDYwIDEwMjQgNDUyIEMxMDY4IDQ0OCAxMTEwIDQ1NCAxMTQwIDQ1MCBMMTE0MCA0ODQgTDAgNDg0IFoiIGZpbGw9IiMzNjQ0M0IiIG9wYWNpdHk9IjAuODUiLz4KICA8cmVjdCB4PSIwIiB5PSI0MzAiIHdpZHRoPSIxMTQwIiBoZWlnaHQ9IjU2IiBmaWxsPSJ1cmwoI3RyZWVsaW5lKSIvPgoKICA8cmVjdCB4PSIwIiB5PSI0NzAiIHdpZHRoPSIxMTQwIiBoZWlnaHQ9IjI3NiIgZmlsbD0idXJsKCNmaWVsZCkiLz4KCiAgPGcgc3Ryb2tlPSIjM0MyQzE4IiBzdHJva2Utd2lkdGg9IjIuNCIgb3BhY2l0eT0iMC4zNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik0tMzAgNzQ2IEw3NDIgNDc0Ii8+CiAgICA8cGF0aCBkPSJNMTIwIDc0NiBMNzYyIDQ3NCIvPgogICAgPHBhdGggZD0iTTI3MCA3NDYgTDc4MiA0NzQiLz4KICAgIDxwYXRoIGQ9Ik00MjAgNzQ2IEw4MDAgNDc0Ii8+CiAgICA8cGF0aCBkPSJNNTcwIDc0NiBMODE4IDQ3NCIvPgogICAgPHBhdGggZD0iTTcyMCA3NDYgTDgzNiA0NzQiLz4KICA8L2c+CiAgPGcgc3Ryb2tlPSIjRTlDMDg5IiBzdHJva2Utd2lkdGg9IjEuOCIgb3BhY2l0eT0iMC4yIiBmaWxsPSJub25lIj4KICAgIDxwYXRoIGQ9Ik02MCA3NDYgTDc1MCA0NzQiLz4KICAgIDxwYXRoIGQ9Ik0zNDUgNzQ2IEw3OTAgNDc0Ii8+CiAgICA8cGF0aCBkPSJNNjQ1IDc0NiBMODI2IDQ3NCIvPgogICAgPHBhdGggZD0iTTc2MCA3NDYgTDg0MCA0NzQiLz4KICA8L2c+CgogIDxwYXRoIGQ9Ik0wIDY2NCBDMTYwIDY1MiAzMDAgNjY2IDQ3MCA2NTggQzY0MCA2NTAgODAwIDY2MiA5ODAgNjU2IEMxMDUwIDY1MyAxMTA0IDY1OCAxMTQwIDY1NSBMMTE0MCA3NDYgTDAgNzQ2IFoiIGZpbGw9InVybCgjZmFkZSkiLz4KCiAgPHJlY3Qgd2lkdGg9IjExNDAiIGhlaWdodD0iNzQ2IiBmaWxsPSJ1cmwoI3ZpZykiLz4KPC9zdmc+Cg=="
+  },
+  "imageThumbs": {
+    "10904283953949805155": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAVACADASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAAIGA//EACgQAAEDAwIDCQAAAAAAAAAAAAEAAgMEBSEVMRESM0FCQ1FhcZGh8P/EABUBAQEAAAAAAAAAAAAAAAAAAAIA/8QAHBEAAgICAwAAAAAAAAAAAAAAAAIBURITAwQU/9oADAMBAAIRAxEAPwCJbTeicUpOA1UjLUwjrM+1vHbWM8WMoz2OOy0vRMtt8h7iV9BI3dqsY4Y24LmH97LOeCNw4c8aPoUWliTbeKgdg+U+tVOMBCEcFoWchrVT5BI68VBGwQhUItFlJ//Z"
+  },
   "editorMeta": {
     "activePageIndex": 0,
     "preserveAuthoredGeometry": false
