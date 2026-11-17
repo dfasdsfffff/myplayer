@@ -1,6 +1,7 @@
 #include "review_window.h"
 #include "review_timeline.h"
 #include "review_settings.h"
+#include "review_compare.h"
 #include <QApplication>
 #include <QDockWidget>
 #include <QMouseEvent>
@@ -246,6 +247,7 @@ ReviewWindow::ReviewWindow(QWidget* parent, const QString& settingsFile)
     connect(undoStack_, &QUndoStack::indexChanged, this, [this] { refreshDirtyState(); });
     buildUi();
     buildReviewTools();
+    buildMediaTools();
     defaultLayout_=saveState(1);
     const auto settings=ReviewSettings::load(settingsFile_);
     settings.restoreWindow(this);
@@ -711,6 +713,7 @@ void ReviewWindow::buildUi()
             submit(player_->setVolume(value / 100.0), tr("调整音量"));
     });
     connect(speedCombo_, &QComboBox::currentIndexChanged, this, [this] {
+        if (compare_) compare_->setPlaybackRate(speedCombo_->currentData().toDouble());
         if (canControlMedia())
             submit(player_->setPlaybackRate(speedCombo_->currentData().toDouble()), tr("调整倍速"));
     });
@@ -719,6 +722,7 @@ void ReviewWindow::buildUi()
 void ReviewWindow::bindPlayer()
 {
     video_->setPlayer(player_);
+    if (compare_) compare_->setPrimary(player_);
     const quint64 generation = playerGeneration_;
     connect(player_, &player_sdk_qt::QtPlayer::stateChanged, this,
             [this, generation](play_core::PlayerState state) {
@@ -815,7 +819,7 @@ void ReviewWindow::bindPlayer()
             if (result.status==play_core::OperationStatus::Succeeded) {
                 playbackController_.setDuration(mediaInfo_ && !mediaInfo_->live ? durationMs_ : 0);
                 if (startupPosition_>0 && canSeek())
-                    playbackController_.seek(std::min(startupPosition_,playbackController_.inPoint()),true);
+                    playbackController_.seek(std::clamp(startupPosition_,qint64{0},std::max<qint64>(0,durationMs_-1)),true);
                 else playbackController_.play(0);
             }
         }
@@ -847,6 +851,7 @@ void ReviewWindow::bindPlayer()
 void ReviewWindow::retirePlayer()
 {
     playbackController_.cancel();
+    if (compare_) compare_->setPrimary(nullptr);
     startupPending_=false;
     ++playerGeneration_;
     if (player_) {
@@ -930,7 +935,7 @@ bool ReviewWindow::startMedia(bool preserveRange)
         updateControls();
         return false;
     }
-    videoStack_->setCurrentWidget(video_);
+    updateCompareView();
     startupPending_=true;
     return true;
 }
@@ -945,8 +950,16 @@ bool ReviewWindow::openVideo(const QString& path)
         showError(tr("无法打开视频"), tr("视频不存在或不可读：%1").arg(QDir::toNativeSeparators(media)));
         return false;
     }
+    if (!activatingMedia_ && assets_.size() >= 256
+        && std::none_of(assets_.cbegin(), assets_.cend(), [&](const Asset& asset) {
+            return samePath(asset.path, media) && asset.project == QString();
+        })) {
+        playbackError(tr("素材列表最多容纳 256 项，请先移除闲置素材。"));
+        return false;
+    }
     if (!confirmDiscard())
         return false;
+    rememberCurrentMedia();
     removeRecovery();
     document_ = ReviewDocument{media, {}};
     ++documentGeneration_;
@@ -957,6 +970,10 @@ bool ReviewWindow::openVideo(const QString& path)
     mediaLabel_->setToolTip(QDir::toNativeSeparators(media));
     rebuildNotes();
     refreshDirtyState();
+    if (!activatingMedia_) {
+        activeAsset_ = -1;
+        rememberCurrentMedia();
+    }
     return startMedia();
 }
 
@@ -971,8 +988,16 @@ bool ReviewWindow::openProject(const QString& path)
         showError(tr("无法载入工程"), error);
         return false;
     }
+    if (!activatingMedia_ && assets_.size() >= 256
+        && std::none_of(assets_.cbegin(), assets_.cend(), [&](const Asset& asset) {
+            return samePath(asset.path, loaded.mediaPath) && asset.project == project;
+        })) {
+        playbackError(tr("素材列表最多容纳 256 项，请先移除闲置素材。"));
+        return false;
+    }
     if (!confirmDiscard())
         return false;
+    rememberCurrentMedia();
     removeRecovery();
     document_ = std::move(loaded);
     ++documentGeneration_;
@@ -984,6 +1009,10 @@ bool ReviewWindow::openProject(const QString& path)
     mediaLabel_->setToolTip(QDir::toNativeSeparators(document_.mediaPath));
     rebuildNotes();
     refreshDirtyState();
+    if (!activatingMedia_) {
+        activeAsset_ = -1;
+        rememberCurrentMedia();
+    }
     startMedia();
     return true;
 }
@@ -1020,6 +1049,7 @@ void ReviewWindow::offerRecovery()
     mediaLabel_->setToolTip(QDir::toNativeSeparators(document_.mediaPath));
     rebuildNotes();
     refreshDirtyState();
+    activeAsset_ = -1; rememberCurrentMedia();
     startMedia();
     statusBar()->showMessage(tr("已恢复未保存内容。"), 5000);
 }
@@ -1208,6 +1238,7 @@ bool ReviewWindow::saveProject(bool saveAs)
         return false;
     }
     projectPath_ = path;
+    rememberCurrentMedia();
     baselineDirty_ = false;
     undoStack_->setClean();
     refreshDirtyState();
@@ -1605,10 +1636,12 @@ void ReviewWindow::setPresentation(bool enabled)
     const QSignalBlocker blocker(presentationAction_); presentationAction_->setChecked(enabled);
     if (enabled) {
         presentationLayout_=saveState(1); wasFullScreen_=isFullScreen();
-        notesDock_->hide(); viewToolbar_->hide(); menuBar()->hide(); statusBar()->hide();
+        for (auto* dock : findChildren<QDockWidget*>()) dock->hide();
+        viewToolbar_->hide(); menuBar()->hide(); statusBar()->hide();
         for (const char* name : {"reviewHeader","mediaHeader","playbackPanel"})
             if (auto* widget=findChild<QWidget*>(QString::fromLatin1(name))) widget->hide();
-        showFullScreen(); video_->setFocus();
+        showFullScreen();
+        if (comparisonEnabled_) compare_->setFocus(); else video_->setFocus();
     } else {
         if (!wasFullScreen_) showNormal();
         restoreState(presentationLayout_,1); menuBar()->show(); statusBar()->show();
@@ -1642,7 +1675,8 @@ bool ReviewWindow::eventFilter(QObject* watched, QEvent* event)
     if (!widget || (widget!=this && !isAncestorOf(widget))) return QMainWindow::eventFilter(watched,event);
     if (event->type()==QEvent::ShortcutOverride) {
         auto* key=static_cast<QKeyEvent*>(event);
-        const bool mediaFocus=widget==video_ || widget==positionSlider_;
+        const bool mediaFocus=widget==video_ || widget==positionSlider_
+            || (widget==compare_ || (compare_ && compare_->isAncestorOf(widget) && qobject_cast<player_sdk_qt::VideoWidget*>(widget)));
         const int k=key->key();
         const bool mediaKey=k==Qt::Key_Space || k==Qt::Key_Left || k==Qt::Key_Right || k==Qt::Key_Comma
             || k==Qt::Key_Period || k==Qt::Key_Home || k==Qt::Key_End || k==Qt::Key_I || k==Qt::Key_O

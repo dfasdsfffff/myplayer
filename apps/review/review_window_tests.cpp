@@ -2,6 +2,7 @@
 #include "review_timeline.h"
 #include <player_sdk_qt/video_widget.h>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QDockWidget>
 #include <QKeyEvent>
 #include <QDialog>
@@ -229,6 +230,38 @@ int main(int argc, char** argv)
     QKeyEvent overrideKey(QEvent::ShortcutOverride,Qt::Key_I,Qt::NoModifier,QStringLiteral("i"));
     QApplication::sendEvent(search,&overrideKey);
     ok &= expect(overrideKey.isAccepted(),"text focus consumes media shortcut");
+    const QString secondProject = temp.filePath(QStringLiteral("second.review.json"));
+    auto secondDocument = saved;
+    secondDocument.notes[0].text = QStringLiteral("独立素材标注");
+    ok &= expect(review::saveDocument(secondProject, secondDocument, saveError), "save second asset fixture");
+    ok &= expect(window.mediaCount() == 1 && window.addMedia(secondProject) && window.mediaCount() == 2,
+                 "asset list registers current and additional projects");
+    ok &= expect(window.addMedia(secondProject) && window.mediaCount() == 2, "asset list deduplicates projects");
+    ok &= expect(!window.addMedia(temp.filePath(QStringLiteral("absent.mp4")))
+                 && !window.activateMedia(-1) && !window.compareMedia(99), "invalid asset inputs are rejected");
+    ok &= expect(window.activateMedia(1), "switch primary asset");
+    ok &= expect(table->rowCount() == 1 && table->item(0,2)->text() == QStringLiteral("独立素材标注"),
+                 "primary switch loads independent annotations");
+    ok &= expect(waitFor([&]{ return jump->isEnabled(); }), "second primary opens");
+    ok &= expect(window.activateMedia(0), "switch back to saved asset");
+    ok &= expect(table->rowCount() == 1 && table->item(0,2)->text() == QStringLiteral("已编辑标注"),
+                 "switch back retains saved annotations");
+    ok &= expect(waitFor([&]{ return jump->isEnabled(); }), "original primary reopens");
+    ok &= expect(window.compareMedia(1), "assign B from asset list");
+    auto* compareMode = window.findChild<QComboBox*>(QStringLiteral("compareModeCombo"));
+    ok &= expect(compareMode && compareMode->currentIndex() == 1, "B assignment enables side by side");
+    for (int mode = 2; mode <= 4; ++mode) { compareMode->setCurrentIndex(mode); QApplication::processEvents(); }
+    compareMode->setCurrentIndex(0);
+    fillNote(QStringLiteral("取消切换测试")); action("addNoteAction")->trigger();
+    QTimer::singleShot(0, &window, [&] {
+        if (auto* dialog = window.findChild<QMessageBox*>(QStringLiteral("unsavedChangesDialog")))
+            dialog->done(QMessageBox::Cancel);
+    });
+    ok &= expect(!window.activateMedia(1) && table->rowCount() == 2, "cancel primary switch preserves unsaved notes");
+    action("undoAction")->trigger();
+    auto* mediaList = window.findChild<QListWidget*>(QStringLiteral("reviewMediaList"));
+    mediaList->setCurrentRow(1); action("removeMediaAction")->trigger();
+    ok &= expect(window.mediaCount() == 1 && table->rowCount() == 1, "remove B leaves primary annotations intact");
     // Workspace state is separate from the portable review document.
     window.findChild<QSlider*>(QStringLiteral("volumeSlider"))->setValue(37);
     speed->setCurrentIndex(speed->findData(0.5));

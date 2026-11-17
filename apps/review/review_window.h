@@ -21,6 +21,8 @@ class QStackedWidget;
 class QTableWidget;
 class QTimer;
 class QUndoStack;
+class QListWidget;
+class QSpinBox;
 
 namespace player_sdk_qt {
 class QtPlayer;
@@ -29,6 +31,7 @@ class VideoWidget;
 
 namespace review {
 class ReviewTimeline;
+class ReviewCompare;
 
 
 class ReviewWindow final : public QMainWindow {
@@ -40,12 +43,35 @@ public:
     bool openVideo(const QString& path);
     bool openProject(const QString& path);
     void offerRecovery();
+    bool addMedia(const QString& path);
+    bool activateMedia(int index);
+    bool compareMedia(int index);
+    int mediaCount() const { return static_cast<int>(assets_.size()); }
 
 protected:
     void closeEvent(QCloseEvent* event) override;
     bool eventFilter(QObject*, QEvent*) override;
 
 private:
+    struct Asset {
+        QString path;
+        QString project;
+        qint64 position = 0;
+    };
+    void buildMediaTools();
+    void rememberCurrentMedia();
+    void refreshMediaList();
+    void removeSelectedMedia();
+    void updateCompareView();
+    QList<Asset> assets_;
+    int activeAsset_ = -1;
+    int secondaryAsset_ = -1;
+    QListWidget* mediaList_ = nullptr;
+    ReviewCompare* compare_ = nullptr;
+    QComboBox* compareMode_ = nullptr;
+    QSpinBox* compareOffset_ = nullptr;
+    bool comparisonEnabled_ = false;
+    bool activatingMedia_ = false;
     void buildUi();
     void bindPlayer();
     void retirePlayer();
