@@ -5,6 +5,7 @@
 #include <QAction>
 #include <QDir>
 #include <QFile>
+#include <QLabel>
 #include <QStandardPaths>
 
 #include <iostream>
@@ -66,6 +67,15 @@ int main(int argc, char* argv[])
     auto* list = playlist.findChild<MediaList*>(QStringLiteral("List"));
     if (!Expect(list && list->count() == 4, "playlist exposes four media rows"))
         return 1;
+
+    auto* count = playlist.findChild<QLabel*>(QStringLiteral("PlaylistCount"));
+    playlist.SetPlayingLocation(b);
+    playlist.SetMediaDuration(b, 653);
+    if (!Expect(count && count->text() == QStringLiteral("4"), "playlist count reflects actual items") ||
+        !Expect(list->item(1)->data(Qt::UserRole + 1).toString() == QStringLiteral("10:53") &&
+                    list->item(1)->data(Qt::UserRole + 2).toBool(), "playing row exposes actual duration and active state")) return 1;
+    list->setCurrentRow(0);
+    if (!Expect(list->item(1)->data(Qt::UserRole + 2).toBool(), "selection does not change playing highlight")) return 1;
 
     QStringList played;
     QObject::connect(&playlist, &Playlist::SigPlay, [&played](const QString& location) {

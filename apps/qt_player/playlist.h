@@ -60,6 +60,8 @@ public:
     void OnForwardPlay();
 	void OnRandomPlay();
 
+    void SetPlayingLocation(const QString& location);
+    void SetMediaDuration(const QString& location, int seconds);
     QString currentLocation() const;
     int rowForLocation(const QString& location) const;
     QString adjacentLocation(int direction) const;
@@ -67,7 +69,7 @@ public:
     /* 在这里定义dock的初始大小 */
     QSize sizeHint() const
     {
-        return QSize(150, 900);
+        return QSize(300, 700);
     }
 protected:
     /**
@@ -86,6 +88,7 @@ protected:
     void dragEnterEvent(QDragEnterEvent *event);
 
 signals:
+    void SigHideRequested();
     void SigUpdateUi();	//< 界面排布更新
 	void SigPlay(QString strFile); //< 播放文件
 

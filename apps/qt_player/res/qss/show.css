@@ -1,6 +1,3 @@
-QWidget{
-    background-color: #1a1a20;
-    color:white;
-    border: 1px solid black;
-    border-bottom: none;
-}
+QWidget#Show, QWidget#ShowWid, QLabel#label { background: #10171F; border: none; color: #8395A7; }
+QLabel#EmptyState { color: #8395A7; font-size: 14px; background: #10171F; }
+QLabel#PlaybackBadge, QLabel#VideoInfoBadge { background: #141F29; color: #CAD6E0; border: 1px solid #2B3643; border-radius: 4px; padding: 4px 8px; font-size: 10px; }

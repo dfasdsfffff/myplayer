@@ -31,6 +31,7 @@ class MainWid;
 class AppPlaybackController;
 class AppPlaybackSession;
 class QApplication;
+class QLabel;
 struct PlaybackBenchmarkOptions;
 
 class MainWid : public QMainWindow
@@ -127,6 +128,8 @@ signals:
 private:
     friend int RunPlaybackBenchmark(QApplication& application, const PlaybackBenchmarkOptions& options);
     Ui::MainWid *ui;
+    QLabel* m_statusText = nullptr;
+    QLabel* m_decoderInfo = nullptr;
 
     const int m_nShadowWidth; ///< 阴影宽度
 

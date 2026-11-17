@@ -5,6 +5,9 @@
 #include <QMessageBox>
 #include <QRandomGenerator>
 #include <QUrl>
+#include <QPainter>
+#include <QStyledItemDelegate>
+#include "player_icons.h"
 #include <algorithm>
 
 #include "playlist.h"
@@ -16,11 +19,67 @@
 
 
 
+namespace {
+constexpr int DurationRole = Qt::UserRole + 1;
+constexpr int PlayingRole = Qt::UserRole + 2;
+class PlaylistDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override { return {250, 52}; }
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        const QRect row = option.rect.adjusted(0, 1, -1, -1);
+        const bool playing = index.data(PlayingRole).toBool();
+        const bool selected = option.state.testFlag(QStyle::State_Selected);
+        const bool hovered = option.state.testFlag(QStyle::State_MouseOver);
+        if (playing || selected || hovered) {
+            painter->setBrush(QColor(playing ? "#233D33" : "#222D39"));
+            painter->setPen(playing ? QPen(QColor("#347355")) : Qt::NoPen);
+            painter->drawRoundedRect(row, 5, 5);
+        }
+        if (playing) painter->fillRect(QRect(row.left()+9, row.center().y()-11, 2, 22), QColor("#56D6A0"));
+        QFont font(QStringLiteral("Consolas")); font.setPixelSize(9);
+        painter->setFont(font);
+        painter->setPen(QColor(playing ? "#8CE9BC" : "#5E7183"));
+        painter->drawText(row.adjusted(19,0,0,0), Qt::AlignLeft | Qt::AlignVCenter,
+            QStringLiteral("%1").arg(index.row()+1, 2, 10, QLatin1Char('0')));
+        const QString duration = index.data(DurationRole).toString();
+        painter->drawText(row.adjusted(0,0,-9,0), Qt::AlignRight | Qt::AlignVCenter,
+            duration.isEmpty() ? QStringLiteral("--:--") : duration);
+        font = option.font; font.setPixelSize(11); font.setBold(playing);
+        painter->setFont(font);
+        painter->setPen(QColor(playing ? "#EDF2F7" : "#CAD6E0"));
+        const QRect nameRect = row.adjusted(40,0,-58,0);
+        painter->drawText(nameRect, Qt::AlignVCenter | Qt::AlignLeft,
+            QFontMetrics(font).elidedText(index.data().toString(), Qt::ElideRight, nameRect.width()));
+        if (option.state.testFlag(QStyle::State_HasFocus)) {
+            painter->setBrush(Qt::NoBrush); painter->setPen(QColor("#56D6A0"));
+            painter->drawRoundedRect(row, 5, 5);
+        }
+        painter->restore();
+    }
+};
+}
+
 Playlist::Playlist(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::Playlist)
 {
     ui->setupUi(this);
+    setAttribute(Qt::WA_StyledBackground);
+    ui->List->setItemDelegate(new PlaylistDelegate(ui->List));
+    ui->List->setMouseTracking(true);
+    ui->List->setUniformItemSizes(true);
+    ui->playlistLayout->setStretch(1, 1);
+    PlayerIcons::set(ui->CollapseBtn, PlayerIcons::Symbol::Chevron);
+    ui->CollapseBtn->setToolTip("隐藏播放列表 (F6)");
+    connect(ui->CollapseBtn, &QPushButton::clicked, this, &Playlist::SigHideRequested);
+    auto updateCount = [this] { ui->PlaylistCount->setText(QString::number(ui->List->count())); };
+    connect(ui->List->model(), &QAbstractItemModel::rowsInserted, this, updateCount);
+    connect(ui->List->model(), &QAbstractItemModel::rowsRemoved, this, updateCount);
+    connect(ui->List->model(), &QAbstractItemModel::modelReset, this, updateCount);
 	
 }
 
@@ -30,6 +89,8 @@ Playlist::~Playlist()
     GetPlaylist(strListPlayList);
     GlobalHelper::SavePlaylist(strListPlayList);
 
+    // The model emits reset signals during child destruction, after Ui is gone.
+    disconnect(ui->List->model(), nullptr, this, nullptr);
     delete ui;
 }
 
@@ -348,4 +409,23 @@ void Playlist::dropEvent(QDropEvent *event)
 void Playlist::dragEnterEvent(QDragEnterEvent *event)
 {
     event->acceptProposedAction();
+}
+
+void Playlist::SetPlayingLocation(const QString& location)
+{
+    QListWidgetItem* current = location.isEmpty() ? nullptr : FindItemByLocation(location);
+    for (int row = 0; row < ui->List->count(); ++row) {
+        auto* item = ui->List->item(row);
+        item->setData(PlayingRole, item == current);
+    }
+    if (current) ui->List->scrollToItem(current, QAbstractItemView::EnsureVisible);
+}
+
+void Playlist::SetMediaDuration(const QString& location, int seconds)
+{
+    if (auto* item = FindItemByLocation(location)) {
+        QString time = GlobalHelper::FormatTime(seconds);
+        if (seconds < 3600) time = time.mid(3);
+        item->setData(DurationRole, time);
+    }
 }

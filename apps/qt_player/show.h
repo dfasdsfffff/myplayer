@@ -8,6 +8,7 @@
 #include "video_frame.h"
 #include <player_sdk_qt/video_widget.h>
 class AppPlaybackController;
+class QLabel;
 namespace Ui { class Show; }
 class Show : public QWidget {
     Q_OBJECT
@@ -15,6 +16,8 @@ public:
     explicit Show(QWidget* parent);
     ~Show();
     bool Init();
+    void SetPlaybackBadge(const QString& text);
+    void SetMediaDetails(const QString& text);
     void SetPlaybackController(AppPlaybackController* controller);
     void SetFrameSubmissionMeasurementEnabled(bool enabled);
     void OnPlay(QString file);
@@ -46,7 +49,11 @@ protected:
     void keyReleaseEvent(QKeyEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
 private:
+    void LayoutOverlays();
     Ui::Show* ui;
+    QLabel* m_emptyState = nullptr;
+    QLabel* m_playbackBadge = nullptr;
+    QLabel* m_videoInfoBadge = nullptr;
     player_sdk_qt::VideoWidget* view_;
     AppPlaybackController* m_playbackController{nullptr};
     bool m_measureFrameSubmission{false};

@@ -47,7 +47,9 @@ public:
     void OnPauseStat(bool bPaused);
     void OnStopFinished();
     void SetSeekEnabled(bool enabled);
+    void SetPlaylistVisible(bool visible);
 private:
+    void UpdateLoopButton();
     void OnPlaySliderValueChanged();
     void OnVolumeSliderValueChanged();
 private slots:
@@ -75,6 +77,7 @@ signals:
     void SigBackwardPlay();
     void SigShowMenu();
     void SigShowSetting();
+    void SigFullScreen();
     void SigSpeedChanged(double speed);
 	void SigPlayLoopPolicyChanged(VideoLoopPolicy policy);
 
@@ -83,5 +86,6 @@ private:
 	VideoLoopPolicy m_curLoopPolicy = VideoLoopPolicy::LOOP_NONE;
     int m_nTotalPlaySeconds = 0;
     double m_dLastVolumePercent = 1.0;
+    double m_unmutedVolume = 1.0;
 };
 

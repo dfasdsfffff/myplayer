@@ -16,6 +16,8 @@
 #include <QFileDialog>
 
 #include "title.h"
+#include "player_icons.h"
+#include "media_location_privacy.h"
 #include "media_format_registry.h"
 #include "ui_title.h"
 
@@ -35,6 +37,8 @@ Title::Title(QWidget *parent) :
     connect(ui->FullScreenBtn, &QPushButton::clicked, this, &Title::SigFullScreenBtnClicked);
     connect(ui->MenuBtn, &QPushButton::clicked, this, &Title::SigShowMenu);
  
+    connect(ui->TitleSettingBtn, &QPushButton::clicked, this, &Title::SigShowSetting);
+    ui->TitleSettingBtn->setToolTip("设置");
     m_stMenu.addAction("最大化", this, &Title::SigMaxBtnClicked);
     m_stMenu.addAction("最小化", this, &Title::SigMinBtnClicked);
     m_stMenu.addAction("退出", this, &Title::SigCloseBtnClicked);
@@ -66,19 +70,24 @@ bool Title::Init()
 
 bool Title::InitUi()
 {
-    ui->MovieNameLab->clear();
+    OnStopFinished();
 
     //保证窗口不被绘制上的部分透明
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_StyledBackground);
+    ui->MovieNameLab->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    ui->ResolutionBadge->setFixedHeight(19);
+    ui->CodecBadge->setFixedHeight(19);
 
     setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/title.css"));
 
-    GlobalHelper::SetIcon(ui->MaxBtn, 9, QChar(0xf2d0));
-    GlobalHelper::SetIcon(ui->MinBtn, 9, QChar(0xf2d1));
-    GlobalHelper::SetIcon(ui->CloseBtn, 9, QChar(0xf00d));
+    PlayerIcons::set(ui->MaxBtn, PlayerIcons::Symbol::Maximize);
+    PlayerIcons::set(ui->MinBtn, PlayerIcons::Symbol::Minimize);
+    PlayerIcons::set(ui->CloseBtn, PlayerIcons::Symbol::Close);
 
-    GlobalHelper::SetIcon(ui->FullScreenBtn, 9, QChar(0xf065));
+    PlayerIcons::set(ui->FullScreenBtn, PlayerIcons::Symbol::Fullscreen);
     
+    PlayerIcons::set(ui->MenuBtn, PlayerIcons::Symbol::Menu);
+    PlayerIcons::set(ui->TitleSettingBtn, PlayerIcons::Symbol::Settings);
     //ui->LogoLab->setToolTip("显示主菜单");
 
     if (about.Init() == false)
@@ -112,49 +121,51 @@ void Title::mouseDoubleClickEvent(QMouseEvent *event)
 
 void Title::resizeEvent(QResizeEvent *event)
 {
-    //ChangeMovieNameShow();
+    QWidget::resizeEvent(event);
+    ChangeMovieNameShow();
 }
 
 void Title::ChangeMovieNameShow()
 {
-    QFontMetrics font_metrics(ui->MovieNameLab->font());
-    QRect rect = font_metrics.boundingRect(m_strMovieName);
-    int font_width = rect.width();
-    int show_width = ui->MovieNameLab->width();
-    if (font_width > show_width)
-    {
-        QString str = font_metrics.elidedText(m_strMovieName, Qt::ElideRight, ui->MovieNameLab->width());//返回一个带有省略号的字符串
-        ui->MovieNameLab->setText(str);
-    }
-    else
-    {
-        ui->MovieNameLab->setText(m_strMovieName);
-    }
+    const QFontMetrics metrics(ui->MovieNameLab->font());
+    const int available = qMin(420, qMax(40, width() - 650));
+    ui->MovieNameLab->setMaximumWidth(available);
+    ui->MovieNameLab->setText(metrics.elidedText(m_strMovieName, Qt::ElideRight, available));
 }
 
 void Title::OnChangeMaxBtnStyle(bool bIfMax)
 {
     if (bIfMax)
     {
-        GlobalHelper::SetIcon(ui->MaxBtn, 9, QChar(0xf2d2));
+        PlayerIcons::set(ui->MaxBtn, PlayerIcons::Symbol::Restore);
         ui->MaxBtn->setToolTip("还原");
     }
     else
     {
-        GlobalHelper::SetIcon(ui->MaxBtn, 9, QChar(0xf2d0));
+        PlayerIcons::set(ui->MaxBtn, PlayerIcons::Symbol::Maximize);
         ui->MaxBtn->setToolTip("最大化");
     }
 }
 
 void Title::OnPlay(QString strMovieName)
 {
-    QFileInfo fileInfo(strMovieName);
-    m_strMovieName = fileInfo.fileName();
-    ui->MovieNameLab->setText(m_strMovieName);
-    //ChangeMovieNameShow();
+    m_strMovieName = strMovieName.contains("://") ? SafeMediaLocationForDisplay(strMovieName) : QFileInfo(strMovieName).fileName();
+    ui->MovieNameLab->setToolTip(m_strMovieName);
+    ChangeMovieNameShow();
 }
 
 void Title::OnStopFinished()
 {
-    ui->MovieNameLab->clear();
+    m_strMovieName = QStringLiteral("打开文件开始播放");
+    ui->MovieNameLab->setToolTip({});
+    ChangeMovieNameShow();
+    SetMediaDetails({}, {});
+}
+
+void Title::SetMediaDetails(const QString& resolution, const QString& codec)
+{
+    ui->ResolutionBadge->setText(resolution);
+    ui->ResolutionBadge->setVisible(!resolution.isEmpty());
+    ui->CodecBadge->setText(codec);
+    ui->CodecBadge->setVisible(!codec.isEmpty());
 }

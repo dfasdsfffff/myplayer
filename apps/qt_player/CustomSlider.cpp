@@ -1,5 +1,7 @@
 ﻿#include "CustomSlider.h"
 #include "globalhelper.h"
+#include <QPainter>
+#include <QEnterEvent>
 
 CustomSlider::CustomSlider(QWidget *parent)
     : QSlider(parent)
@@ -42,4 +44,39 @@ void CustomSlider::mouseMoveEvent(QMouseEvent *ev)
 
         emit SigCustomSliderValueChanged();
     }
+}
+
+void CustomSlider::paintEvent(QPaintEvent*)
+{
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const bool volume = objectName() == QStringLiteral("VolumeSlider");
+    const qreal radius = volume ? 4 : (mIsPressed ? 7.5 : 5.5);
+    const qreal inset = volume ? 4 : 7.5;
+    const qreal span = qMax<qreal>(0, width() - 2 * inset);
+    const qreal fraction = maximum() > minimum() ? qreal(value() - minimum()) / (maximum() - minimum()) : 0;
+    const qreal x = inset + fraction * span;
+    const qreal y = height() / 2.0;
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor("#2B3945"));
+    painter.drawRoundedRect(QRectF(inset, y - 2, span, 4), 2, 2);
+    painter.setBrush(QColor(!isEnabled() ? "#465462" : volume ? "#9BAABB" : "#56D6A0"));
+    painter.drawRoundedRect(QRectF(inset, y - 2, fraction * span, 4), 2, 2);
+    if (isEnabled() && (volume || underMouse() || mIsPressed || hasFocus())) {
+        painter.setBrush(QColor(volume ? "#EDF2F7" : mIsPressed ? "#8CE9BC" : "#6FE0AF"));
+        if (mIsPressed) painter.setPen(QPen(QColor("#286447"), 2));
+        painter.drawEllipse(QPointF(x, y), radius, radius);
+    }
+}
+
+void CustomSlider::enterEvent(QEnterEvent* event)
+{
+    QSlider::enterEvent(event);
+    update();
+}
+
+void CustomSlider::leaveEvent(QEvent* event)
+{
+    QSlider::leaveEvent(event);
+    update();
 }

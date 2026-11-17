@@ -11,6 +11,9 @@ public:
     CustomSlider(QWidget* parent);
     ~CustomSlider();
 protected:
+    void paintEvent(QPaintEvent* event) override;
+    void enterEvent(QEnterEvent* event) override;
+    void leaveEvent(QEvent* event) override;
     void mousePressEvent(QMouseEvent *ev);//重写QSlider的mousePressEvent事件
     void mouseReleaseEvent(QMouseEvent *ev);
     void mouseMoveEvent(QMouseEvent *ev);

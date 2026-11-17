@@ -1,32 +1,9 @@
-﻿*{
-    background-color: #202129;
-    border: none;
-    color:white;
-}
-
-QPushButton:hover {
-    color:  Cyan;
-}
-QPushButton:pressed {
-    color:  CadetBlue;
-}
-
-QPushButton#CloseBtn:hover {
-    color:  Tomato;
-}
-
-QPushButton#CloseBtn:pressed {
-    color:  red;
-    /*background:#FF0000;*/
-}
-
-QLabel#MovieNameLab {
-    color: #c4c6d2;
-}
-
-/**********提示**********/
-QToolTip{
-    border: none;
-    background-color: #2e2f37;
-    color:white;
-}
+QWidget#Title { background: #181E25; border-bottom: 1px solid #232C36; }
+QLabel { background: transparent; }
+QLabel#LogoLab { background: #56D6A0; color: #10251D; border-radius: 8px; font-size: 18px; font-weight: 700; }
+QLabel#AppNameLab { color: #EDF2F7; font-size: 15px; font-weight: 700; }
+QLabel#MovieNameLab { color: #9BAABB; font-size: 12px; }
+QLabel#TitleDivider, QLabel#WindowDivider { background: #303B48; }
+QLabel#ResolutionBadge, QLabel#CodecBadge { background: #222D39; color: #9BAABB; border-radius: 4px; padding: 3px 7px; font-size: 9px; }
+QPushButton#CloseBtn { background: #242C35; }
+QPushButton#CloseBtn:hover { background: #AA454B; }

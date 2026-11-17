@@ -14,6 +14,8 @@
 #include <QSignalBlocker>
 
 #include "ctrlbar.h"
+#include "player_icons.h"
+#include <algorithm>
 #include "ui_ctrlbar.h"
 
 #include "globalhelper.h"
@@ -39,6 +41,11 @@ double CtrlBar::GetSpeed() const
 
 bool CtrlBar::Init()
 {
+    setAttribute(Qt::WA_StyledBackground);
+    ui->PlaylistCtrlBtn->setCheckable(true);
+    ui->PlaylistCtrlBtn->setChecked(true);
+    PlayerIcons::set(ui->ControlFullScreenBtn, PlayerIcons::Symbol::Fullscreen);
+    ui->ControlFullScreenBtn->setToolTip("全屏 (Enter)");
 	ui->SpeedCombo->setToolTip("播放速度");
 	ui->SpeedCombo->addItem("0.5x");
 	ui->SpeedCombo->addItem("0.8x");
@@ -49,17 +56,17 @@ bool CtrlBar::Init()
 
 	setStyleSheet(GlobalHelper::GetThemeStr("://res/qss/ctrlbar.css"));
 
-	GlobalHelper::SetIcon(ui->PlayOrPauseBtn, 12, QChar(0xf04b));
-	GlobalHelper::SetIcon(ui->StopBtn, 12, QChar(0xf04d));
-	GlobalHelper::SetIcon(ui->VolumeBtn, 12, QChar(0xf028));
-	GlobalHelper::SetIcon(ui->PlaylistCtrlBtn, 12, QChar(0xf036));
-	GlobalHelper::SetIcon(ui->ForwardBtn, 12, QChar(0xf051));
-	GlobalHelper::SetIcon(ui->BackwardBtn, 12, QChar(0xf048));
-	GlobalHelper::SetIcon(ui->SettingBtn, 12, QChar(0xf013));
-	GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/sequentia-play.svg"));
+	PlayerIcons::set(ui->PlayOrPauseBtn, PlayerIcons::Symbol::Play, true);
+	PlayerIcons::set(ui->StopBtn, PlayerIcons::Symbol::Stop);
+	PlayerIcons::set(ui->VolumeBtn, PlayerIcons::Symbol::Volume);
+	PlayerIcons::set(ui->PlaylistCtrlBtn, PlayerIcons::Symbol::List);
+	PlayerIcons::set(ui->ForwardBtn, PlayerIcons::Symbol::Next);
+	PlayerIcons::set(ui->BackwardBtn, PlayerIcons::Symbol::Previous);
+	PlayerIcons::set(ui->SettingBtn, PlayerIcons::Symbol::Settings);
+
 
 	m_curLoopPolicy = VideoLoopPolicy::LOOP_ALL;
-	ui->CycleSettingBtn->setToolTip("循环模式：列表循环");
+	UpdateLoopButton();
 
 	ui->PlaylistCtrlBtn->setToolTip("播放列表");
 	ui->SettingBtn->setToolTip("设置");
@@ -96,6 +103,7 @@ void CtrlBar::ApplyPreferences(const AppPreferences& preferences)
     ui->VolumeSlider->setValue(qRound(sanitized.volume * MAX_SLIDER_VALUE));
     m_dLastVolumePercent = sanitized.volume;
     m_curLoopPolicy = sanitized.loopPolicy;
+    UpdateLoopButton();
     const QString speedText = QString::number(sanitized.speed, 'f', 1) + "x";
     const int speedIndex = ui->SpeedCombo->findText(speedText);
     if (speedIndex >= 0)
@@ -108,10 +116,9 @@ void CtrlBar::ApplyPreferences(const AppPreferences& preferences)
 
 bool CtrlBar::ConnectSignalSlots()
 {
-	QList<bool> listRet;
-	bool bRet;
 
 
+    connect(ui->ControlFullScreenBtn, &QPushButton::clicked, this, &CtrlBar::SigFullScreen);
 	connect(ui->PlaylistCtrlBtn, &QPushButton::clicked, this, &CtrlBar::SigShowOrHidePlaylist);
 	connect(ui->PlaySlider, &CustomSlider::SigCustomSliderValueChanged, this, &CtrlBar::OnPlaySliderValueChanged);
 	connect(ui->VolumeSlider, &CustomSlider::SigCustomSliderValueChanged, this, &CtrlBar::OnVolumeSliderValueChanged);
@@ -144,21 +151,26 @@ void CtrlBar::OnVideoPlaySeconds(int nSeconds)
 	ui->VideoPlayTimeTimeEdit->setTime(playTime);
 
 	if (m_nTotalPlaySeconds > 0)
-		ui->PlaySlider->setValue(nSeconds * 1.0 / m_nTotalPlaySeconds * MAX_SLIDER_VALUE);
+		if (!ui->PlaySlider->isSliderDown())
+            ui->PlaySlider->setValue(nSeconds * 1.0 / m_nTotalPlaySeconds * MAX_SLIDER_VALUE);
 }
 
 void CtrlBar::OnVideopVolume(double dPercent)
 {
+    dPercent = std::clamp(dPercent, 0.0, 1.0);
 	ui->VolumeSlider->setValue(dPercent * MAX_SLIDER_VALUE);
+    ui->VolumeLabel->setText(QString::number(qRound(dPercent * 100)) + "%");
+    if (dPercent > 0) m_unmutedVolume = dPercent;
+    ui->VolumeBtn->setToolTip(dPercent == 0 ? "取消静音" : "静音");
 	m_dLastVolumePercent = dPercent;
 
 	if (m_dLastVolumePercent == 0)
 	{
-		GlobalHelper::SetIcon(ui->VolumeBtn, 12, QChar(0xf026));
+		PlayerIcons::set(ui->VolumeBtn, PlayerIcons::Symbol::Mute);
 	}
 	else
 	{
-		GlobalHelper::SetIcon(ui->VolumeBtn, 12, QChar(0xf028));
+		PlayerIcons::set(ui->VolumeBtn, PlayerIcons::Symbol::Volume);
 	}
 
 	GlobalHelper::SavePlayVolume(dPercent);
@@ -168,12 +180,12 @@ void CtrlBar::OnPauseStat(bool bPaused)
 {
 	if (bPaused)
 	{
-		GlobalHelper::SetIcon(ui->PlayOrPauseBtn, 12, QChar(0xf04b));
+		PlayerIcons::set(ui->PlayOrPauseBtn, PlayerIcons::Symbol::Play, true);
 		ui->PlayOrPauseBtn->setToolTip("播放");
 	}
 	else
 	{
-		GlobalHelper::SetIcon(ui->PlayOrPauseBtn, 12, QChar(0xf04c));
+		PlayerIcons::set(ui->PlayOrPauseBtn, PlayerIcons::Symbol::Pause, true);
 		ui->PlayOrPauseBtn->setToolTip("暂停");
 	}
 }
@@ -185,7 +197,7 @@ void CtrlBar::OnStopFinished()
 	QTime StopTime(0, 0, 0);
 	ui->VideoTotalTimeTimeEdit->setTime(StopTime);
 	ui->VideoPlayTimeTimeEdit->setTime(StopTime);
-	GlobalHelper::SetIcon(ui->PlayOrPauseBtn, 12, QChar(0xf04b));
+	PlayerIcons::set(ui->PlayOrPauseBtn, PlayerIcons::Symbol::Play, true);
 	ui->PlayOrPauseBtn->setToolTip("播放");
 }
 
@@ -218,19 +230,9 @@ void CtrlBar::on_PlayOrPauseBtn_clicked()
 
 void CtrlBar::on_VolumeBtn_clicked()
 {
-	if (ui->VolumeBtn->text() == QChar(0xf028))
-	{
-		GlobalHelper::SetIcon(ui->VolumeBtn, 12, QChar(0xf026));
-		ui->VolumeSlider->setValue(0);
-		emit SigPlayVolume(0);
-	}
-	else
-	{
-		GlobalHelper::SetIcon(ui->VolumeBtn, 12, QChar(0xf028));
-		ui->VolumeSlider->setValue(m_dLastVolumePercent * MAX_SLIDER_VALUE);
-		emit SigPlayVolume(m_dLastVolumePercent);
-	}
-
+    const double volume = m_dLastVolumePercent > 0 ? 0 : m_unmutedVolume;
+    OnVideopVolume(volume);
+    emit SigPlayVolume(volume);
 }
 
 void CtrlBar::on_StopBtn_clicked()
@@ -245,25 +247,28 @@ void CtrlBar::on_SettingBtn_clicked()
 
 void CtrlBar::OnCycleSettingBtnClicked()
 {
-	m_curLoopPolicy = static_cast<VideoLoopPolicy>((static_cast<int>(m_curLoopPolicy) + 1) % static_cast<int>(VideoLoopPolicy::LOOP_MAX));
-	switch (m_curLoopPolicy)
-	{
-	case VideoLoopPolicy::LOOP_NONE:
-		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/non-repeating-play.svg"));
-		ui->CycleSettingBtn->setToolTip("循环模式：不循环");
-		break;
-	case VideoLoopPolicy::LOOP_ALL:
-		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/sequentia-play.svg"));
-		ui->CycleSettingBtn->setToolTip("循环模式：列表循环");
-		break;
-	case VideoLoopPolicy::LOOP_SINGLE:
-		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/single-play.svg"));
-		ui->CycleSettingBtn->setToolTip("循环模式：单首循环");
-		break;
-	case VideoLoopPolicy::LOOP_RANDOM:
-		GlobalHelper::SetIcon(ui->CycleSettingBtn, 20, QIcon(":/res/shuffle-play.svg"));
-		ui->CycleSettingBtn->setToolTip("循环模式：随机播放");
-		break;
-	}
-	emit SigPlayLoopPolicyChanged(m_curLoopPolicy);
+    m_curLoopPolicy = static_cast<VideoLoopPolicy>((static_cast<int>(m_curLoopPolicy) + 1) % static_cast<int>(VideoLoopPolicy::LOOP_MAX));
+    UpdateLoopButton();
+    emit SigPlayLoopPolicyChanged(m_curLoopPolicy);
+}
+
+void CtrlBar::UpdateLoopButton()
+{
+    QString text;
+    switch (m_curLoopPolicy) {
+    case VideoLoopPolicy::LOOP_NONE: text = QStringLiteral("不循环"); break;
+    case VideoLoopPolicy::LOOP_ALL: text = QStringLiteral("列表循环"); break;
+    case VideoLoopPolicy::LOOP_SINGLE: text = QStringLiteral("单首循环"); break;
+    case VideoLoopPolicy::LOOP_RANDOM: text = QStringLiteral("随机播放"); break;
+    default: return;
+    }
+    ui->CycleSettingBtn->setIcon(PlayerIcons::icon(PlayerIcons::Symbol::Repeat));
+    ui->CycleSettingBtn->setIconSize(QSize(14, 14));
+    ui->CycleSettingBtn->setText(text);
+    ui->CycleSettingBtn->setToolTip(QStringLiteral("循环模式：") + text);
+}
+
+void CtrlBar::SetPlaylistVisible(bool visible)
+{
+    ui->PlaylistCtrlBtn->setChecked(visible);
 }

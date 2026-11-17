@@ -17,6 +17,8 @@
 #include <QScreen>
 #include <QPushButton>
 #include <QSlider>
+#include <QStatusBar>
+#include <QComboBox>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -101,6 +103,48 @@ bool CheckNativeResizeBorders(MainWid& window)
 }
 #endif
 
+bool CheckDesignLayout(MainWid& window)
+{
+    window.resize(1440, 900);
+    QApplication::processEvents();
+    auto* title = window.findChild<QWidget*>(QStringLiteral("TitleWid"));
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("PlaylistWid"));
+    auto* controls = window.findChild<CtrlBar*>(QStringLiteral("CtrlBarWid"));
+    auto* viewport = window.findChild<Show*>(QStringLiteral("ShowWid"));
+    auto* toggle = window.findChild<QPushButton*>(QStringLiteral("PlaylistCtrlBtn"));
+    auto* collapse = window.findChild<QPushButton*>(QStringLiteral("CollapseBtn"));
+    auto* volume = window.findChild<QLabel*>(QStringLiteral("VolumeLabel"));
+    auto* mute = window.findChild<QPushButton*>(QStringLiteral("VolumeBtn"));
+    auto* loop = window.findChild<QPushButton*>(QStringLiteral("CycleSettingBtn"));
+    if (!Expect(title && panel && controls && viewport && toggle && collapse && volume && mute && loop,
+                "design controls are discoverable")) return false;
+    if (!Expect(title->height() == 56 && controls->height() == 72 && panel->width() == 300 && window.statusBar()->height() == 26,
+                "chrome matches design dimensions") ||
+        !Expect(controls->width() == title->width() && viewport->width() + panel->width() == controls->width(),
+                "transport spans the viewport and playlist") ||
+        !Expect(panel->geometry().top() == viewport->geometry().top() && panel->geometry().bottom() < controls->geometry().top(),
+                "playlist stays between title and transport")) return false;
+    collapse->click();
+    QApplication::processEvents();
+    if (!Expect(panel->isHidden() && !toggle->isChecked() && viewport->width() == controls->width(),
+                "collapse expands viewport and unchecks playlist control")) return false;
+    toggle->click();
+    QApplication::processEvents();
+    if (!Expect(!panel->isHidden() && toggle->isChecked() && panel->width() == 300,
+                "playlist restores at design width")) return false;
+    const double previousVolume = controls->GetVolume();
+    controls->OnVideopVolume(0.8);
+    mute->click();
+    if (!Expect(volume->text() == QStringLiteral("0%") && controls->GetVolume() == 0,
+                "mute updates numeric volume")) return false;
+    mute->click();
+    if (!Expect(volume->text() == QStringLiteral("80%") && controls->GetVolume() == 0.8,
+                "unmute restores last audible volume")) return false;
+    controls->OnVideopVolume(previousVolume);
+    if (!Expect(loop->text() == QStringLiteral("列表循环"), "restored loop preference is visible")) return false;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -127,6 +171,8 @@ int main(int argc, char* argv[])
     if (!CheckNativeResizeBorders(window))
         return 1;
 #endif
+
+    if (!CheckDesignLayout(window)) return 1;
 
     bool openDialogShown = false;
     QTimer::singleShot(0, &window, [&]() {
@@ -204,7 +250,10 @@ int main(int argc, char* argv[])
         return 1;
 
     MediaInfo mediaInfo;
+    mediaInfo.width = 1920;
+    mediaInfo.height = 1080;
     mediaInfo.tracks = {
+        TrackInfo{0, AVMEDIA_TYPE_VIDEO, "", "", "h264", true, false},
         TrackInfo{3, AVMEDIA_TYPE_AUDIO, "eng", "English", "aac", true, false},
         TrackInfo{8, AVMEDIA_TYPE_SUBTITLE, "zho", "中文字幕", "ass", false, false},
     };
@@ -218,6 +267,18 @@ int main(int argc, char* argv[])
                     subtitleMenu->actions().at(1)->isCheckable() && subtitleMenu->actions().at(1)->data() == 8,
                 "subtitle menu exposes disable and stream-index actions"))
         return 1;
+
+    auto* resolution = window.findChild<QLabel*>(QStringLiteral("ResolutionBadge"));
+    auto* codec = window.findChild<QLabel*>(QStringLiteral("CodecBadge"));
+    if (!Expect(resolution && codec && resolution->text() == QStringLiteral("1920×1080") && codec->text() == QStringLiteral("H264"),
+                "title badges use actual media metadata")) return 1;
+
+    auto* titleWidget = window.findChild<Title*>();
+    auto* movieLabel = window.findChild<QLabel*>(QStringLiteral("MovieNameLab"));
+    titleWidget->OnPlay(QStringLiteral("review-smoke.avi"));
+    app.processEvents();
+    if (!Expect(movieLabel && movieLabel->text() == QStringLiteral("review-smoke.avi") && resolution->height() == 19,
+                "short filenames remain readable and metadata pills stay compact")) return 1;
 
     auto* ctrlBarState = window.findChild<CtrlBar*>(QStringLiteral("CtrlBarWid"));
     auto* playSlider = window.findChild<QSlider*>(QStringLiteral("PlaySlider"));
@@ -275,6 +336,8 @@ int main(int argc, char* argv[])
             "audio placeholder can be shown again after video playback"))
         return 1;
     isolatedShow.OnStopFinished();
+    auto* emptyState = isolatedShow.findChild<QLabel*>(QStringLiteral("EmptyState"));
+    if (!Expect(emptyState && emptyState->isVisible(), "stop restores the designed empty state")) return 1;
     if (!Expect(!audioLabel->isVisible() && videoView->isVisible(),
             "stopping audio restores the unobstructed video surface"))
         return 1;

@@ -27,6 +27,8 @@
 #include <QJsonParseError>
 #include <QApplication>
 #include <QStatusBar>
+#include <QLabel>
+#include <QVBoxLayout>
 #include <QFileInfo>
 #include <QKeySequence>
 #include <QMessageBox>
@@ -135,21 +137,43 @@ bool MainWid::Init()
 	{
 		restoreGeometry(geometry);
 	}
-	if (!windowState.isEmpty())
-	{
-		restoreState(windowState);
-	}
+    // Legacy dock state no longer applies to the fixed player chrome.
 
-	// 去除播放列表标题栏自带的边框
-	QWidget* em = new QWidget(this);
-	ui->PlaylistWid->setTitleBarWidget(em);
-	ui->PlaylistWid->setWidget(&m_stPlaylist);
-	//ui->PlaylistWid->setFixedWidth(100);
-
-	// 去除标题栏自带的边框
-	QWidget* emTitle = new QWidget(this);
-	ui->TitleWid->setTitleBarWidget(emTitle);
-	ui->TitleWid->setWidget(&m_stTitle);
+    auto* playlistLayout = new QVBoxLayout(ui->PlaylistWid);
+    playlistLayout->setContentsMargins(0, 0, 0, 0);
+    playlistLayout->addWidget(&m_stPlaylist);
+    auto* titleLayout = new QVBoxLayout(ui->TitleWid);
+    titleLayout->setContentsMargins(0, 0, 0, 0);
+    titleLayout->addWidget(&m_stTitle);
+    // The transport spans both the viewport and playlist.
+    ui->TitleWid->setFixedHeight(56);
+    ui->PlaylistWid->setFixedWidth(300);
+    ui->gridLayout->removeWidget(ui->ShowWid);
+    ui->gridLayout->removeWidget(ui->CtrlBarWid);
+    ui->gridLayout->addWidget(ui->TitleWid, 0, 0, 1, 2);
+    ui->gridLayout->addWidget(ui->ShowWid, 1, 0);
+    ui->gridLayout->addWidget(ui->PlaylistWid, 1, 1);
+    ui->gridLayout->addWidget(ui->CtrlBarWid, 2, 0, 1, 2);
+    ui->gridLayout->setRowStretch(1, 1);
+    ui->gridLayout->setColumnStretch(0, 1);
+    ui->TitleWid->show();
+    ui->PlaylistWid->show();
+    ui->menubar->hide();
+    setMinimumSize(900, 540);
+    statusBar()->setFixedHeight(26);
+    statusBar()->setSizeGripEnabled(false);
+    auto* dot = new QLabel(QStringLiteral("●"), this);
+    dot->setObjectName(QStringLiteral("StatusDot"));
+    m_statusText = new QLabel(QStringLiteral("就绪"), this);
+    m_statusText->setObjectName(QStringLiteral("PlaybackStatusText"));
+    m_decoderInfo = new QLabel(this);
+    m_decoderInfo->setObjectName(QStringLiteral("DecoderInfo"));
+    auto* shortcuts = new QLabel(QStringLiteral("Space 播放 / 暂停   F6 播放列表   Enter 全屏   Ctrl+O 打开文件"), this);
+    shortcuts->setObjectName(QStringLiteral("ShortcutHint"));
+    statusBar()->addWidget(dot);
+    statusBar()->addWidget(m_statusText);
+    statusBar()->addWidget(m_decoderInfo, 1);
+    statusBar()->addPermanentWidget(shortcuts);
 
 	//连接自定义信号与槽
 	if (ConnectSignalSlots() == false)
@@ -218,6 +242,8 @@ bool MainWid::ConnectSignalSlots()
 	connect(&m_stTitle, &Title::SigFullScreenBtnClicked, this, &MainWid::OnFullScreenPlay);
 	connect(&m_stTitle, &Title::SigOpenFile, &m_stPlaylist, &Playlist::OnAddFileAndPlay, Qt::QueuedConnection);
 	connect(&m_stTitle, &Title::SigShowMenu, this, &MainWid::OnShowMenu);
+    connect(&m_stTitle, &Title::SigShowSetting, this, &MainWid::OnShowSettingWid);
+    connect(&m_stPlaylist, &Playlist::SigHideRequested, this, &MainWid::OnShowOrHidePlaylist);
 
 	connect(&m_stPlaylist, &Playlist::SigPlay, this, &MainWid::OnPlayFile, Qt::QueuedConnection);
 
@@ -239,6 +265,7 @@ bool MainWid::ConnectSignalSlots()
 	connect(ui->CtrlBarWid, &CtrlBar::SigForwardPlay, &m_stPlaylist, &Playlist::OnForwardPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowMenu, this, &MainWid::OnShowMenu);
 	connect(ui->CtrlBarWid, &CtrlBar::SigShowSetting, this, &MainWid::OnShowSettingWid);
+	connect(ui->CtrlBarWid, &CtrlBar::SigFullScreen, this, &MainWid::OnFullScreenPlay);
 	connect(ui->CtrlBarWid, &CtrlBar::SigSpeedChanged, this, &MainWid::OnSpeedChanged);
 	connect(&m_stSettingWid, &SettingWid::SigPreferencesApplied, this, [this](const AppPreferences& preferences) {
 		m_preferences = SanitizePreferences(preferences);
@@ -258,6 +285,7 @@ bool MainWid::ConnectSignalSlots()
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoTotalSeconds, ui->CtrlBarWid, &CtrlBar::OnVideoTotalSeconds);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoTotalSeconds, this, [this](int seconds) {
 		m_currentDurationSeconds = seconds;
+        if (seconds > 0) m_stPlaylist.SetMediaDuration(m_currentPlayFile, seconds);
 	});
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, ui->CtrlBarWid, &CtrlBar::OnVideoPlaySeconds);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigVideoPlaySeconds, ui->ShowWid, &Show::OnVideoPlaySeconds);
@@ -276,6 +304,22 @@ bool MainWid::ConnectSignalSlots()
 	});
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, &m_stTitle, &Title::OnStopFinished);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStartPlay, &m_stTitle, &Title::OnPlay);
+    connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStartPlay, this, [this](const QString& location) {
+        m_stPlaylist.SetPlayingLocation(location);
+        m_stTitle.SetMediaDetails({}, {});
+        m_decoderInfo->clear();
+        ui->ShowWid->SetMediaDetails({});
+        ui->ShowWid->SetPlaybackBadge(QStringLiteral("正在打开媒体"));
+    });
+    connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPauseStat, this, [this](bool paused) {
+        m_statusText->setText(paused ? QStringLiteral("已暂停") : QStringLiteral("正在播放"));
+        ui->ShowWid->SetPlaybackBadge(m_statusText->text());
+    });
+    connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigStopFinished, this, [this] {
+        m_stPlaylist.SetPlayingLocation({});
+        m_statusText->setText(QStringLiteral("已停止播放"));
+        m_decoderInfo->clear();
+    });
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPlaybackStatus, this, &MainWid::OnPlaybackStatus);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigMediaInfo, this, &MainWid::OnMediaInfo);
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigPlayMsg, this, [this](const QString& message) {
@@ -454,7 +498,7 @@ void MainWid::OnFullScreenPlay()
 		ui->CtrlBarWid->setWindowFlags(Qt::FramelessWindowHint | Qt::Window);
 		ui->CtrlBarWid->windowHandle()->setScreen(pStCurScreen);
 		ui->CtrlBarWid->raise();
-		ui->CtrlBarWid->setWindowOpacity(0.5);
+		ui->CtrlBarWid->setWindowOpacity(1.0);
 		ui->CtrlBarWid->showNormal();
 		ui->CtrlBarWid->windowHandle()->setScreen(pStCurScreen);
 
@@ -773,7 +817,9 @@ void MainWid::OnPlayFile(QString strFileName)
 void MainWid::OnPlaybackStatus(PlaybackStatus status)
 {
 	const StatusPresentation presentation = PresentPlaybackStatus(status);
-	statusBar()->showMessage(presentation.text);
+	statusBar()->clearMessage();
+    m_statusText->setText(presentation.text);
+    ui->ShowWid->SetPlaybackBadge(presentation.text);
 
 	if (presentation.kind != StatusPresentationKind::FinalError ||
 		m_lastFinalErrorGeneration == m_playbackGeneration) {
@@ -786,6 +832,20 @@ void MainWid::OnPlaybackStatus(PlaybackStatus status)
 
 void MainWid::OnMediaInfo(MediaInfo info)
 {
+    const QString resolution = info.width > 0 && info.height > 0
+        ? QStringLiteral("%1×%2").arg(info.width).arg(info.height) : QString{};
+    QString videoCodec, audioCodec;
+    for (const auto& track : info.tracks) {
+        if (track.type == AVMEDIA_TYPE_VIDEO && videoCodec.isEmpty()) videoCodec = QString::fromStdString(track.codec).toUpper();
+        if (track.type == AVMEDIA_TYPE_AUDIO && audioCodec.isEmpty()) audioCodec = QString::fromStdString(track.codec).toUpper();
+    }
+    m_stTitle.SetMediaDetails(resolution, resolution.isEmpty() ? audioCodec : videoCodec);
+    ui->ShowWid->SetMediaDetails(resolution);
+    QStringList codecs;
+    if (!videoCodec.isEmpty()) codecs << videoCodec;
+    if (!audioCodec.isEmpty()) codecs << audioCodec;
+    m_decoderInfo->setText(codecs.isEmpty() ? QString{} : QStringLiteral("│  解码 %1").arg(codecs.join(" / ")));
+
 	if (info.duration)
 		m_currentDurationSeconds = static_cast<int>(info.duration->count() / 1000);
 	if (m_pendingResumeSeconds > 0 && m_pendingResumeFile == m_currentPlayFile && info.seekable && !info.live &&
@@ -1157,6 +1217,7 @@ void MainWid::OnShowOrHidePlaylist()
 	{
 		ui->PlaylistWid->hide();
 	}
+    ui->CtrlBarWid->SetPlaylistVisible(!ui->PlaylistWid->isHidden());
 }
 
 void MainWid::OnSpeedChanged(double speed)
