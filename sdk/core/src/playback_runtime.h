@@ -1,7 +1,7 @@
 #pragma once
 
 #include "playback_controller.h"
-#include "signal.h"
+#include "player_signal.h"
 #include "subtitle_frame.h"
 #include "video_frame.h"
 

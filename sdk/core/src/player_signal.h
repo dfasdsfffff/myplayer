@@ -1,10 +1,12 @@
 /*
-* @file 	signal.h
+* @file 	player_signal.h
 * @brief 	Signal 类型别名，基于 sigslot 库
 * @note 	替代 Qt signals/slots，供 VideoCtl 使用
 */
 
 #pragma once
+
+// 避免命名为 signal.h：MinGW 的 pthread.h 需要包含系统 <signal.h>。
 
 #include <sigslot/signal.hpp>
 

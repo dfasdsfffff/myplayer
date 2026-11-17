@@ -25,7 +25,7 @@
 #include "playback_settings.h"
 #include "reconnect_controller.h"
 #include "renderer_dispatcher.h"
-#include "signal.h"
+#include "player_signal.h"
 #include "stream_reader.h"
 #include "subtitle_frame.h"
 #include "video_frame_converter.h"
