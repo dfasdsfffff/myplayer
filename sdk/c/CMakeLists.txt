@@ -3,7 +3,7 @@ add_library(PlayerSDK::C ALIAS player_sdk_c)
 set_target_properties(player_sdk_c PROPERTIES
     AUTOMOC OFF AUTOUIC OFF AUTORCC OFF
     CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN YES
-    VERSION 1.0.0 SOVERSION 1
+    VERSION ${PLAYER_SDK_VERSION} SOVERSION 1
 )
 target_compile_features(player_sdk_c PRIVATE cxx_std_20)
 target_compile_definitions(player_sdk_c PRIVATE PLAYER_SDK_C_BUILD)
@@ -57,6 +57,8 @@ if(WIN32 AND MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     install(DIRECTORY include/ DESTINATION include CONFIGURATIONS Release COMPONENT PlayerSDK)
     install(FILES PlayerSDKConfig.cmake DESTINATION lib/cmake/PlayerSDK
         CONFIGURATIONS Release COMPONENT PlayerSDK)
+    install(FILES "${PlayerSDK_BINARY_DIR}/PlayerSDKBuildInfo.cmake"
+        DESTINATION lib/cmake/PlayerSDK CONFIGURATIONS Release COMPONENT PlayerSDK)
     install(FILES README.md ../LICENSE ../NOTICE ../THIRD-PARTY-NOTICES.md
         DESTINATION . CONFIGURATIONS Release COMPONENT PlayerSDK)
     install(FILES ../tests/api/player_c_smoke.c ../tests/api/player_c_layout.h

@@ -2,12 +2,12 @@
 
 #include <play_core/media_source.h>
 #include <play_core/video_frame.h>
+#include <play_core/version.h>
 #include <functional>
 #include <memory>
 #include <optional>
 
 namespace play_core {
-inline constexpr const char* Version = "1.0.0";
 using SessionId = std::uint64_t;
 using OperationId = std::uint64_t;
 enum class PlayerState { Closed, Opening, Ready, Playing, Paused, Reconnecting, Stopped, Closing, Ended, Failed };
@@ -35,6 +35,19 @@ struct OperationResult {
 };
 enum class HardwareDecode { Auto, Disabled, D3D11VA };
 struct PlayerOptions { HardwareDecode hardwareDecode{HardwareDecode::Auto}; bool loop{false}; };
+enum class VideoDecodeBackend { Unknown, Software, D3D11VA };
+struct PlaybackDiagnostics {
+    std::uint64_t reconnectAttempts{0};
+    PlayerError lastDisconnect;
+    VideoDecodeBackend videoDecodeBackend{VideoDecodeBackend::Unknown};
+};
+struct PlayerSnapshot {
+    SessionId session{0};
+    PlayerState state{PlayerState::Closed};
+    std::optional<std::int64_t> positionMs;
+    std::shared_ptr<const MediaInfo> mediaInfo;
+    PlaybackDiagnostics diagnostics;
+};
 struct PlayerEvent {
     enum class Type { State, MediaInfo, Position, Operation, Video, Subtitle, Ended, Error, Closed };
     Type type{Type::State};
@@ -77,6 +90,7 @@ public:
     Player(const Player&) = delete;
     Player& operator=(const Player&) = delete;
     Subscription subscribe(std::function<void(const PlayerEvent&)> callback);
+    [[nodiscard]] PlayerSnapshot snapshot() const;
     Request open(MediaSource source);
     Request play();
     Request setPaused(bool paused);

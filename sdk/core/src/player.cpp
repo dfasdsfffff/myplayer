@@ -3,6 +3,7 @@
 #include "runtime_manager.h"
 #include "videoctl.h"
 #include "network_input.h"
+#include "player_event_queue.h"
 #include <algorithm>
 #include <condition_variable>
 #include <deque>
@@ -123,6 +124,7 @@ struct Player::Impl {
     std::mutex deliveryMutex;
     std::condition_variable deliveryCv;
     std::deque<PlayerEvent> events;
+    PlayerSnapshot latest;
     std::vector<std::weak_ptr<Subscription::State>> subscribers;
     bool deliveryQuitting{false};
     std::thread worker, dispatcher;
@@ -149,26 +151,37 @@ struct Player::Impl {
     Request submit(Job j) {
         std::lock_guard lock(mutex);
         if (quitting || outstanding >= 128) return {0, acceptedSession, {ErrorCode::Capacity, "Player request capacity exceeded"}};
-        if (j.command == Command::Open) { acceptedSession = ++nextSession; visibleSession.store(acceptedSession); }
-        j.request = {++nextOperation, acceptedSession, {}};
+        const bool opens = j.command == Command::Open;
+        j.request = {++nextOperation, opens ? ++nextSession : acceptedSession, {}};
         const auto r = j.request;
         jobs.push_back([this, j = std::move(j)] { pending.emplace(j.request.operation, j.request); execute(j); });
+        if (opens) {
+            std::lock_guard deliveryLock(deliveryMutex);
+            acceptedSession = r.session;
+            latest = {};
+            latest.session = r.session;
+            latest.state = PlayerState::Opening;
+            visibleSession.store(r.session);
+            detail::discardInactiveEvents(events, r.session);
+        }
         ++outstanding; cv.notify_one(); return r;
     }
-    void emit(PlayerEvent e) {
+    void emit(PlayerEvent e, std::optional<PlayerError> disconnect = std::nullopt) {
         std::lock_guard lock(deliveryMutex);
-        // Transient notifications are mailboxes, never one queued event per frame.
-        const bool transient = e.type == PlayerEvent::Type::Video || e.type == PlayerEvent::Type::Position ||
-            e.type == PlayerEvent::Type::Subtitle || e.type == PlayerEvent::Type::MediaInfo ||
-            (options.loop && e.type == PlayerEvent::Type::Ended);
-        if (transient) {
-            std::erase_if(events,[&](const auto& old) { return old.type == e.type && old.session != e.session; });
-            auto it = std::find_if(events.begin(), events.end(), [&](const auto& old) { return old.type == e.type && old.session == e.session; });
-            if (it != events.end()) { *it = std::move(e); deliveryCv.notify_one(); return; }
+        using Type = PlayerEvent::Type;
+        if (e.session == latest.session) {
+            if (disconnect) latest.diagnostics.lastDisconnect = std::move(*disconnect);
+            if (e.type == Type::State) {
+                if (e.state == PlayerState::Closed) { latest = {}; latest.session = e.session; }
+                latest.state = e.state;
+            } else if (e.type == Type::MediaInfo) latest.mediaInfo = e.mediaInfo;
+            else if (e.type == Type::Position) latest.positionMs = e.positionMs;
         }
-        events.push_back(std::move(e)); deliveryCv.notify_one();
+        if (detail::enqueuePlayerEvent(events, std::move(e), latest.session, options.loop)) deliveryCv.notify_one();
     }
-    void setState(PlayerState s) { state = s; PlayerEvent e; e.session = session; e.state = s; emit(std::move(e)); }
+    void setState(PlayerState s, std::optional<PlayerError> disconnect = std::nullopt) {
+        state = s; PlayerEvent e; e.session = session; e.state = s; emit(std::move(e), std::move(disconnect));
+    }
     void finish(Request r, OperationStatus status = OperationStatus::Succeeded, PlayerError error = {},
                 std::optional<std::int64_t> requested = {}, std::optional<std::int64_t> actual = {}) {
         if (!pending.erase(r.operation)) return;
@@ -187,7 +200,20 @@ struct Player::Impl {
         ctl->OnStopAndWait(); connections.clear();
         cancelAll(status, except); info.reset(); stopped = false;
     }
-    void connect(SessionId sid) {
+    void connect(SessionId sid, bool networkSource) {
+        connections.emplace_back(ctl->SigVideoDecodeBackend.connect([this, sid](DecodedVideoBackend backend) {
+            std::lock_guard lock(deliveryMutex);
+            if (sid != latest.session) return;
+            switch (backend) {
+            case DecodedVideoBackend::Unknown: latest.diagnostics.videoDecodeBackend = VideoDecodeBackend::Unknown; break;
+            case DecodedVideoBackend::Software: latest.diagnostics.videoDecodeBackend = VideoDecodeBackend::Software; break;
+            case DecodedVideoBackend::D3D11VA: latest.diagnostics.videoDecodeBackend = VideoDecodeBackend::D3D11VA; break;
+            }
+        }));
+        connections.emplace_back(ctl->SigReconnectAttempt.connect([this, sid] {
+            std::lock_guard lock(deliveryMutex);
+            if (sid == latest.session) ++latest.diagnostics.reconnectAttempts;
+        }));
         connections.emplace_back(ctl->SigMediaInfo.connect([this, sid](const ::MediaInfo& n) {
             auto snapshot = publicInfo(n);
             post([this, sid, snapshot] { if (sid != session) return; info = snapshot;
@@ -203,7 +229,7 @@ struct Player::Impl {
                 } else if (s.state == ::PlaybackState::Reconnecting) {
                     if (state != PlayerState::Reconnecting) reconnectState = state;
                     if (!opening) cancelAll(OperationStatus::Failed);
-                    setState(PlayerState::Reconnecting);
+                    setState(PlayerState::Reconnecting, mediaError(s.error));
                 } else if (s.state == ::PlaybackState::Playing && state == PlayerState::Reconnecting) {
                     const auto target = reconnectState;
                     ctl->SdkPause(target != PlayerState::Playing, [this, sid, target](bool ok) {
@@ -212,10 +238,11 @@ struct Player::Impl {
                 }
             });
         }));
-        connections.emplace_back(ctl->SigSessionFailure.connect([this, sid](::PlaybackError error) {
-            post([this, sid, error] {
+        connections.emplace_back(ctl->SigSessionFailure.connect([this, sid, networkSource](::PlaybackError error) {
+            post([this, sid, networkSource, error] {
                 if (sid != session) return;
-                setState(PlayerState::Failed);
+                setState(PlayerState::Failed, networkSource && ShouldReconnect(error) ?
+                    std::optional{mediaError(error)} : std::nullopt);
                 PlayerEvent e; e.type = PlayerEvent::Type::Error; e.session = sid;
                 e.error = mediaError(error);
                 emit(std::move(e)); cancelAll(OperationStatus::Failed);
@@ -261,7 +288,8 @@ struct Player::Impl {
         if (!pending.contains(r.operation)) return;
         if (j.command == Command::Open) {
             teardown(OperationStatus::Superseded, r.operation); session = r.session;
-            setState(PlayerState::Opening); opening = r; connect(session);
+            setState(PlayerState::Opening); opening = r;
+            connect(session, IsNetworkSource(ClassifyMediaSource(j.source.location)));
             if (!ctl->OpenPaused(nativeSource(j.source))) {
                 setState(PlayerState::Failed); finish(r, OperationStatus::Failed, {ErrorCode::Media, "Could not open media"}); opening.reset();
             }
@@ -351,12 +379,13 @@ struct Player::Impl {
                 std::erase_if(subscribers, [](const auto& s) { return s.expired(); });
                 for (auto& w : subscribers) if (auto s = w.lock()) targets.push_back(std::move(s)); }
             const bool terminal = event.type == PlayerEvent::Type::Operation;
-            if (terminal || event.session == visibleSession.load()) {
-                for (const auto& s : targets) {
-                    { std::lock_guard lock(s->mutex); if (!s->active) continue; ++s->running; }
-                    try { s->callback(event); } catch (...) { /* Host exceptions never escape the dispatcher. */ }
-                    { std::lock_guard lock(s->mutex); --s->running; s->cv.notify_all(); }
-                }
+            for (const auto& s : targets) {
+                { std::lock_guard lock(s->mutex);
+                    if (!terminal && event.session != visibleSession.load()) break;
+                    if (!s->active) continue;
+                    ++s->running; }
+                try { s->callback(event); } catch (...) { /* Host exceptions never escape the dispatcher. */ }
+                { std::lock_guard lock(s->mutex); --s->running; s->cv.notify_all(); }
             }
             if (terminal) { std::lock_guard lock(mutex); --outstanding; }
         }
@@ -364,6 +393,10 @@ struct Player::Impl {
 };
 Player::Player(PlayerOptions o) : impl_(std::make_unique<Impl>(o)) {}
 Player::~Player() = default;
+PlayerSnapshot Player::snapshot() const {
+    std::lock_guard lock(impl_->deliveryMutex);
+    return impl_->latest;
+}
 Subscription Player::subscribe(std::function<void(const PlayerEvent&)> callback) {
     if (!callback) return {};
     auto s = std::make_shared<Subscription::State>(); s->callback = std::move(callback);

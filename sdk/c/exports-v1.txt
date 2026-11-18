@@ -10,6 +10,7 @@ ps_event_retain
 ps_player_close_v1
 ps_player_create_v1
 ps_player_destroy
+ps_player_get_snapshot_v1
 ps_player_open_v1
 ps_player_options_init_v1
 ps_player_play_v1

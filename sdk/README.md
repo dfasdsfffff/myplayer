@@ -2,7 +2,7 @@
 
 `play_core` 本身是 Core SDK（静态库），没有额外的核心包装库。公开 C++ 接口为 `core/include/play_core/`，Qt 接口为 `qt/include/player_sdk_qt/`；新增 C ABI 接口为 `c/include/player_sdk_c/`，使用与兼容约定见 [C ABI 指南](c/README.md)。`src/`、`PlaybackRuntime`、`VideoCtl` 和 controller 均是私有实现/回归测试接口，不属于源码兼容承诺。
 
-本文对应项目 `v2.1.0` 的发行准备，不表示发行附件已生成或上传。项目发行号与当前 SDK 自报版本不同：`play_core::Version`、`ps_version()`、SDK CMake project 和 C 共享库的 `VERSION` 仍为 `1.0.0`，C ABI 主版本仍为 1；本次文档更新不修改这些源码/构建元数据。
+项目发行号 `v2.1.0`、SDK 版本 `1.1.0` 与 C ABI 主版本 `1` 独立演进。SDK 版本在 `cmake/PlayerSDKVersion.cmake` 维护，Core 常量、`ps_version()`、CMake 库版本及源码包名均取自该版本。本指南不表示发行附件已上传。
 
 ## 源码目录
 
@@ -147,6 +147,16 @@ auto request = player.stepFrame(-1);
 
 `Subscription::reset()` 与析构会阻止新调用、取消该订阅排队交付并等待在途回调完成。返回后不会再访问该订阅捕获的宿主上下文。慢回调可延迟通知和 Player 析构，但不阻止核心线程取消网络/解码工作。主动注销或销毁后，不再承诺向该订阅交付剩余结果。宿主回调必须最终返回。
 
+### 状态快照与播放诊断
+
+`Player::snapshot()` 可从宿主线程或回调中调用，无需等待事件派发，返回同一次查询的会话、状态、最近上报位置、媒体信息和诊断。`QtPlayer::snapshot()` 读取同一 Core 快照，可能早于 Qt 信号；既有 `state()` / `mediaInfo()` 仍反映 Qt 侧缓存。C 宿主使用 `ps_player_get_snapshot_v1()`。
+
+首次打开前为 `Closed`、会话 ID 为 0；接受 `open()` 后立即切到新会话并清空上一会话的数据。`close()` 完成后保留关闭的会话 ID，清空位置、媒体和诊断。位置尚未上报时为空，不是精确的实时播放时钟，也不等于最近一次 `seek()` 的目标。已取得的媒体信息可以跨切源和 Player 销毁保留。
+
+诊断按会话统计：`reconnectAttempts` 只累计实际开始的重连，不计在退避中取消的尝试；`lastDisconnect` 保留最近的网络超时、网络不可用或连接中断原因（含初次连接超时），不含源地址或凭据。`videoDecodeBackend` 来自实际解码帧，而非硬解偏好：尚无帧、音频源或视频解码器已关闭时为 `Unknown`，其余为 `Software` 或 `D3D11VA`。D3D11VA 帧仍可能回读到 CPU。
+
+切源会清除排队中的旧会话普通事件，晚到事件不能覆盖新会话的视频、字幕或进度；已开始执行的旧回调不会被中断。每个受理操作的终结结果仍按其原始会话投递。
+
 ## 3. 部署、发行和迁移
 
 以下 DLL 部署说明针对 Windows。Linux/macOS 源码宿主仍须部署实际链接的共享依赖（`.so` / `.dylib`）及匹配的 Qt 平台插件，并按自己的安装布局处理动态库搜索路径；当前 C ABI 安装规则没有提供这些平台的完整部署方案。
@@ -158,10 +168,10 @@ Core 静态不代表依赖都静态。最终程序需要对应配置的 SDL、So
 从仓库根目录生成仅包含 SDK 的源码归档（不包含 apps、build、开发机 DLL；脚本位于 SDK 目录之外）：
 
 ```powershell
-cmake -DOUTPUT_DIR=build/sdk-source-2.1.0 -P scripts/package-sdk.cmake
+cmake -DOUTPUT_DIR=build/sdk-source -P scripts/package-sdk.cmake
 ```
 
-输出目录必须不存在，脚本不覆盖已有发行物。当前脚本仍固定生成 `PlayerSDK-1.0.0-source.zip`，没有版本参数；上例的 `2.1.0` 只命名暂存目录，不会将 ZIP 或 SDK 元数据改为 2.1.0。不得将旧名称归档直接当作已发布的 v2.1.0 附件。归档直接使用 `sdk/CMakeLists.txt`，单独解压后可以独立或作为子项目构建。许可证见 [授权清单](licenses/README.md)。外部 FFmpeg/Qt 等依赖的授权文本由最终发行方按实际版本补齐，不将本源码包当成最终商业授权审计报告。
+输出目录必须不存在。脚本生成 `PlayerSDK-<SDK 版本>-source.zip`，归档内的 `PlayerSDKBuildInfo.cmake` 记录 SDK 版本、Git 提交及源码状态（`clean`、`dirty` 或 `unknown`）。提交号标识源码基线；`dirty` 不表示包内文件等同于该提交。正式发行应从干净的检出目录打包，并从同一提交重新配置、构建二进制。解压后可独立或作为子项目构建，原始追溯信息会随 C ABI 安装包保留。许可证见 [授权清单](licenses/README.md)。外部 FFmpeg/Qt 等依赖的授权文本由最终发行方按实际版本补齐。
 
 ### 从旧私有入口迁移
 
@@ -173,7 +183,7 @@ cmake -DOUTPUT_DIR=build/sdk-source-2.1.0 -P scripts/package-sdk.cmake
 - FFmpeg 枚举/宽高比 → `MediaType`、`Rational`、`ColorSpace/ColorRange`。
 - 播放列表、历史、设置、下一首/随机播放留在应用；两个应用的画面与字幕统一使用 `VideoWidget`。
 
-源码版本政策：同一稳定主版本尽量保持公开 C++ 源码接口兼容；破坏变更升主版本并给出迁移说明。当前 BGRA 共享缓冲的接入要求见上文，不能仅按项目标签或 SDK 仍为 `1.0.0` 的自报值推断源码无变化。升级 C++ SDK 后必须重编 SDK 及宿主，C++ 二进制兼容性不作承诺。独立版本化 C ABI 共享库 `PlayerSDK::C` 的兼容与所有权约定见 [C ABI 指南](c/README.md)；没有 `PlayerSDK::Cpp` 或独立 `player_sdk` Core 包装库。
+源码版本政策：同一稳定主版本尽量保持公开 C++ 源码接口兼容；破坏变更升主版本并给出迁移说明。升级 C++ SDK 后必须重编 SDK 及宿主，C++ 二进制兼容性不作承诺。独立版本化 C ABI 共享库 `PlayerSDK::C` 的兼容与所有权约定见 [C ABI 指南](c/README.md)；没有 `PlayerSDK::Cpp` 或独立 `player_sdk` Core 包装库。
 
 ## 4. 验证方式与边界
 

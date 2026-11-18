@@ -4,6 +4,7 @@ find_package(PlayerSDK CONFIG REQUIRED)
 add_executable(player_sdk_smoke player_c_smoke.c)
 set_target_properties(player_sdk_smoke PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES)
 target_link_libraries(player_sdk_smoke PRIVATE PlayerSDK::C)
+target_compile_definitions(player_sdk_smoke PRIVATE PLAYER_SDK_EXPECTED_VERSION="${PLAYER_SDK_PACKAGE_VERSION}")
 add_custom_command(TARGET player_sdk_smoke POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
         "$<TARGET_FILE_DIR:PlayerSDK::C>" "$<TARGET_FILE_DIR:player_sdk_smoke>"

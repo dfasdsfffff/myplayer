@@ -18,6 +18,11 @@ int main(void) {
     ps_subtitle_bitmap_v1 bitmap;
     ps_event* retained = NULL;
     CHECK(ps_abi_version() == PS_ABI_VERSION && strlen(ps_version()) > 0);
+#ifdef PLAYER_SDK_EXPECTED_VERSION
+    CHECK(strcmp(ps_version(), PLAYER_SDK_EXPECTED_VERSION) == 0);
+#endif
+    ps_player_snapshot_v1 snapshot;
+    CHECK(ps_player_get_snapshot_v1(NULL, &snapshot, &retained) == PS_ERROR_INVALID_ARGUMENT && retained == NULL);
     CHECK(ps_player_options_init_v1(NULL) == PS_ERROR_INVALID_ARGUMENT);
     CHECK(ps_source_init_v1(NULL) == PS_ERROR_INVALID_ARGUMENT);
     CHECK(ps_player_options_init_v1(&options) == PS_OK);
@@ -40,6 +45,10 @@ int main(void) {
     CHECK(ps_player_options_init_v1(&options) == PS_OK);
     options.hardware_decode = PS_HARDWARE_DISABLED;
     CHECK(ps_player_create_v1(&options, NULL, NULL, &player, &err) == PS_OK);
+    CHECK(ps_player_get_snapshot_v1(player, NULL, NULL) == PS_ERROR_INVALID_ARGUMENT);
+    CHECK(ps_player_get_snapshot_v1(player, &snapshot, &retained) == PS_OK && retained == NULL);
+    CHECK(snapshot.session == 0 && snapshot.state == PS_STATE_CLOSED && !snapshot.has_position && !snapshot.has_media_info);
+    CHECK(snapshot.reconnect_attempts == 0 && snapshot.last_disconnect.code == PS_OK && snapshot.video_decode_backend == PS_VIDEO_DECODE_UNKNOWN);
     CHECK(ps_player_play_v1(player, NULL) == PS_ERROR_INVALID_ARGUMENT);
     CHECK(ps_player_open_v1(player, NULL, &request) == PS_ERROR_INVALID_ARGUMENT);
     source.location = "";

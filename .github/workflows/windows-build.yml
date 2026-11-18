@@ -26,6 +26,7 @@ jobs:
           -DPLAYERDEMO_QT_ROOT="${{ steps.qt.outputs.qt-root-dir }}"
           -DMYPLAYER_BUILD_QT_APP=ON
           -DMYPLAYER_BUILD_MONITOR=ON
+          -DPLAYER_SDK_BUILD_TESTS=ON
           -DBUILD_TESTING=ON
       - name: Build Debug
         run: cmake --build build --config Debug
@@ -51,8 +52,16 @@ jobs:
       - name: Upload binary C SDK
         uses: actions/upload-artifact@v4
         with:
-          name: PlayerSDK-windows-x64
+          name: PlayerSDK-windows-x64-${{ github.sha }}
           path: build/PlayerSDK/
+      - name: Package source SDK
+        run: cmake -DOUTPUT_DIR=build/source-sdk -P scripts/package-sdk.cmake
+      - name: Upload source SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayerSDK-source-${{ github.sha }}
+          path: build/source-sdk/*.zip
+          if-no-files-found: error
       - name: Package portable release
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File scripts/package-portable.ps1 -BuildDir build -Configuration Release -Version 1.0.0

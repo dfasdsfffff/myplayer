@@ -62,9 +62,10 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
 
                 ret = AVERROR(EAGAIN);
                 switch (avctx->codec_type) {
-                case AVMEDIA_TYPE_VIDEO:
+                case AVMEDIA_TYPE_VIDEO: {
                     ret = avcodec_receive_frame(avctx, frame);
                     if (ret >= 0) {
+                        auto backend = DecodedVideoBackend::Software;
                         if (hardwareDecode && hardwareDecode->isHardwareFrame(frame)) {
                             if (!transferFrame)
                                 transferFrame = av_frame_alloc();
@@ -73,6 +74,11 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
                                 return AVERROR_EXTERNAL;
                             av_frame_unref(frame);
                             av_frame_move_ref(frame, softwareFrame);
+                            backend = DecodedVideoBackend::D3D11VA;
+                        }
+                        if (backend != videoBackend_) {
+                            videoBackend_ = backend;
+                            if (onVideoBackend) onVideoBackend(backend);
                         }
                         if (decoder_reorder_pts == -1) {
                             frame->pts = frame->best_effort_timestamp;
@@ -82,6 +88,7 @@ int Decoder::decode_frame(AVFrame* frame, AVSubtitle* sub)
                         }
                     }
                     break;
+                }
                 case AVMEDIA_TYPE_AUDIO:
                     ret = avcodec_receive_frame(avctx, frame);
                     if (ret >= 0) {
@@ -202,6 +209,8 @@ void Decoder::destroy()
 	av_packet_free(&pkt);
 	av_frame_free(&transferFrame);
 	hardwareDecode.reset();
+    onVideoBackend = {};
+    videoBackend_ = DecodedVideoBackend::Unknown;
     avcodec_free_context(&avctx);
     queue = nullptr;
     empty_queue_cond = nullptr;

@@ -87,6 +87,9 @@ OFFSET(ps_video_frame_v1, bgra, 56);
 OFFSET(ps_video_frame_v1, planes, 72);
 SIZE(ps_subtitle_v1, 40);
 SIZE(ps_subtitle_bitmap_v1, 40);
+SIZE(ps_player_snapshot_v1, 616);
+OFFSET(ps_player_snapshot_v1, last_disconnect, 40);
+OFFSET(ps_player_snapshot_v1, media_info, 560);
 #undef SIZE
 #undef OFFSET
 #endif

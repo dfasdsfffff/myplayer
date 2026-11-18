@@ -10,6 +10,7 @@
 #include "frame_queue.h"
 #include "hardware_decode.h"
 #include "packet_queue.h"
+#include <functional>
 #include <memory>
 #include <thread>
 
@@ -19,6 +20,8 @@ extern int decoder_reorder_pts;
 struct FrameData {
 	int64_t pkt_pos;
 };
+
+enum class DecodedVideoBackend { Unknown, Software, D3D11VA };
 
 //解码器，管理数据队列
 class Decoder {
@@ -48,6 +51,9 @@ public:
 	int64_t next_pts = 0;
 	AVRational next_pts_tb = {0, 0};
 	std::thread decode_thread;
+	std::function<void(DecodedVideoBackend)> onVideoBackend;
 	std::unique_ptr<HardwareDecodeContext> hardwareDecode;
 	AVFrame* transferFrame = nullptr;
+private:
+    DecodedVideoBackend videoBackend_{DecodedVideoBackend::Unknown};
 };

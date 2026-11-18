@@ -82,6 +82,7 @@ void VideoCtl::stream_component_close(VideoState* is, int stream_index)
 	case AVMEDIA_TYPE_VIDEO:
 		is->video.vid_decoder.abort(&is->video.pictq);
 		is->video.vid_decoder.destroy();
+		SigVideoDecodeBackend(DecodedVideoBackend::Unknown);
 		break;
 	case AVMEDIA_TYPE_SUBTITLE:
 		is->subtitle.sub_decoder.abort(&is->subtitle.subpq);
@@ -554,6 +555,7 @@ int VideoCtl::stream_component_open(VideoState* is, int stream_index)
 		if ((ret = is->video.vid_decoder.init(avctx, &is->video.videoq, is->session.continue_read_thread,
 			std::move(hardwareDecode))) < 0)
 			goto fail;
+		is->video.vid_decoder.onVideoBackend = [this](DecodedVideoBackend backend) { SigVideoDecodeBackend(backend); };
 		packet_queue_start(is->video.vid_decoder.queue);
 		is->video.vid_decoder.decode_thread = std::thread([is] {
             try { DecoderWorkers::Video(is); } catch (...) { is->session.decoderError.store(AVERROR(ENOMEM)); }
@@ -933,6 +935,7 @@ void VideoCtl::LoopThread()
 			return;
 		}
 
+		SigReconnectAttempt();
 		VideoState* reopened = stream_open(source);
 		if (!reopened) {
             SigSessionFailure(PlaybackError::Unknown);

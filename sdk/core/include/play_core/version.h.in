@@ -1,0 +1,5 @@
+#pragma once
+
+namespace play_core {
+inline constexpr const char* Version = "@PLAYER_SDK_VERSION@";
+}

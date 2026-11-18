@@ -1,4 +1,5 @@
 #include <play_core/player.h>
+#include "../../core/src/player_event_queue.h"
 #include "media_fixture_builder.h"
 #include <condition_variable>
 #include <cmath>
@@ -11,6 +12,29 @@
 using namespace std::chrono_literals;
 namespace {
 void require(bool b, const char* message) { if (!b) throw std::runtime_error(message); }
+void testEventQueueSessionIsolation() {
+    using namespace play_core;
+    using Type = PlayerEvent::Type;
+    std::deque<PlayerEvent> queue;
+    PlayerEvent oldSubtitle; oldSubtitle.type = Type::Subtitle; oldSubtitle.session = 1;
+    PlayerEvent newSubtitle = oldSubtitle; newSubtitle.session = 2;
+    auto subtitle = std::make_shared<SubtitleFrame>(); subtitle->assOrText = "new session";
+    newSubtitle.subtitle = subtitle;
+    PlayerEvent oldResult; oldResult.type = Type::Operation; oldResult.session = 1;
+    oldResult.operation = {42, 1, OperationStatus::Superseded};
+    require(detail::enqueuePlayerEvent(queue, oldSubtitle, 1), "Old session subtitle not queued");
+    require(detail::enqueuePlayerEvent(queue, oldResult, 1), "Old session result not queued");
+    detail::discardInactiveEvents(queue, 2);
+    require(detail::enqueuePlayerEvent(queue, newSubtitle, 2), "New session subtitle not queued");
+    require(!detail::enqueuePlayerEvent(queue, oldSubtitle, 2), "Late subtitle was accepted");
+    oldResult.operation.operation = 43;
+    require(detail::enqueuePlayerEvent(queue, oldResult, 2), "Late terminal result was dropped");
+    require(queue.size() == 3 && queue[0].operation.operation == 42 && queue[1].subtitle == subtitle &&
+        queue[2].operation.operation == 43, "Late subtitle erased active data or terminal results");
+    newSubtitle.subtitle.reset();
+    require(detail::enqueuePlayerEvent(queue, newSubtitle, 2) && queue.size() == 3 && !queue[1].subtitle,
+        "Active-session subtitle clear was not coalesced");
+}
 struct Observer {
     std::mutex mutex; std::condition_variable cv;
     std::map<play_core::OperationId,play_core::OperationResult> results;
@@ -132,6 +156,7 @@ void testFrameSteps(const std::filesystem::path& path, bool variable) {
 int main() {
     auto dir = std::filesystem::temp_directory_path() / ("player-sdk-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     try {
+        testEventQueueSessionIsolation();
         std::filesystem::create_directory(dir);
         const auto fixture = BuildMediaFixtures(dir,120);
         testFrameSteps(fixture.video, false);
@@ -149,11 +174,19 @@ int main() {
             require(!player.open({""}),"Empty source accepted");
             require(!player.setVolume(2),"Invalid volume accepted");
             require(!player.setPlaybackRate(0),"Invalid speed accepted");
-            o.wait(player.open(source));
+            const auto first = player.open(source);
+            o.wait(first);
+            const auto ready = player.snapshot();
+            require(ready.session == first.session && ready.state == play_core::PlayerState::Ready &&
+                ready.mediaInfo && ready.mediaInfo->width == 64, "Ready snapshot missing current media");
             std::this_thread::sleep_for(150ms);
             { std::lock_guard lock(o.mutex); require(o.position <= 0,"Open advanced without play"); }
             o.wait(player.play());
             { std::unique_lock lock(o.mutex); require(o.cv.wait_for(lock,5s,[&] { return o.frame && o.position > 0; }),"No video/position"); }
+            const auto playing = player.snapshot();
+            require(playing.session == first.session && playing.state == play_core::PlayerState::Playing &&
+                playing.positionMs.value_or(0) > 0 && playing.diagnostics.videoDecodeBackend == play_core::VideoDecodeBackend::Software,
+                "Playing snapshot missing position or observed software decoder");
             { std::lock_guard lock(o.mutex);
               retained = o.frame;
               require(retained->format == play_core::VideoFrameFormat::Yuv420P && retained->planes[0].data,
@@ -164,13 +197,29 @@ int main() {
             auto seek = o.wait(player.seek(1234));
             require(seek.requestedPositionMs == 1234 && seek.actualPositionMs == 1234,"Seek lost milliseconds");
             o.wait(player.stop()); o.wait(player.play());
-            auto a = player.open(source); auto b = player.open(source); auto c = player.open(source);
-            o.wait(a,false); o.wait(b,false); o.wait(c);
+            auto a = player.open(source); auto b = player.open(source);
+            const auto audioPath = fixture.wav.u8string();
+            const auto audio = player.open({std::string(audioPath.begin(), audioPath.end())});
+            const auto switching = player.snapshot();
+            require(switching.session == audio.session && (!switching.mediaInfo || switching.mediaInfo->width == 0) &&
+                switching.diagnostics.videoDecodeBackend == play_core::VideoDecodeBackend::Unknown,
+                "Audio session inherited previous video state");
+            o.wait(a,false); o.wait(b,false); o.wait(audio);
+            const auto audioReady = player.snapshot();
+            require(audioReady.session == audio.session && audioReady.state == play_core::PlayerState::Ready &&
+                audioReady.mediaInfo && audioReady.mediaInfo->width == 0, "New session did not replace media snapshot");
+            const auto current = player.open(source);
+            o.wait(current);
             o.wait(player.play());
             play_core::Player second({play_core::HardwareDecode::Disabled}); Observer other;
             auto otherSub = second.subscribe([&](const auto& e) { other.event(e); });
             other.wait(second.open(source)); other.wait(second.play());
             o.wait(player.close());
+            const auto closed = player.snapshot();
+            require(closed.session == current.session && closed.state == play_core::PlayerState::Closed &&
+                !closed.mediaInfo && !closed.positionMs && closed.diagnostics.videoDecodeBackend == play_core::VideoDecodeBackend::Unknown,
+                "Closed snapshot retained media or decoder diagnostics");
+            require(ready.mediaInfo->width == 64, "Retained media snapshot no longer valid");
             { std::unique_lock lock(other.mutex); require(other.cv.wait_for(lock,5s,[&] { return other.frame != nullptr; }),"Closing one instance broke another"); }
             other.wait(second.close());
             { std::lock_guard lock(o.mutex); require(o.duplicates == 0,"Duplicate terminal results"); }

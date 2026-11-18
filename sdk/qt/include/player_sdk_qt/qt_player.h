@@ -23,6 +23,7 @@ public:
     play_core::Request selectAudioTrack(int id);
     play_core::Request selectSubtitleTrack(std::optional<int> id);
     play_core::PlayerState state() const;
+    [[nodiscard]] play_core::PlayerSnapshot snapshot() const;
     std::shared_ptr<const play_core::MediaInfo> mediaInfo() const;
 signals:
     void stateChanged(play_core::PlayerState state);

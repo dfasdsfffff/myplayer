@@ -34,6 +34,13 @@ void error(ps_error_v1& out, int32_t code, const char* text, int native = 0) noe
 void error(ps_error_v1& out, const play_core::PlayerError& e) noexcept {
     error(out, static_cast<int32_t>(e.code), e.message.c_str(), e.nativeCode);
 }
+void mediaInfo(ps_media_info_v1& out, const play_core::MediaInfo& media) noexcept {
+    out.network_source = media.networkSource; out.live = media.live; out.seekable = media.seekable;
+    out.has_duration = media.duration.has_value(); out.duration_ms = media.duration ? media.duration->count() : 0;
+    out.track_count = static_cast<uint32_t>(media.tracks.size()); out.width = media.width; out.height = media.height;
+    out.aspect_num = media.sampleAspectRatio.num; out.aspect_den = media.sampleAspectRatio.den;
+    out.rotation_degrees = media.rotationDegrees;
+}
 bool boolean(int32_t b) noexcept { return b == 0 || b == 1; }
 bool hardware(int32_t h) noexcept { return h >= PS_HARDWARE_AUTO && h <= PS_HARDWARE_D3D11VA; }
 template<class F>
@@ -163,6 +170,32 @@ int32_t PS_CALL ps_player_select_audio_track_v1(ps_player_handle p, int32_t id, 
 int32_t PS_CALL ps_player_select_subtitle_track_v1(ps_player_handle p, int32_t enabled, int32_t id, ps_request_v1* out) {
     return request(p, out, [&](auto& c) { require(boolean(enabled)); return c.selectSubtitleTrack(enabled ? std::optional<int>(id) : std::nullopt); });
 }
+int32_t PS_CALL ps_player_get_snapshot_v1(ps_player_handle player, ps_player_snapshot_v1* out, ps_event** out_media_event) {
+    if (out_media_event) *out_media_event = nullptr;
+    if (!out) return PS_ERROR_INVALID_ARGUMENT;
+    *out = {};
+    if (!player) return PS_ERROR_INVALID_ARGUMENT;
+    try {
+        const auto snapshot = player->core.snapshot();
+        if (out_media_event && snapshot.mediaInfo) {
+            play_core::PlayerEvent event;
+            event.type = play_core::PlayerEvent::Type::MediaInfo;
+            event.session = snapshot.session;
+            event.mediaInfo = snapshot.mediaInfo;
+            const ps_event view(event);
+            const auto result = ps_event_retain(&view, out_media_event);
+            if (result != PS_OK) return result;
+        }
+        out->session = snapshot.session; out->state = static_cast<int32_t>(snapshot.state);
+        out->has_position = snapshot.positionMs.has_value(); out->position_ms = snapshot.positionMs.value_or(0);
+        out->has_media_info = static_cast<bool>(snapshot.mediaInfo);
+        if (snapshot.mediaInfo) mediaInfo(out->media_info, *snapshot.mediaInfo);
+        out->video_decode_backend = static_cast<int32_t>(snapshot.diagnostics.videoDecodeBackend);
+        out->reconnect_attempts = snapshot.diagnostics.reconnectAttempts;
+        error(out->last_disconnect, snapshot.diagnostics.lastDisconnect);
+        return PS_OK;
+    } catch (...) { return PS_ERROR_INTERNAL; }
+}
 int32_t PS_CALL ps_event_retain(const ps_event* e, ps_event** out) {
     if (!out) return PS_ERROR_INVALID_ARGUMENT;
     *out = nullptr;
@@ -189,12 +222,7 @@ int32_t PS_CALL ps_event_get_info_v1(const ps_event* e, ps_event_info_v1* out) {
 int32_t PS_CALL ps_event_get_media_info_v1(const ps_event* e, ps_media_info_v1* out) {
     if (!output(e, out)) return PS_ERROR_INVALID_ARGUMENT;
     if (!e->value->mediaInfo) return PS_ERROR_INVALID_STATE;
-    const auto& m = *e->value->mediaInfo;
-    out->network_source = m.networkSource; out->live = m.live; out->seekable = m.seekable;
-    out->has_duration = m.duration.has_value(); out->duration_ms = m.duration ? m.duration->count() : 0;
-    out->track_count = static_cast<uint32_t>(m.tracks.size()); out->width = m.width; out->height = m.height;
-    out->aspect_num = m.sampleAspectRatio.num; out->aspect_den = m.sampleAspectRatio.den;
-    out->rotation_degrees = m.rotationDegrees; return PS_OK;
+    mediaInfo(*out, *e->value->mediaInfo); return PS_OK;
 }
 int32_t PS_CALL ps_event_get_track_v1(const ps_event* e, uint32_t i, ps_track_info_v1* out) {
     if (!output(e, out)) return PS_ERROR_INVALID_ARGUMENT;

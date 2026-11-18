@@ -67,6 +67,8 @@ public:
     Signal<int64_t> SigPositionMs;
     Signal<> SigNaturalEnd;
     Signal<PlaybackError> SigSessionFailure;
+    Signal<DecodedVideoBackend> SigVideoDecodeBackend;
+    Signal<> SigReconnectAttempt;
 
 
 	void set_play_speed(double dSpeed);

@@ -56,6 +56,10 @@ int main(int argc,char** argv) {
         require(bool(player->open(play_core::MediaSource{std::string(u8.begin(),u8.end())})),"Open rejected");
         require(bool(player->play()),"Play rejected");
         require(wait([&] { return view->presentedFrames() > 1; }),"Qt widget did not present video");
+        const auto snapshot = player->snapshot();
+        require(snapshot.session != 0 && snapshot.state == play_core::PlayerState::Playing && snapshot.mediaInfo &&
+            snapshot.diagnostics.videoDecodeBackend == play_core::VideoDecodeBackend::Software,
+            "Qt snapshot missing video playback diagnostics");
         const int before = frames;
         // Deliberately stall the QObject thread while Core produces more frames.
         std::this_thread::sleep_for(std::chrono::milliseconds(400));

@@ -34,6 +34,9 @@ extern "C" {
 #define PS_HARDWARE_AUTO 0
 #define PS_HARDWARE_DISABLED 1
 #define PS_HARDWARE_D3D11VA 2
+#define PS_VIDEO_DECODE_UNKNOWN 0
+#define PS_VIDEO_DECODE_SOFTWARE 1
+#define PS_VIDEO_DECODE_D3D11VA 2
 #define PS_RTSP_TCP 0
 #define PS_RTSP_UDP 1
 #define PS_STATE_CLOSED 0
@@ -121,6 +124,15 @@ typedef struct ps_media_info_v1 {
     int32_t width, height, aspect_num, aspect_den;
     double rotation_degrees;
 } ps_media_info_v1;
+typedef struct ps_player_snapshot_v1 {
+    uint64_t session;
+    int32_t state, has_position;
+    int64_t position_ms;
+    int32_t has_media_info, video_decode_backend;
+    uint64_t reconnect_attempts;
+    ps_error_v1 last_disconnect;
+    ps_media_info_v1 media_info;
+} ps_player_snapshot_v1;
 typedef struct ps_track_info_v1 {
     int32_t stream_index, type;
     const char* language;
@@ -188,6 +200,8 @@ PS_API int32_t PS_CALL ps_player_set_volume_v1(ps_player_handle player, double v
 PS_API int32_t PS_CALL ps_player_set_playback_rate_v1(ps_player_handle player, double rate, ps_request_v1* out_request);
 PS_API int32_t PS_CALL ps_player_select_audio_track_v1(ps_player_handle player, int32_t track_id, ps_request_v1* out_request);
 PS_API int32_t PS_CALL ps_player_select_subtitle_track_v1(ps_player_handle player, int32_t enabled, int32_t track_id, ps_request_v1* out_request);
+PS_API int32_t PS_CALL ps_player_get_snapshot_v1(ps_player_handle player, ps_player_snapshot_v1* out_snapshot,
+                                               ps_event** out_media_event);
 /* Retain creates an SDK-owned copy of the event handle, sharing immutable frame
  * storage. It outlives the player. Release each retained handle exactly once,
  * never release a borrowed callback event. NULL release is allowed. */

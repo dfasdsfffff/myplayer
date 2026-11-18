@@ -4,7 +4,7 @@ C ABI 是现有 `play_core` 的独立共享库适配层，不依赖 Qt；原 C++
 公开头文件为 `include/player_sdk_c/player.h`，CMake 目标为 `PlayerSDK::C`，Windows 产物为
 `player_sdk_c.dll` 和导入库 `player_sdk_c.lib`。内部实现仍用 C++20，但 C 调用方不需要 C++ 类型或头文件。
 
-项目发行目标为 `v2.1.0`；当前 `ps_version()` 实际返回 Core 的 `1.0.0`，CMake 共享库 `VERSION` 也是 `1.0.0`，`PS_ABI_VERSION` / `SOVERSION` 仍为 1。项目版本、SDK 自报版本与 ABI 主版本不可混用；本指南不表示 v2.1.0 二进制附件已发布。
+项目发行号 `v2.1.0`、SDK 版本 `1.1.0`（`ps_version()` / 共享库 `VERSION`）与 ABI 主版本 `1`（`PS_ABI_VERSION` / `SOVERSION`）独立演进。Windows 安装包的 CMake 配置提供 `PLAYER_SDK_PACKAGE_VERSION`、`PLAYER_SDK_SOURCE_COMMIT` 与 `PLAYER_SDK_SOURCE_TREE`，可用于校验所加载 DLL 的 SDK 版本并追溯源码。本指南不表示二进制附件已发布。
 
 ## 构建与链接
 
@@ -146,9 +146,15 @@ int main(void)
 此层不导出 QWidget、SDL_Window 或窗口嵌入接口，也不增加新渲染器。C/其他语言消费者使用帧接口自行渲染，
 Qt 用户继续使用 `PlayerSDK::QtWidgets`。字幕 getter 提供原始字幕数据，不承诺已经合成到视频像素。
 
+## 状态快照
+
+`ps_player_get_snapshot_v1(player, &snapshot, NULL)` 可在任意线程（包括回调）读出同一会话的状态、位置、基础媒体信息及播放诊断，不得与销毁并发。`has_position`、`has_media_info` 分别标记字段有效性；无断线记录时 `last_disconnect.code` 为 `PS_OK`。诊断和会话切换规则与 [Core SDK](../README.md#状态快照与播放诊断) 相同。
+
+若需要轨道详情，传入可选的 `ps_event**` 接收同一快照的媒体事件；无媒体信息时返回 `NULL`。该事件不发送给订阅者，不借用播放器数据，可用 `ps_event_get_track_v1()` 查询，在切源或销毁后仍有效，用完必须 `ps_event_release()`。需要调用此新增符号的宿主应部署 SDK 1.1.0 或之后的兼容版本。
+
 ## ABI 兼容约定
 
-- `ps_version()` 提供 SDK 自报版本字符串（当前 `1.0.0`），`ps_abi_version()` 是 ABI 主版本。兼容更新保留
+- `ps_version()` 提供 SDK 自报版本字符串，`ps_abi_version()` 是 ABI 主版本。兼容更新保留
   Windows 的 `player_sdk_c.dll` 文件名、ABI 主版本和原有导出；v1 基线见公开头与 `exports-v1.txt`。
 - Windows MSVC x64 构建会将实际导出表与 `exports-v1.txt` 对照。新增导出时同步更新清单，
   并保留已发布的符号和签名。

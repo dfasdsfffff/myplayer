@@ -50,6 +50,7 @@ if(TARGET PlayerSDK::C)
         C_STANDARD 11 C_STANDARD_REQUIRED YES
     )
     target_link_libraries(player_sdk_c_smoke PRIVATE PlayerSDK::C)
+    target_compile_definitions(player_sdk_c_smoke PRIVATE PLAYER_SDK_EXPECTED_VERSION="${PLAYER_SDK_VERSION}")
     add_executable(player_sdk_c_tests player_c_tests.cpp ../media_fixture_builder.cpp)
     target_compile_features(player_sdk_c_tests PRIVATE cxx_std_20)
     target_include_directories(player_sdk_c_tests PRIVATE .. ${FFMPEG_INCLUDE_DIRS})

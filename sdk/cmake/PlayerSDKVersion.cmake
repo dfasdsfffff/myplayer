@@ -1,0 +1,33 @@
+set(PLAYER_SDK_VERSION "1.1.0")
+
+function(player_sdk_write_build_info sdk_dir output_path)
+    if(EXISTS "${sdk_dir}/PlayerSDKBuildInfo.cmake")
+        configure_file("${sdk_dir}/PlayerSDKBuildInfo.cmake" "${output_path}" COPYONLY)
+        return()
+    endif()
+
+    set(PLAYER_SDK_SOURCE_COMMIT "unknown")
+    set(PLAYER_SDK_SOURCE_TREE "unknown")
+    get_filename_component(repo "${sdk_dir}/.." ABSOLUTE)
+    if(EXISTS "${repo}/.git" AND EXISTS "${repo}/scripts/package-sdk.cmake")
+        find_package(Git QUIET)
+        if(Git_FOUND)
+            execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${repo}" rev-parse --verify HEAD
+                RESULT_VARIABLE git_result OUTPUT_VARIABLE commit OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+            if(git_result STREQUAL "0" AND commit MATCHES "^[0-9a-f]+$")
+                set(PLAYER_SDK_SOURCE_COMMIT "${commit}")
+                execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${repo}" status --porcelain --untracked-files=all
+                    -- sdk scripts/package-sdk.cmake
+                    RESULT_VARIABLE status_result OUTPUT_VARIABLE status OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+                if(status_result STREQUAL "0")
+                    if(status STREQUAL "")
+                        set(PLAYER_SDK_SOURCE_TREE "clean")
+                    else()
+                        set(PLAYER_SDK_SOURCE_TREE "dirty")
+                    endif()
+                endif()
+            endif()
+        endif()
+    endif()
+    configure_file("${sdk_dir}/cmake/PlayerSDKBuildInfo.cmake.in" "${output_path}" @ONLY)
+endfunction()

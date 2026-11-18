@@ -34,9 +34,10 @@ set_target_properties(play_core PROPERTIES POSITION_INDEPENDENT_CODE ON AUTOMOC 
 add_library(PlayerSDK::Core ALIAS play_core)
 
 target_compile_features(play_core PUBLIC cxx_std_20)
+configure_file(include/play_core/version.h.in generated/include/play_core/version.h @ONLY)
 
 target_include_directories(play_core
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR}/generated/include
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${FFMPEG_INCLUDE_DIRS}

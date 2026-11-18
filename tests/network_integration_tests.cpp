@@ -193,10 +193,10 @@ public:
 
     std::string url() const { return "http://127.0.0.1:" + std::to_string(m_port) + "/video"; }
 
-    bool waitForRequest()
+    bool waitForRequest(int count = 1)
     {
         std::unique_lock lock(m_mutex);
-        return Expect(m_changed.wait_for(lock, 5s, [&] { return m_requests > 0; }),
+        return Expect(m_changed.wait_for(lock, 5s, [&] { return m_requests >= count; }),
                       "player reaches the loopback request gate");
     }
 
@@ -553,6 +553,10 @@ bool SdkNetworkCase(const std::vector<char>& media, bool reconnect)
     if (reconnect) {
         std::unique_lock lock(mutex);
         if (!Expect(cv.wait_for(lock,5s,[&] { return retrying; }),"SDK enters reconnect")) return false;
+        const auto snapshot = player.snapshot();
+        if (!Expect(snapshot.session == opening.session && snapshot.state == play_core::PlayerState::Reconnecting &&
+            snapshot.diagnostics.lastDisconnect.code == play_core::ErrorCode::Timeout &&
+            snapshot.diagnostics.reconnectAttempts == 0, "SDK records timeout without counting cancelled backoff")) return false;
     }
     const auto start = Clock::now(); const auto closing = player.close();
     std::unique_lock lock(mutex);
@@ -560,6 +564,36 @@ bool SdkNetworkCase(const std::vector<char>& media, bool reconnect)
         Expect(Clock::now()-start < 1500ms,"SDK close cancels network blocking work") &&
         Expect(results.at(opening.operation).status == play_core::OperationStatus::Cancelled,"SDK settles interrupted open once") &&
         Expect(results.at(closing.operation).status == play_core::OperationStatus::Succeeded,"SDK closes successfully");
+}
+
+bool SdkReconnectDiagnosticsCase(const std::vector<char>& media)
+{
+    LoopbackHttpServer server(media, Response::StallHeaders);
+    play_core::Player player;
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool retrying = false;
+    auto subscription = player.subscribe([&](const auto& event) {
+        if (event.type == play_core::PlayerEvent::Type::State && event.state == play_core::PlayerState::Reconnecting) {
+            std::lock_guard lock(mutex);
+            retrying = true;
+            cv.notify_all();
+        }
+    });
+    play_core::MediaSource source{server.url()};
+    source.network.connectTimeout = 150ms;
+    source.network.maxReconnectAttempts = 1;
+    const auto opening = player.open(source);
+    if (!opening || !server.waitForRequest()) return false;
+    {
+        std::unique_lock lock(mutex);
+        if (!Expect(cv.wait_for(lock, 5s, [&] { return retrying; }), "SDK starts reconnect backoff")) return false;
+    }
+    server.disconnectClient();
+    if (!server.waitForRequest(2)) return false;
+    const auto snapshot = player.snapshot();
+    return Expect(snapshot.session == opening.session && snapshot.diagnostics.reconnectAttempts == 1 &&
+        snapshot.diagnostics.lastDisconnect.code != play_core::ErrorCode::None, "SDK counts an actual reconnect request");
 }
 
 int main()
@@ -585,6 +619,7 @@ int main()
         run("normal HTTP end-of-media", CompleteCase(media));
         run("SDK close while opening", SdkNetworkCase(media,false));
         run("SDK close while reconnecting", SdkNetworkCase(media,true));
+        run("SDK reconnect diagnostics", SdkReconnectDiagnosticsCase(media));
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "Network acceptance failed: " << error.what() << '\n';

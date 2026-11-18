@@ -1,3 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(PlayerSDK VERSION 1.0.0 LANGUAGES CXX)
+include(cmake/PlayerSDKVersion.cmake)
+project(PlayerSDK VERSION ${PLAYER_SDK_VERSION} LANGUAGES CXX)
+player_sdk_write_build_info("${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/PlayerSDKBuildInfo.cmake")
 include(cmake/PlayerSDK.cmake)

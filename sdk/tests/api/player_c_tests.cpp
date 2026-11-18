@@ -18,10 +18,11 @@ struct Observer {
     ps_player_handle player{};
     ps_event* frame{};
     ps_event* media{};
+    ps_event* snapshotMedia{};
     const std::thread::id hostThread = std::this_thread::get_id();
     bool failed{}, destroyRejected{true}, closed{};
     unsigned duplicates{};
-    ~Observer() { ps_event_release(frame); ps_event_release(media); }
+    ~Observer() { ps_event_release(frame); ps_event_release(media); ps_event_release(snapshotMedia); }
     static void PS_CALL callback(void* user, const ps_event* e) {
         auto& o = *static_cast<Observer*>(user);
         std::lock_guard lock(o.mutex);
@@ -79,6 +80,11 @@ int main() {
         location.assign(location.size(), '?');
         source.location = nullptr;
         o.wait(code, r);
+        const auto session = r.session;
+        ps_player_snapshot_v1 snapshot{};
+        check(ps_player_get_snapshot_v1(guard.p, &snapshot, &o.snapshotMedia) == PS_OK && o.snapshotMedia &&
+            snapshot.session == session && snapshot.state == PS_STATE_READY && snapshot.has_media_info &&
+            snapshot.media_info.width == 64, "C ready snapshot lost media");
         check(ps_player_step_frame_v1(guard.p, 0, &r) == PS_ERROR_INVALID_ARGUMENT, "Invalid step direction accepted");
         code = ps_player_step_frame_v1(guard.p, 1, &r);
         const auto firstStep = o.wait(code, r);
@@ -94,6 +100,8 @@ int main() {
             check(o.cv.wait_for(lock, 5s, [&] { return o.frame && o.media; }), "No video/media event");
         }
         code = ps_player_set_paused_v1(guard.p, 1, &r); o.wait(code, r);
+        check(ps_player_get_snapshot_v1(guard.p, &snapshot, nullptr) == PS_OK && snapshot.state == PS_STATE_PAUSED &&
+            snapshot.video_decode_backend == PS_VIDEO_DECODE_SOFTWARE, "C decoder diagnostics missing");
         code = ps_player_seek_v1(guard.p, 1234, &r);
         const auto seek = o.wait(code, r);
         check(seek.has_requested_position && seek.requested_position_ms == 1234 &&
@@ -115,6 +123,11 @@ int main() {
         volatile uint8_t pixel = video.bgra_size ? video.bgra[0] : video.planes[0].data[0]; (void)pixel;
         ps_media_info_v1 media{}; ps_track_info_v1 track{};
         check(ps_event_get_media_info_v1(o.media, &media) == PS_OK && media.width == video.width, "Media info lost");
+        ps_event_info_v1 snapshotEvent{};
+        ps_media_info_v1 snapshotMedia{};
+        check(ps_event_get_info_v1(o.snapshotMedia, &snapshotEvent) == PS_OK && snapshotEvent.session == session &&
+            ps_event_get_media_info_v1(o.snapshotMedia, &snapshotMedia) == PS_OK && snapshotMedia.width == media.width,
+            "Snapshot media did not survive player destruction");
         check(ps_event_get_track_v1(o.media, media.track_count, &track) == PS_ERROR_INVALID_ARGUMENT, "Invalid track accepted");
         ps_subtitle_v1 sub{};
         check(ps_event_get_subtitle_v1(o.frame, &sub) == PS_ERROR_INVALID_STATE, "Wrong event payload accepted");
@@ -131,6 +144,9 @@ int main() {
         const std::string wavLocation(wavUtf8.begin(), wavUtf8.end());
         source.location = wavLocation.c_str(); source.enable_audio = 1;
         code = ps_player_open_v1(audioGuard.p, &source, &r); audio.wait(code, r);
+        check(ps_player_get_snapshot_v1(audioGuard.p, &snapshot, &audio.snapshotMedia) == PS_OK && audio.snapshotMedia &&
+            snapshot.media_info.track_count == 1 && snapshot.video_decode_backend == PS_VIDEO_DECODE_UNKNOWN,
+            "Audio snapshot lost track or reported a video decoder");
         {
             std::unique_lock lock(audio.mutex);
             check(audio.cv.wait_for(lock, 5s, [&] { return audio.media != nullptr; }), "No audio media info");
@@ -141,6 +157,8 @@ int main() {
         check(audio.wait(code, r, false).operation_status == PS_OPERATION_FAILED, "Audio-only step did not fail");
         code = ps_player_close_v1(audioGuard.p, &r); audio.wait(code, r);
         check(ps_player_destroy(audioGuard.p) == PS_OK, "Audio destroy failed"); audioGuard.p = nullptr;
+        check(ps_event_get_track_v1(audio.snapshotMedia, 0, &track) == PS_OK && track.type == PS_MEDIA_AUDIO && track.codec[0],
+            "Snapshot track data did not survive player destruction");
         std::filesystem::remove_all(dir);
         return 0;
     } catch (const std::exception& e) {

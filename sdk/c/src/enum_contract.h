@@ -3,6 +3,9 @@
 // If the C++ enums change, add a translation rather than changing the C ABI.
 #define PS_CHECK(type, cpp, c) static_assert(static_cast<int32_t>(play_core::type::cpp) == c)
 PS_CHECK(ErrorCode, None, PS_OK);
+PS_CHECK(VideoDecodeBackend, Unknown, PS_VIDEO_DECODE_UNKNOWN);
+PS_CHECK(VideoDecodeBackend, Software, PS_VIDEO_DECODE_SOFTWARE);
+PS_CHECK(VideoDecodeBackend, D3D11VA, PS_VIDEO_DECODE_D3D11VA);
 PS_CHECK(ErrorCode, InvalidArgument, PS_ERROR_INVALID_ARGUMENT);
 PS_CHECK(ErrorCode, InvalidState, PS_ERROR_INVALID_STATE);
 PS_CHECK(ErrorCode, Capacity, PS_ERROR_CAPACITY);
