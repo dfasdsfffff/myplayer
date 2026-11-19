@@ -103,6 +103,46 @@ bool CheckNativeResizeBorders(MainWid& window)
 }
 #endif
 
+bool CheckFramelessWindowState(MainWid& window)
+{
+    auto* maximize = window.findChild<QPushButton*>(QStringLiteral("MaxBtn"));
+    if (!Expect(window.windowFlags().testFlag(Qt::FramelessWindowHint) && maximize,
+                "the main window has a custom maximize button and no frame"))
+        return false;
+
+    window.showMaximized();
+    if (!Expect(maximize->toolTip() == QStringLiteral("还原"),
+                "maximizing outside the title bar updates the button"))
+        return false;
+    window.showNormal();
+    if (!Expect(maximize->toolTip() == QStringLiteral("最大化"),
+                "restoring outside the title bar updates the button"))
+        return false;
+
+    const QRect start = window.geometry();
+    const QPoint corner = window.rect().bottomRight();
+    const QPoint globalCorner = window.mapToGlobal(corner);
+    const QPoint delta(35, 30);
+    QMouseEvent press(QEvent::MouseButtonPress, corner, globalCorner,
+        Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&window, &press);
+    QMouseEvent resize(QEvent::MouseMove, corner + delta, globalCorner + delta,
+        Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&window, &resize);
+    const QRect resized(start.topLeft(), start.size() + QSize(delta.x(), delta.y()));
+    if (!Expect(window.geometry() == resized, "client-side corner resizing keeps the opposite corner anchored"))
+        return false;
+
+    QMouseEvent moveWithoutPress(QEvent::MouseMove, corner, globalCorner,
+        Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&window, &moveWithoutPress);
+    if (!Expect(window.geometry() == resized, "losing the left button ends the resize even without a release event"))
+        return false;
+
+    window.setGeometry(start);
+    return true;
+}
+
 bool CheckDesignLayout(MainWid& window)
 {
     window.resize(1440, 900);
@@ -172,7 +212,7 @@ int main(int argc, char* argv[])
         return 1;
 #endif
 
-    if (!CheckDesignLayout(window)) return 1;
+    if (!CheckFramelessWindowState(window) || !CheckDesignLayout(window)) return 1;
 
     bool openDialogShown = false;
     QTimer::singleShot(0, &window, [&]() {

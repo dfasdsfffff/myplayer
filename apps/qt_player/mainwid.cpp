@@ -14,7 +14,6 @@
 #include <QDebug>
 #include <QAbstractItemView>
 #include <QMimeData>
-#include <QSizeGrip>
 #include <QWindow>
 #include <QScreen>
 #include <QRect>
@@ -56,17 +55,21 @@ const int CTRLBAR_ANIMATION_DURATION = 1000;    // 动画持续时间（毫秒�
 const int MAX_RECENT_FILES = 10;
 const int RESIZE_BORDER_WIDTH = 8;
 
-enum ResizeEdge {
-	ResizeNone = 0,
-	ResizeLeft = 1,
-	ResizeTop = 2,
-	ResizeRight = 4,
-	ResizeBottom = 8
-};
-
-static bool IsResizeEdge(int edges)
+static Qt::Edges ResizeEdgesAt(const QRect& frame, const QPoint& position, int border)
 {
-	return edges != ResizeNone;
+	if (!frame.contains(position))
+		return {};
+
+	Qt::Edges edges;
+	if (position.x() < frame.left() + border)
+		edges |= Qt::LeftEdge;
+	else if (position.x() > frame.right() - border)
+		edges |= Qt::RightEdge;
+	if (position.y() < frame.top() + border)
+		edges |= Qt::TopEdge;
+	else if (position.y() > frame.bottom() - border)
+		edges |= Qt::BottomEdge;
+	return edges;
 }
 
 static bool IsNetworkMediaLocation(const QString& location)
@@ -81,13 +84,12 @@ MainWid::MainWid(QMainWindow* parent) :
 	m_stMenu(this),
 	m_stPlaylist(this),
 	m_stTitle(this),
-	m_bMoveDrag(false),
 	m_stActFullscreen(this),
 	m_stCtrlBarHideTimer(new QTimer(this))
 {
 	ui->setupUi(this);
 	//无边框、无系统菜单、 任务栏点击最小化
-	setWindowFlags(Qt::FramelessWindowHint /*| Qt::WindowSystemMenuHint*/ | Qt::WindowMinimizeButtonHint);
+	setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowMinimizeButtonHint);
 	//设置任务栏图标
 	this->setWindowIcon(QIcon("://res/player.png"));
 	//加载样式（使用统一设计系统）
@@ -99,7 +101,6 @@ MainWid::MainWid(QMainWindow* parent) :
 
 	m_bFullScreenPlay = false;
 
-	m_stCtrlBarAnimationTimer.setInterval(FULLSCREEN_CTRLBAR_HIDE_DELAY);
 	m_stCtrlBarHideTimer->setObjectName(QStringLiteral("ctrlBarHideTimer"));
 	m_stCtrlBarHideTimer->setInterval(FULLSCREEN_CTRLBAR_HIDE_DELAY);
 	m_stCtrlBarHideTimer->setSingleShot(true);
@@ -188,6 +189,7 @@ bool MainWid::Init()
 	{
 		return false;
 	}
+	m_stTitle.OnChangeMaxBtnStyle(isMaximized());
 
 	m_preferences = LoadPreferences(GlobalHelper::PreferencesFilePath());
 	ApplyPreferences(m_preferences);
@@ -195,6 +197,7 @@ bool MainWid::Init()
 
 	m_stCtrlbarAnimationShow = new QPropertyAnimation(ui->CtrlBarWid, "geometry", this);
 	m_stCtrlbarAnimationHide = new QPropertyAnimation(ui->CtrlBarWid, "geometry", this);
+	connect(m_stCtrlbarAnimationHide, &QPropertyAnimation::finished, ui->CtrlBarWid, &QWidget::hide);
 
 	if (m_stAboutWidget.Init() == false)
 	{
@@ -273,7 +276,6 @@ bool MainWid::ConnectSignalSlots()
 		ApplyPreferences(m_preferences);
 	});
 
-	connect(this, &MainWid::SigShowMax, &m_stTitle, &Title::OnChangeMaxBtnStyle);
 	connect(this, &MainWid::SigSeekForward, this, [this]() { m_playbackController->seekForward(); });
 	connect(this, &MainWid::SigSeekBack, this, [this]() { m_playbackController->seekBack(); });
 	connect(this, &MainWid::SigAddVolume, this, [this]() { m_playbackController->addVolume(); });
@@ -333,9 +335,6 @@ bool MainWid::ConnectSignalSlots()
 	//
 	connect(m_pPlaybackRuntimeBridge, &PlaybackRuntimeBridge::SigRandomPlayOne, &m_stPlaylist, &Playlist::OnRandomPlay);
 
-	connect(&m_stCtrlBarAnimationTimer, &QTimer::timeout, this, &MainWid::OnCtrlBarAnimationTimeOut);
-
-
 	connect(&m_stActFullscreen, &QAction::triggered, this, &MainWid::OnFullScreenPlay);
 
 
@@ -369,70 +368,99 @@ void MainWid::keyReleaseEvent(QKeyEvent* event)
 
 void MainWid::mousePressEvent(QMouseEvent* event)
 {
-	if (event->buttons() & Qt::LeftButton)
+	const QPoint globalPos = event->globalPosition().toPoint();
+	const QPoint titlePos = m_stTitle.mapFromGlobal(globalPos);
+	if (!m_bFullScreenPlay && !isFullScreen() && event->button() == Qt::LeftButton &&
+		m_stTitle.rect().contains(titlePos))
 	{
-		if (ui->TitleWid->geometry().contains(event->pos()))
-		{
-			m_bMoveDrag = true;
-			// 最大化时先记录鼠标在标题栏中的位置，真正拖动时再恢复普通状态。
-			m_DragPosition = isMaximized()
-				? event->pos()
-				: event->globalPos() - this->pos();
-		}
+		m_bMoveDrag = true;
+		m_moveThresholdReached = false;
+		m_moveStartGlobalPos = globalPos;
+		m_moveOffset = globalPos - frameGeometry().topLeft();
+		event->accept();
+		return;
 	}
 
-	QWidget::mousePressEvent(event);
+	QMainWindow::mousePressEvent(event);
 }
 
 void MainWid::mouseReleaseEvent(QMouseEvent* event)
 {
-	m_bMoveDrag = false;
-
-	QWidget::mouseReleaseEvent(event);
+	if (event->button() == Qt::LeftButton)
+		m_bMoveDrag = false;
+	QMainWindow::mouseReleaseEvent(event);
 }
 
 void MainWid::mouseMoveEvent(QMouseEvent* event)
 {
-	if (m_bMoveDrag)
+	if (!m_bMoveDrag || !(event->buttons() & Qt::LeftButton))
 	{
-		if (isMaximized())
-		{
-			// 保持鼠标在标题栏中的相对位置，避免恢复普通状态时窗口跳动。
-			const double xRatio = width() > 0
-				? static_cast<double>(m_DragPosition.x()) / width()
-				: 0.5;
-			showNormal();
-			m_DragPosition = QPoint(qRound(width() * qBound(0.0, xRatio, 1.0)), event->pos().y());
-		}
-		move(event->globalPos() - m_DragPosition);
+		m_bMoveDrag = false;
+		QMainWindow::mouseMoveEvent(event);
+		return;
 	}
 
-	QWidget::mouseMoveEvent(event);
+	const QPoint globalPos = event->globalPosition().toPoint();
+	event->accept();
+	if (!m_moveThresholdReached)
+	{
+		if ((globalPos - m_moveStartGlobalPos).manhattanLength() < QApplication::startDragDistance())
+			return;
+
+		if (isMaximized())
+		{
+			const double ratio = qBound(0.0, static_cast<double>(m_moveOffset.x()) / width(), 1.0);
+			const int offsetY = m_moveOffset.y();
+			showNormal();
+			m_moveOffset = QPoint(qRound(width() * ratio), offsetY);
+			move(globalPos - m_moveOffset);
+			m_bMoveDrag = true;
+		}
+		if (auto* handle = windowHandle(); handle && handle->startSystemMove())
+		{
+			m_bMoveDrag = false;
+			return;
+		}
+		m_moveThresholdReached = true;
+	}
+
+	move(globalPos - m_moveOffset);
+}
+
+void MainWid::changeEvent(QEvent* event)
+{
+	QMainWindow::changeEvent(event);
+	if (event->type() == QEvent::WindowStateChange)
+	{
+		ResetWindowDrag();
+		m_stTitle.OnChangeMaxBtnStyle(isMaximized());
+	}
+	else if (event->type() == QEvent::ActivationChange && !isActiveWindow())
+	{
+		ResetWindowDrag();
+	}
 }
 
 bool MainWid::nativeEvent(const QByteArray& eventType, void* message, qintptr* result)
 {
 #ifdef Q_OS_WIN
-	Q_UNUSED(eventType);
-
-	if (m_bFullScreenPlay || isMaximized())
+	if (eventType != "windows_generic_MSG" || m_bFullScreenPlay || isFullScreen() || isMaximized())
 		return QMainWindow::nativeEvent(eventType, message, result);
 
 	MSG* msg = static_cast<MSG*>(message);
 	if (!msg || msg->message != WM_NCHITTEST)
 		return QMainWindow::nativeEvent(eventType, message, result);
 
-	const LONG x = GET_X_LPARAM(msg->lParam);
-	const LONG y = GET_Y_LPARAM(msg->lParam);
 	// WM_NCHITTEST uses physical screen pixels, unlike Qt's logical geometry.
 	RECT frame;
 	if (!GetWindowRect(msg->hwnd, &frame))
 		return QMainWindow::nativeEvent(eventType, message, result);
-	const int border = qRound(RESIZE_BORDER_WIDTH * devicePixelRatioF());
-	const bool left = x >= frame.left && x < frame.left + border;
-	const bool right = x < frame.right && x >= frame.right - border;
-	const bool top = y >= frame.top && y < frame.top + border;
-	const bool bottom = y < frame.bottom && y >= frame.bottom - border;
+	const Qt::Edges edges = ResizeEdgesAt(QRect(frame.left, frame.top, frame.right - frame.left, frame.bottom - frame.top),
+		QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)), qRound(RESIZE_BORDER_WIDTH * devicePixelRatioF()));
+	const bool left = edges.testFlag(Qt::LeftEdge);
+	const bool right = edges.testFlag(Qt::RightEdge);
+	const bool top = edges.testFlag(Qt::TopEdge);
+	const bool bottom = edges.testFlag(Qt::BottomEdge);
 
 	if (top && left)
 		*result = HTTOPLEFT;
@@ -470,22 +498,20 @@ void MainWid::OnFullScreenPlay()
 {
 	if (m_bFullScreenPlay == false)
 	{
+		ResetWindowDrag();
 		m_bFullScreenPlay = true;
 		m_stActFullscreen.setChecked(true);
-		//脱离父窗口后才能设置
-		ui->ShowWid->setWindowFlags(Qt::Window);
-		//多屏情况下，在当前屏幕全屏
-		QScreen* pStCurScreen = screen();
-		ui->ShowWid->windowHandle()->setScreen(pStCurScreen);
-
+		QScreen* currentScreen = screen();
+		const QRect screenGeometry = currentScreen->geometry();
+		ui->ShowWid->setWindowFlags(Qt::FramelessWindowHint | Qt::Window);
+		ui->ShowWid->setScreen(currentScreen);
+		ui->ShowWid->setGeometry(screenGeometry);
 		ui->ShowWid->showFullScreen();
 
-
-		QRect stScreenRect = pStCurScreen->geometry();
-		int nCtrlBarHeight = ui->CtrlBarWid->height();
-		int nX = ui->ShowWid->x();
-		m_stCtrlBarAnimationShow = QRect(nX, stScreenRect.height() - nCtrlBarHeight, stScreenRect.width(), nCtrlBarHeight);
-		m_stCtrlBarAnimationHide = QRect(nX, stScreenRect.height(), stScreenRect.width(), nCtrlBarHeight);
+		const int ctrlBarHeight = ui->CtrlBarWid->height();
+		const int screenBottom = screenGeometry.y() + screenGeometry.height();
+		m_stCtrlBarAnimationShow = QRect(screenGeometry.x(), screenBottom - ctrlBarHeight, screenGeometry.width(), ctrlBarHeight);
+		m_stCtrlBarAnimationHide = m_stCtrlBarAnimationShow.translated(0, ctrlBarHeight);
 
 		m_stCtrlbarAnimationShow->setStartValue(m_stCtrlBarAnimationHide);
 		m_stCtrlbarAnimationShow->setEndValue(m_stCtrlBarAnimationShow);
@@ -496,18 +522,15 @@ void MainWid::OnFullScreenPlay()
 		m_stCtrlbarAnimationHide->setDuration(CTRLBAR_ANIMATION_DURATION);
 
 		ui->CtrlBarWid->setWindowFlags(Qt::FramelessWindowHint | Qt::Window);
-		ui->CtrlBarWid->windowHandle()->setScreen(pStCurScreen);
-		ui->CtrlBarWid->raise();
+		ui->CtrlBarWid->setScreen(currentScreen);
+		ui->CtrlBarWid->setGeometry(m_stCtrlBarAnimationShow);
 		ui->CtrlBarWid->setWindowOpacity(1.0);
 		ui->CtrlBarWid->showNormal();
-		ui->CtrlBarWid->windowHandle()->setScreen(pStCurScreen);
+		ui->CtrlBarWid->raise();
 
+		ui->CtrlBarWid->setGeometry(m_stCtrlBarAnimationHide);
 		m_stCtrlbarAnimationShow->start();
 		m_bFullscreenCtrlBarShow = true;
-
-		// 安装事件过滤器，使用事件驱动替代定时器轮询
-		ui->CtrlBarWid->installEventFilter(this);
-		ui->ShowWid->installEventFilter(this);
 
 		this->setFocus();
 	}
@@ -528,173 +551,155 @@ void MainWid::OnFullScreenPlay()
 		ui->CtrlBarWid->showNormal();
 		ui->ShowWid->showNormal();
 
-		// 移除事件过滤器
-		ui->CtrlBarWid->removeEventFilter(this);
-		ui->ShowWid->removeEventFilter(this);
-
-		this->setFocus();
+		activateWindow();
+		setFocus();
 	}
 }
 
-void MainWid::OnCtrlBarAnimationTimeOut()
+void MainWid::ResetWindowDrag()
 {
-	QApplication::setOverrideCursor(Qt::BlankCursor);
+	m_bMoveDrag = false;
+	m_resizeEdges = {};
+	UpdateResizeCursor({});
 }
 
-// 新：使用事件过滤器处理全屏模式下的鼠标事件（替代定时器轮询）
+void MainWid::UpdateResizeCursor(Qt::Edges edges)
+{
+	if (!edges)
+	{
+		if (m_resizeCursorSet)
+		{
+			unsetCursor();
+			m_resizeCursorSet = false;
+		}
+		return;
+	}
+
+	const bool left = edges.testFlag(Qt::LeftEdge);
+	const bool right = edges.testFlag(Qt::RightEdge);
+	const bool top = edges.testFlag(Qt::TopEdge);
+	const bool bottom = edges.testFlag(Qt::BottomEdge);
+	if ((left && top) || (right && bottom))
+		setCursor(Qt::SizeFDiagCursor);
+	else if ((right && top) || (left && bottom))
+		setCursor(Qt::SizeBDiagCursor);
+	else if (left || right)
+		setCursor(Qt::SizeHorCursor);
+	else
+		setCursor(Qt::SizeVerCursor);
+	m_resizeCursorSet = true;
+}
+
 bool MainWid::eventFilter(QObject* watched, QEvent* event)
 {
+	auto* widget = qobject_cast<QWidget*>(watched);
+	if (!widget)
+		return QMainWindow::eventFilter(watched, event);
+
 	if (!m_bFullScreenPlay)
 	{
-		QWidget* watchedWidget = qobject_cast<QWidget*>(watched);
-		if (watchedWidget && (watchedWidget == this || isAncestorOf(watchedWidget)))
-		{
-			auto globalMousePos = [](QMouseEvent* mouseEvent) {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-				return mouseEvent->globalPosition().toPoint();
-#else
-				return mouseEvent->globalPos();
-#endif
-			};
-			auto resizeEdgesAt = [this](const QPoint& globalPos) {
-				const QRect frame = frameGeometry();
-				int edges = ResizeNone;
-				if (globalPos.x() >= frame.left() && globalPos.x() < frame.left() + RESIZE_BORDER_WIDTH)
-					edges |= ResizeLeft;
-				if (globalPos.x() <= frame.right() && globalPos.x() > frame.right() - RESIZE_BORDER_WIDTH)
-					edges |= ResizeRight;
-				if (globalPos.y() >= frame.top() && globalPos.y() < frame.top() + RESIZE_BORDER_WIDTH)
-					edges |= ResizeTop;
-				if (globalPos.y() <= frame.bottom() && globalPos.y() > frame.bottom() - RESIZE_BORDER_WIDTH)
-					edges |= ResizeBottom;
-				return edges;
-			};
-			auto cursorForEdges = [](int edges) {
-				if ((edges & ResizeLeft && edges & ResizeTop) || (edges & ResizeRight && edges & ResizeBottom))
-					return Qt::SizeFDiagCursor;
-				if ((edges & ResizeRight && edges & ResizeTop) || (edges & ResizeLeft && edges & ResizeBottom))
-					return Qt::SizeBDiagCursor;
-				if (edges & (ResizeLeft | ResizeRight))
-					return Qt::SizeHorCursor;
-				if (edges & (ResizeTop | ResizeBottom))
-					return Qt::SizeVerCursor;
-				return Qt::ArrowCursor;
-			};
-			auto restoreResizeCursor = [this]() {
-				if (m_bResizeCursorOverridden)
-				{
-					QApplication::restoreOverrideCursor();
-					m_bResizeCursorOverridden = false;
-				}
-			};
+		if (widget->window() != this)
+			return QMainWindow::eventFilter(watched, event);
 
-			if (event->type() == QEvent::MouseButtonPress)
+		const auto type = event->type();
+		if (type == QEvent::UngrabMouse || (widget == this && type == QEvent::Hide))
+		{
+			ResetWindowDrag();
+		}
+		else if (widget == this && type == QEvent::Leave && !m_resizeEdges)
+		{
+			UpdateResizeCursor({});
+		}
+		else if (!isMaximized() && !isFullScreen())
+		{
+			if (type == QEvent::Enter && !m_resizeEdges)
 			{
-				QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-				if (mouseEvent->button() == Qt::LeftButton && !isMaximized())
+				const auto* enter = static_cast<QEnterEvent*>(event);
+				UpdateResizeCursor(ResizeEdgesAt(frameGeometry(), enter->globalPosition().toPoint(), RESIZE_BORDER_WIDTH));
+			}
+			else if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease || type == QEvent::MouseMove)
+			{
+				auto* mouse = static_cast<QMouseEvent*>(event);
+				const QPoint globalPos = mouse->globalPosition().toPoint();
+				const Qt::Edges edges = ResizeEdgesAt(frameGeometry(), globalPos, RESIZE_BORDER_WIDTH);
+
+				if (type == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton && edges)
 				{
-					const int edges = resizeEdgesAt(globalMousePos(mouseEvent));
-					if (IsResizeEdge(edges))
+					m_bMoveDrag = false;
+#ifndef Q_OS_WIN
+					if (auto* handle = windowHandle(); handle && handle->startSystemResize(edges))
 					{
-						m_bResizeDrag = true;
-						m_resizeEdges = edges;
-						m_resizeStartGlobalPos = globalMousePos(mouseEvent);
-						m_resizeStartGeometry = geometry();
-						m_bMoveDrag = false;
+						event->accept();
+						return true;
+					}
+#endif
+					m_resizeEdges = edges;
+					m_resizeStartGlobalPos = globalPos;
+					m_resizeStartGeometry = geometry();
+					UpdateResizeCursor(edges);
+					event->accept();
+					return true;
+				}
+
+				if (type == QEvent::MouseMove)
+				{
+					if (m_resizeEdges && (mouse->buttons() & Qt::LeftButton))
+					{
+						const QPoint delta = globalPos - m_resizeStartGlobalPos;
+						const QRect start = m_resizeStartGeometry;
+						QRect resized = start;
+						if (m_resizeEdges.testFlag(Qt::LeftEdge))
+							resized.setLeft(start.right() + 1 - qBound(minimumWidth(), start.width() - delta.x(), maximumWidth()));
+						if (m_resizeEdges.testFlag(Qt::RightEdge))
+							resized.setWidth(qBound(minimumWidth(), start.width() + delta.x(), maximumWidth()));
+						if (m_resizeEdges.testFlag(Qt::TopEdge))
+							resized.setTop(start.bottom() + 1 - qBound(minimumHeight(), start.height() - delta.y(), maximumHeight()));
+						if (m_resizeEdges.testFlag(Qt::BottomEdge))
+							resized.setHeight(qBound(minimumHeight(), start.height() + delta.y(), maximumHeight()));
+						setGeometry(resized);
+						event->accept();
+						return true;
+					}
+
+					m_resizeEdges = {};
+					UpdateResizeCursor(edges);
+				}
+				else if (type == QEvent::MouseButtonRelease && mouse->button() == Qt::LeftButton)
+				{
+					m_bMoveDrag = false;
+					if (m_resizeEdges)
+					{
+						m_resizeEdges = {};
+						UpdateResizeCursor(edges);
 						event->accept();
 						return true;
 					}
 				}
 			}
-			else if (event->type() == QEvent::MouseMove)
-			{
-				QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-				const QPoint globalPos = globalMousePos(mouseEvent);
-
-				if (m_bResizeDrag)
-				{
-					const QPoint delta = globalPos - m_resizeStartGlobalPos;
-					QRect newGeometry = m_resizeStartGeometry;
-					const int minW = minimumWidth();
-					const int minH = minimumHeight();
-
-					if (m_resizeEdges & ResizeLeft)
-						newGeometry.setLeft(qMin(m_resizeStartGeometry.left() + delta.x(), m_resizeStartGeometry.right() - minW + 1));
-					if (m_resizeEdges & ResizeRight)
-						newGeometry.setRight(qMax(m_resizeStartGeometry.right() + delta.x(), m_resizeStartGeometry.left() + minW - 1));
-					if (m_resizeEdges & ResizeTop)
-						newGeometry.setTop(qMin(m_resizeStartGeometry.top() + delta.y(), m_resizeStartGeometry.bottom() - minH + 1));
-					if (m_resizeEdges & ResizeBottom)
-						newGeometry.setBottom(qMax(m_resizeStartGeometry.bottom() + delta.y(), m_resizeStartGeometry.top() + minH - 1));
-
-					setGeometry(newGeometry);
-					event->accept();
-					return true;
-				}
-
-				const int edges = resizeEdgesAt(globalPos);
-				if (IsResizeEdge(edges) && !isMaximized())
-				{
-					const QCursor cursor(cursorForEdges(edges));
-					if (m_bResizeCursorOverridden)
-						QApplication::changeOverrideCursor(cursor);
-					else
-					{
-						QApplication::setOverrideCursor(cursor);
-						m_bResizeCursorOverridden = true;
-					}
-				}
-				else
-				{
-					restoreResizeCursor();
-				}
-			}
-			else if (event->type() == QEvent::MouseButtonRelease)
-			{
-				if (m_bResizeDrag)
-				{
-					m_bResizeDrag = false;
-					m_resizeEdges = ResizeNone;
-					event->accept();
-					return true;
-				}
-			}
-			else if (event->type() == QEvent::Leave)
-			{
-				if (!m_bResizeDrag)
-					restoreResizeCursor();
-			}
 		}
-	}
-
-	if (!m_bFullScreenPlay)
-	{
 		return QMainWindow::eventFilter(watched, event);
 	}
+
+	if (widget->window() != ui->ShowWid && widget->window() != ui->CtrlBarWid)
+		return QMainWindow::eventFilter(watched, event);
 
 	if (event->type() == QEvent::MouseMove)
 	{
 		QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-		QPoint globalPos = mouseEvent->globalPos();
+		const QPoint globalPos = mouseEvent->globalPosition().toPoint();
 
 		// 检查鼠标是否在控制面板区域
 		if (m_stCtrlBarAnimationShow.contains(globalPos))
 		{
 			m_stCtrlBarHideTimer->stop();
-			m_bFullscreenCtrlBarShow = true;
-			// 鼠标在控制栏附近，显示控制栏
-			if (!ui->CtrlBarWid->geometry().contains(globalPos))
+			if (!m_bFullscreenCtrlBarShow)
 			{
-				// 需要显示控制栏
+				m_bFullscreenCtrlBarShow = true;
+				m_stCtrlbarAnimationHide->stop();
+				m_stCtrlbarAnimationShow->setStartValue(ui->CtrlBarWid->geometry());
+				ui->CtrlBarWid->show();
 				ui->CtrlBarWid->raise();
 				m_stCtrlbarAnimationShow->start();
-				m_stCtrlbarAnimationHide->stop();
-				QApplication::restoreOverrideCursor();
-			}
-			else
-			{
-				// 鼠标在控制面板上，保持显示
-				QApplication::restoreOverrideCursor();
 			}
 		}
 		else
@@ -707,7 +712,7 @@ bool MainWid::eventFilter(QObject* watched, QEvent* event)
 			}
 		}
 	}
-	else if (event->type() == QEvent::Leave)
+	else if (event->type() == QEvent::Leave && widget->isWindow())
 	{
 		// 鼠标离开窗口，准备隐藏控制栏
 		if (m_bFullscreenCtrlBarShow)
@@ -724,6 +729,8 @@ void MainWid::OnCtrlBarHideTimeOut()
 {
 	if (m_bFullScreenPlay)
 	{
+		m_stCtrlbarAnimationShow->stop();
+		m_stCtrlbarAnimationHide->setStartValue(ui->CtrlBarWid->geometry());
 		m_stCtrlbarAnimationHide->start();
 	}
 }
@@ -1198,12 +1205,10 @@ void MainWid::OnMaxBtnClicked()
 	if (isMaximized())
 	{
 		showNormal();
-		emit SigShowMax(false);
 	}
 	else
 	{
 		showMaximized();
-		emit SigShowMax(true);
 	}
 }
 

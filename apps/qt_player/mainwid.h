@@ -57,6 +57,7 @@ protected:
     void mousePressEvent(QMouseEvent *event);
     void mouseReleaseEvent(QMouseEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
+    void changeEvent(QEvent* event) override;
 
     void contextMenuEvent(QContextMenuEvent* event);
 
@@ -84,9 +85,9 @@ private:
     */
     void OnFullScreenPlay();
 
-    void OnCtrlBarAnimationTimeOut();
-
     void OnCtrlBarHideTimeOut();
+    void ResetWindowDrag();
+    void UpdateResizeCursor(Qt::Edges edges);
     void OnShowMenu();
     void OnShowAbout();
     void OpenFile();
@@ -118,8 +119,6 @@ private:
     void ApplyPreferences(const AppPreferences& preferences);
 
 signals:
-    //最大化信号
-    void SigShowMax(bool bIfMax);
     void SigSeekForward();
     void SigSeekBack();
     void SigAddVolume();
@@ -140,15 +139,16 @@ private:
     QRect m_stCtrlBarAnimationShow;//控制面板显示区域
     QRect m_stCtrlBarAnimationHide;//控制面板隐藏区域
 
-    QTimer m_stCtrlBarAnimationTimer;
     bool m_bFullscreenCtrlBarShow = false;
     QTimer* m_stCtrlBarHideTimer;
 
     Playlist m_stPlaylist;
     Title m_stTitle;
 
-    bool m_bMoveDrag;//移动窗口标志
-    QPoint m_DragPosition;
+    bool m_bMoveDrag = false;
+    bool m_moveThresholdReached = false;
+    QPoint m_moveStartGlobalPos;
+    QPoint m_moveOffset;
 
     About m_stAboutWidget;
     SettingWid m_stSettingWid;
@@ -170,9 +170,8 @@ private:
     quint64 m_playbackGeneration = 0;
     quint64 m_lastFinalErrorGeneration = 0;
     QTimer m_playbackPositionSaveTimer;
-    bool m_bResizeDrag = false;
-    bool m_bResizeCursorOverridden = false;
-    int m_resizeEdges = 0;
+    bool m_resizeCursorSet = false;
+    Qt::Edges m_resizeEdges;
     QPoint m_resizeStartGlobalPos;
     QRect m_resizeStartGeometry;
 
